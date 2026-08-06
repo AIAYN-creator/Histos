@@ -72,3 +72,22 @@ def test_validate_command_on_example_canvas(tmp_path, monkeypatch):
     repo_root = Path(__file__).resolve().parents[1]
     shutil.copy(repo_root / "examples" / "example.canvas", tmp_path / "project.canvas")
     assert run(monkeypatch, tmp_path, "validate") == 0
+
+
+def test_init_installs_agent_templates(tmp_path, monkeypatch):
+    assert run(monkeypatch, tmp_path, "init") == 0
+
+    claude_md = tmp_path / "CLAUDE.md"
+    agents_md = tmp_path / "AGENTS.md"
+    assert claude_md.read_text(encoding="utf-8").strip() == "@AGENTS.md"
+    assert "--authorized" in agents_md.read_text(encoding="utf-8")
+
+
+def test_init_does_not_overwrite_existing_agent_files(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "AGENTS.md").write_text("contenido del usuario, no tocar\n", encoding="utf-8")
+
+    assert run(monkeypatch, tmp_path, "init") == 0
+
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == "contenido del usuario, no tocar\n"
+    assert (tmp_path / "CLAUDE.md").exists()

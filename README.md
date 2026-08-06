@@ -95,7 +95,7 @@ trellis status                                           # tarjetas agrupadas po
 trellis validate                                         # valida project.canvas contra el schema formal
 ```
 
-Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`).
+Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`). Guía práctica de uso día a día (para humanos, no para agentes): [`docs/usage.md`](docs/usage.md).
 
 ## Alcance del MVP (v1)
 
@@ -104,7 +104,7 @@ Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`
 - Uso de frontmatter en los `.md` para metadatos que Obsidian no interpreta nativamente
 - CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `assign`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/trellis/`](src/trellis/), [`tests/`](tests/))
 - Modo no interactivo del CLI para trabajo AFK — resuelto: ningún comando usa prompts interactivos, no hace falta flag especial
-- `CLAUDE.md` / system prompt documentando esquema, leyenda de colores y reglas de autorización de los dos loops
+- Instrucciones para agentes documentando esquema, leyenda de colores y reglas de autorización de los dos loops — implementado como [`AGENTS.md`](src/trellis/templates/AGENTS.md) (fuente única, agnóstico de agente) + `CLAUDE.md` (una línea, `@AGENTS.md`), que `trellis init` copia a cada vault nuevo
 - Flujo de aprobación de escritura real vía diff antes de tocar un `.md` canónico
 - Dogfooding sobre un proyecto real de TFG
 

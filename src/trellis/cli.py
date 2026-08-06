@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import sys
+from importlib import resources
 from pathlib import Path
 
 from . import canvas, frontmatter, validation
@@ -18,6 +19,17 @@ STATE_NAMES = {
 }
 
 PROPOSALS_DIR = ".trellis/proposals"
+AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md"]
+
+
+def _install_agent_templates(vault_root: Path) -> None:
+    for name in AGENT_TEMPLATES:
+        target = vault_root / name
+        if target.exists():
+            print(f"aviso: ya existe {name}, no lo toco -- copia el contenido de referencia a mano si quieres", file=sys.stderr)
+            continue
+        ref = resources.files("trellis").joinpath("templates", name)
+        target.write_text(ref.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def _vault_root() -> Path:
@@ -48,6 +60,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     (vault_root / "content").mkdir(parents=True, exist_ok=True)
     (vault_root / PROPOSALS_DIR).mkdir(parents=True, exist_ok=True)
     canvas.save(vault_root, {"nodes": [], "edges": []})
+    _install_agent_templates(vault_root)
     print(f"vault inicializado en {vault_root}")
     return 0
 

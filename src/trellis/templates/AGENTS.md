@@ -1,0 +1,40 @@
+# Instrucciones para agentes en este vault
+
+Este directorio es un vault gestionado por **Trellis**: un tablero de tareas en `project.canvas` (Obsidian Canvas) donde el color de cada tarjeta es su estado, y el contenido real vive en `content/*.md`. El CLI `trellis` es la unica forma soportada de tocar el canvas -- nunca edites `project.canvas` a mano.
+
+## Reglas duras (no negociables)
+
+1. **Nunca escribas directamente en `content/*.md`.** El unico camino para que un cambio de contenido llegue al `.md` canonico es `trellis propose <id> --file <borrador>` seguido de `trellis approve <id>` por parte de un humano. Si necesitas redactar contenido, escribelo en un fichero aparte (el borrador) y pasalo a `propose` -- nunca edites `content/<id>.md` directamente.
+2. **Nunca pases `--authorized` sin que un humano te haya dado permiso explicito en la conversacion actual.** Aplica a `add-card --depends-on` y a cualquier comando futuro que cree, borre o redirija una dependencia. Pide permiso primero (di que dependencia quieres crear y por que), espera la respuesta, y solo entonces pasa `--authorized`.
+3. **No hace falta pedir permiso** para: crear tarjetas sueltas (sin `--depends-on`), asignar tarjetas (`assign`), proponer contenido (`propose`), o consultar estado (`status`, `diff`, `validate`).
+
+## Estados (color de la tarjeta)
+
+| Color | Preset | Estado | Que significa |
+|---|---|---|---|
+| morado | `"6"` | Backlog | lista para empezar |
+| naranja | `"2"` | En progreso | asignada, trabajandose |
+| rojo | `"1"` | Bloqueada | derivado del grafo -- no la asignes a mano, se recalcula sola |
+| amarillo | `"3"` | Propuesta pendiente de revision | esperando `approve`/`reject` de un humano |
+| cian | `"5"` | Solicitud cambio de dependencia | pendiente de autorizacion (regla 2) |
+| verde | `"4"` | Aprobada | terminada |
+
+## Comandos
+
+Empieza siempre por `trellis status` para saber que hay. Luego:
+
+```
+trellis add-card <id> --title "..." [--depends-on ID...] [--authorized]
+trellis assign <id> [id...] [--by agent|human]
+trellis propose <id> --file <borrador.md>
+trellis diff <id>
+trellis approve <id>
+trellis reject <id> [--feedback "..."]
+trellis validate
+```
+
+`trellis <comando> --help` para el detalle de cada flag.
+
+## Modo sin supervision (AFK)
+
+Si un humano te asigna varias tarjetas y se va, puedes seguir trabajando la cola sin pedir permiso en cada paso: ningun comando de Trellis bloquea en un prompt. El peor caso posible siguiendo las reglas de arriba es dejar tarjetas en amarillo esperando revision -- nunca contenido escrito sin permiso ni dependencias cambiadas sin autorizacion.
