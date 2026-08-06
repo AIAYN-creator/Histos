@@ -151,6 +151,27 @@ def test_link_rejects_cycle(tmp_path, monkeypatch):
     assert not any(e["fromNode"] == "cap2" and e["toNode"] == "cap1" for e in edges)
 
 
+def test_add_card_size_reflects_description_length(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "corto", "--title", "Corto", "--description", "poco texto")
+    run(monkeypatch, tmp_path, "add-card", "largo", "--title", "Largo", "--description", "x" * 200)
+
+    data = canvas.load(tmp_path)
+    assert canvas.find_card(data, "largo")["height"] > canvas.find_card(data, "corto")["height"]
+
+
+def test_link_triggers_relayout(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Dos")
+    before_x = canvas.find_card(canvas.load(tmp_path), "cap2")["x"]
+
+    run(monkeypatch, tmp_path, "link", "cap2", "--depends-on", "cap1", "--authorized")
+
+    after_x = canvas.find_card(canvas.load(tmp_path), "cap2")["x"]
+    assert after_x != before_x
+
+
 def test_describe_updates_frontmatter_only(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")

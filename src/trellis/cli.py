@@ -51,6 +51,18 @@ def _load_valid(vault_root: Path) -> dict:
     return data
 
 
+def _resync_sizes_and_layout(vault_root: Path, data: dict) -> None:
+    """Recalcula tamano (segun la descripcion real de cada tarjeta) y posicion (por rango
+    de dependencia). Se llama tras cualquier cambio que afecte al grafo o a una descripcion.
+    """
+    for card in canvas.cards(data):
+        md_path = canvas.card_file_path(vault_root, card)
+        if md_path.exists():
+            meta, _ = frontmatter.read(md_path)
+            card["width"], card["height"] = canvas.estimate_card_size(meta.get("description"))
+    canvas.relayout(data)
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     canvas_path = canvas.vault_canvas_path(vault_root)
@@ -95,7 +107,8 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     all_approved = all(by_id[dep]["color"] == canvas.APROBADA for dep in depends_on)
     initial_color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOQUEADA
 
-    node = canvas.add_card_node(data, args.id, initial_color)
+    width, height = canvas.estimate_card_size(args.description)
+    node = canvas.add_card_node(data, args.id, initial_color, width=width, height=height)
     for dep in depends_on:
         canvas.add_edge(data, dep, args.id)
 
@@ -103,8 +116,6 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     if cycle:
         print(f"error: esa dependencia formaria un ciclo: {' -> '.join(cycle)}", file=sys.stderr)
         return 1
-
-    canvas.save(vault_root, data)
 
     md_path = canvas.card_file_path(vault_root, node)
     md_path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,6 +125,9 @@ def cmd_add_card(args: argparse.Namespace) -> int:
         meta["description"] = args.description
         body += f"{args.description}\n\n"
     frontmatter.write(md_path, meta, body)
+
+    _resync_sizes_and_layout(vault_root, data)
+    canvas.save(vault_root, data)
 
     print(f"tarjeta '{args.id}' creada ({STATE_NAMES[initial_color]}) -> {node['file']}")
     return 0
@@ -160,6 +174,7 @@ def cmd_link(args: argparse.Namespace) -> int:
         return 1
 
     canvas.recompute_blocked(data)
+    _resync_sizes_and_layout(vault_root, data)
     canvas.save(vault_root, data)
     print(f"'{args.id}' ahora depende de: {', '.join(args.depends_on)}")
     return 0
@@ -221,6 +236,10 @@ def cmd_describe(args: argparse.Namespace) -> int:
     meta, body = frontmatter.read(md_path)
     meta["description"] = args.text
     frontmatter.write(md_path, meta, body)
+
+    _resync_sizes_and_layout(vault_root, data)
+    canvas.save(vault_root, data)
+
     print(f"'{args.id}': descripcion actualizada")
     return 0
 

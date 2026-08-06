@@ -19,10 +19,13 @@ BACKLOG = "6"
 # el resto son estados activos que solo cambian por accion explicita.
 _DERIVED_COLORS = {BLOQUEADA, BACKLOG}
 
-CARD_WIDTH = 250
+CARD_WIDTH = 280
 CARD_HEIGHT = 100
 CARD_ROW_Y = 200
-CARD_X_STEP = 320
+CARD_X_STEP = 340
+CARD_Y_GAP = 40
+_CHARS_PER_LINE = 30
+_LINE_HEIGHT = 28
 
 LEGEND_ID = "legend"
 _LEGEND_TEXT = """## Leyenda de estados (Trellis)
@@ -84,20 +87,73 @@ def card_file_path(vault_root: Path, card: dict) -> Path:
     return vault_root / card["file"]
 
 
-def add_card_node(data: dict, card_id: str, color: str) -> dict:
+def add_card_node(data: dict, card_id: str, color: str, width: int = CARD_WIDTH, height: int = CARD_HEIGHT) -> dict:
     n = len(cards(data))
     node = {
         "id": card_id,
         "type": "file",
         "x": CARD_X_STEP * n,
         "y": CARD_ROW_Y,
-        "width": CARD_WIDTH,
-        "height": CARD_HEIGHT,
+        "width": width,
+        "height": height,
         "file": f"content/{card_id}.md",
         "color": color,
     }
     data.setdefault("nodes", []).append(node)
     return node
+
+
+def estimate_card_size(description: Optional[str]) -> tuple[int, int]:
+    """Heuristica de tamano a partir de la longitud de la descripcion (ancho fijo, para que
+    las columnas del relayout queden alineadas). Aproximado -- Obsidian decide el wrap real --
+    pero muchisimo mejor que un 250x100 fijo para toda tarjeta sea cual sea su contenido.
+    """
+    desc = description or ""
+    desc_lines = -(-len(desc) // _CHARS_PER_LINE) if desc else 0  # ceil division
+    total_lines = 1 + desc_lines  # +1 por el titulo (heading)
+    height = max(CARD_HEIGHT, 40 + total_lines * _LINE_HEIGHT + 20)
+    return CARD_WIDTH, height
+
+
+def compute_ranks(data: dict) -> dict[str, int]:
+    """Rango de cada tarjeta = camino mas largo desde una raiz (tarjeta sin dependencias).
+    Asume el grafo aciclico -- ya se comprueba en cada mutacion de edges antes de llegar aqui.
+    """
+    by_id = {c["id"]: c for c in cards(data)}
+    incoming: dict[str, list[str]] = {cid: [] for cid in by_id}
+    for e in data.get("edges", []):
+        if e["fromNode"] in by_id and e["toNode"] in by_id:
+            incoming[e["toNode"]].append(e["fromNode"])
+
+    rank: dict[str, int] = {}
+
+    def resolve(cid: str) -> int:
+        if cid in rank:
+            return rank[cid]
+        deps = incoming[cid]
+        rank[cid] = 0 if not deps else 1 + max(resolve(d) for d in deps)
+        return rank[cid]
+
+    for cid in by_id:
+        resolve(cid)
+    return rank
+
+
+def relayout(data: dict) -> None:
+    """Reposiciona todas las tarjetas: columna = rango de dependencia, apiladas en vertical
+    dentro de cada columna (usa el width/height que ya tenga cada una). No toca group/text.
+    """
+    ranks = compute_ranks(data)
+    by_rank: dict[int, list[dict]] = {}
+    for card in cards(data):
+        by_rank.setdefault(ranks[card["id"]], []).append(card)
+
+    for r, group in by_rank.items():
+        y = CARD_ROW_Y
+        for card in sorted(group, key=lambda c: c["id"]):
+            card["x"] = r * CARD_X_STEP
+            card["y"] = y
+            y += card["height"] + CARD_Y_GAP
 
 
 def build_legend_node() -> dict:

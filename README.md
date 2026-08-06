@@ -48,7 +48,7 @@ Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido
 > Esquema formal y machine-checkable: [`src/trellis/schema/trellis-canvas.schema.json`](src/trellis/schema/trellis-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
 - **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido. (`text` se usa únicamente para la leyenda de colores decorativa que genera `trellis init`; el CLI la ignora por completo.)
-- **Layout:** lectura tipo diagrama de Gantt pero sin fechas de calendario — la posición horizontal aproxima el orden topológico de dependencias. Auto-layout tipo `dagre` al reestructurar.
+- **Layout:** lectura tipo diagrama de Gantt pero sin fechas de calendario — la columna (x) es el rango de dependencia (camino más largo desde una raíz), las tarjetas del mismo rango se apilan en vertical. El tamaño de cada tarjeta se calcula a partir de la longitud de su `description`. `add-card`, `link` y `describe` recalculan tamaño+posición de todas las tarjetas automáticamente. No es un dagre completo (sin minimización de cruces de edges), pero cubre el caso de uso real.
 
 ### Leyenda de colores
 
