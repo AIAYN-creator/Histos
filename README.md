@@ -98,6 +98,12 @@ trellis status                                           # tarjetas agrupadas po
 trellis validate                                         # valida project.canvas contra el schema formal
 ```
 
+### Abrir el vault en Obsidian
+
+`trellis init` crea `project.canvas` en el directorio actual — esa carpeta, **exactamente esa y ninguna por encima**, es la que tienes que abrir como vault en Obsidian (`Open folder as vault`). Canvas es una función nativa de Obsidian; no hace falta ningún plugin.
+
+Por qué importa tanto: las tarjetas referencian sus `.md` con rutas relativas al vault (`content/cap1.md`). Si abres una carpeta por encima de la que contiene `project.canvas` (p. ej. el directorio padre en vez del propio vault), esas rutas ya no resuelven y Obsidian te muestra las tarjetas como "Create new note" / "Swap file..." en vez de con contenido — no está roto, es la carpeta equivocada. Si te pasa después de tener el vault bien abierto (p. ej. porque `trellis` creó ficheros mientras Obsidian ya estaba abierto), recarga con `Ctrl+R` antes de sospechar de nada más.
+
 Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`). Guía práctica de uso día a día (para humanos, no para agentes): [`docs/usage.md`](docs/usage.md).
 
 ## Alcance del MVP (v1)
