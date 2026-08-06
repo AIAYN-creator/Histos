@@ -9,6 +9,7 @@ import yaml
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
 
 DEFAULT_META = {
+    "description": None,
     "estimated_duration_hours": None,
     "actual_duration_hours": None,
     "assigned_to": None,

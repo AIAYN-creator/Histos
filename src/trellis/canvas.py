@@ -24,6 +24,21 @@ CARD_HEIGHT = 100
 CARD_ROW_Y = 200
 CARD_X_STEP = 320
 
+LEGEND_ID = "legend"
+_LEGEND_TEXT = """## Leyenda de estados (Trellis)
+
+| Color | Estado |
+|---|---|
+| \U0001F7E3 morado | Backlog |
+| \U0001F7E0 naranja | En progreso |
+| \U0001F534 rojo | Bloqueada (derivado, no se asigna a mano) |
+| \U0001F7E1 amarillo | Propuesta pendiente de revision |
+| \U0001F535 cian | Solicitud cambio de dependencia |
+| \U0001F7E2 verde | Aprobada |
+
+Detalle: docs/canvas-schema.md en el repo de Trellis.
+"""
+
 
 class TrellisError(Exception):
     """Errores esperables (vault no encontrado, id duplicado, etc.) -- mensaje ya listo para el usuario."""
@@ -83,6 +98,22 @@ def add_card_node(data: dict, card_id: str, color: str) -> dict:
     }
     data.setdefault("nodes", []).append(node)
     return node
+
+
+def build_legend_node() -> dict:
+    """Nodo de texto decorativo con la leyenda de colores. Ignorado por toda la logica
+    de estado/dependencias (que filtra por type=='file'); solo sirve para que la leyenda
+    sea visible directamente en el canvas al abrirlo en Obsidian.
+    """
+    return {
+        "id": LEGEND_ID,
+        "type": "text",
+        "x": 0,
+        "y": -320,
+        "width": 520,
+        "height": 260,
+        "text": _LEGEND_TEXT,
+    }
 
 
 def add_edge(data: dict, from_id: str, to_id: str) -> None:

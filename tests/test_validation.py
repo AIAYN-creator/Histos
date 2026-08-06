@@ -10,9 +10,9 @@ def test_valid_minimal_canvas_passes():
     assert validation.validate_all(data) == []
 
 
-def test_rejects_bare_text_node():
+def test_rejects_link_node():
     data = {
-        "nodes": [{"id": "x", "type": "text", "x": 0, "y": 0, "width": 100, "height": 100, "text": "hola"}],
+        "nodes": [{"id": "x", "type": "link", "x": 0, "y": 0, "width": 100, "height": 100, "url": "https://x"}],
         "edges": [],
     }
     assert validation.validate_schema(data)
@@ -43,6 +43,15 @@ def test_rejects_file_outside_content_dir():
         "edges": [],
     }
     assert validation.validate_schema(data)
+
+
+def test_accepts_text_node_for_legend():
+    data = {
+        "nodes": [{"id": "legend", "type": "text", "x": 0, "y": -300, "width": 500, "height": 250,
+                   "text": "## Leyenda\n\n..."}],
+        "edges": [],
+    }
+    assert validation.validate_schema(data) == []
 
 
 def test_rejects_dangling_edge_reference():

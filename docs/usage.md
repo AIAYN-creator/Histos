@@ -17,7 +17,9 @@ cd /ruta/a/tu/proyecto-de-escritura
 trellis init
 ```
 
-Esto crea `project.canvas`, `content/`, y las instrucciones para el agente (`AGENTS.md`, `CLAUDE.md`). Abre esa misma carpeta como vault en Obsidian — Canvas es una función nativa de Obsidian, no hace falta ningún plugin — y verás `project.canvas` como un tablero visual.
+Esto crea `project.canvas` (con una leyenda de colores ya puesta en el propio canvas), `content/`, y las instrucciones para el agente (`AGENTS.md`, `CLAUDE.md`). Abre esa misma carpeta como vault en Obsidian — Canvas es una función nativa de Obsidian, no hace falta ningún plugin — y verás el tablero visual con su leyenda arriba.
+
+**Importante:** abre la carpeta que contiene `project.canvas` directamente como vault, no una carpeta por encima — si no, Obsidian no encuentra los `.md` de las tarjetas y las verás como "Create new note" en vez de con contenido.
 
 ## Leer el tablero
 
@@ -45,6 +47,11 @@ Cuando veas una tarjeta amarilla o cian, es tu turno.
 ## Por qué es seguro dejarlo trabajando solo
 
 El agente **nunca** puede escribir en `content/*.md` sin pasar por los pasos 2-4 de arriba, y **nunca** puede tocar el grafo de dependencias sin pedírtelo primero en la conversación (regla que vive en `AGENTS.md`, y que el propio CLI hace cumplir con el flag `--authorized`). Puedes dejarlo procesando una cola de tarjetas sin estar presente: lo peor que te vas a encontrar al volver son varias tarjetas amarillas esperando revisión — nunca una sorpresa escrita sin tu permiso.
+
+## Otros comandos útiles
+
+- `trellis describe <id> --text "..."` — pone o cambia la descripción de una tarjeta (una línea, aparece en `trellis status` y en el frontmatter). No toca el contenido, así que no hace falta aprobarlo.
+- `trellis link <id> --depends-on ID [ID...] --authorized` — para cuando descubres una dependencia después de haber creado la tarjeta (si la sabías desde el principio, se pone directamente en `add-card --depends-on`).
 
 ## Si algo se ve raro
 

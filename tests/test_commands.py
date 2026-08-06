@@ -91,3 +91,73 @@ def test_init_does_not_overwrite_existing_agent_files(tmp_path, monkeypatch):
 
     assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == "contenido del usuario, no tocar\n"
     assert (tmp_path / "CLAUDE.md").exists()
+
+
+def test_init_adds_legend_text_node(tmp_path, monkeypatch):
+    assert run(monkeypatch, tmp_path, "init") == 0
+
+    data = canvas.load(tmp_path)
+    legend = [n for n in data["nodes"] if n["id"] == canvas.LEGEND_ID]
+    assert len(legend) == 1
+    assert legend[0]["type"] == "text"
+    assert "Backlog" in legend[0]["text"]
+    # el legend no cuenta como tarjeta para nada de la logica de estado
+    assert canvas.cards(data) == []
+
+
+def test_add_card_description_goes_to_frontmatter_and_body(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    assert run(
+        monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro",
+        "--description", "contexto y estado del arte",
+    ) == 0
+
+    meta, body = frontmatter.read(tmp_path / "content" / "cap1.md")
+    assert meta["description"] == "contexto y estado del arte"
+    assert "contexto y estado del arte" in body
+
+
+def test_link_adds_dependency_to_existing_card(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+    run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Cap 2")
+    assert canvas.find_card(canvas.load(tmp_path), "cap2")["color"] == canvas.BACKLOG
+
+    assert run(monkeypatch, tmp_path, "link", "cap2", "--depends-on", "cap1", "--authorized") == 0
+
+    data = canvas.load(tmp_path)
+    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOQUEADA
+    assert any(e["fromNode"] == "cap1" and e["toNode"] == "cap2" for e in data["edges"])
+
+
+def test_link_without_authorized_fails(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+    run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Cap 2")
+
+    result = run(monkeypatch, tmp_path, "link", "cap2", "--depends-on", "cap1")
+    assert result != 0
+    assert canvas.load(tmp_path)["edges"] == []
+
+
+def test_link_rejects_cycle(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Dos", "--depends-on", "cap1", "--authorized")
+
+    result = run(monkeypatch, tmp_path, "link", "cap1", "--depends-on", "cap2", "--authorized")
+    assert result != 0
+    edges = canvas.load(tmp_path)["edges"]
+    assert not any(e["fromNode"] == "cap2" and e["toNode"] == "cap1" for e in edges)
+
+
+def test_describe_updates_frontmatter_only(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+    _, before_body = frontmatter.read(tmp_path / "content" / "cap1.md")
+
+    assert run(monkeypatch, tmp_path, "describe", "cap1", "--text", "nueva descripcion") == 0
+
+    meta, body = frontmatter.read(tmp_path / "content" / "cap1.md")
+    assert meta["description"] == "nueva descripcion"
+    assert body == before_body

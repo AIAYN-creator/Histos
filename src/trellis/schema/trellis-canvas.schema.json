@@ -35,7 +35,8 @@
     "node": {
       "oneOf": [
         { "$ref": "#/$defs/cardNode" },
-        { "$ref": "#/$defs/groupNode" }
+        { "$ref": "#/$defs/groupNode" },
+        { "$ref": "#/$defs/textNode" }
       ]
     },
     "cardNode": {
@@ -81,6 +82,22 @@
         "label": { "type": "string" },
         "background": { "type": "string" },
         "backgroundStyle": { "type": "string", "enum": ["cover", "ratio", "repeat"] },
+        "color": { "$ref": "#/$defs/canvasColor" }
+      }
+    },
+    "textNode": {
+      "description": "Texto decorativo/documentacion (p.ej. la leyenda de colores que 'trellis init' coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo, solo filtra por type=='file' para todo lo que es logica de estado/dependencias.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "x", "y", "width", "height", "text"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "text" },
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "width": { "type": "integer", "exclusiveMinimum": 0 },
+        "height": { "type": "integer", "exclusiveMinimum": 0 },
+        "text": { "type": "string" },
         "color": { "$ref": "#/$defs/canvasColor" }
       }
     },

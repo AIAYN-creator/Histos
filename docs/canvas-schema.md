@@ -17,10 +17,11 @@ Subcarpetas adicionales dentro de `content/` (p. ej. `borradores/`) quedan abier
 
 ## Tipos de nodo
 
-Trellis solo usa dos de los cuatro node types de JSON Canvas:
+Trellis usa tres de los cuatro node types de JSON Canvas:
 
-- **`file`** — una tarjeta de tarea. Apunta a un `.md` real en `content/`; nunca contiene texto embebido. `text` y `link` sueltos no están permitidos.
+- **`file`** — una tarjeta de tarea. Apunta a un `.md` real en `content/`; nunca contiene texto embebido. `link` suelto no está permitido.
 - **`group`** — agrupación puramente geométrica (p. ej. "capítulo 3"). Un nodo "pertenece" a un grupo solo si sus coordenadas caen dentro del rectángulo del grupo — no hay `parent_id` en los datos. No lleva estado.
+- **`text`** — únicamente para contenido decorativo/documentación (la leyenda de colores que `trellis init` coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo — toda la lógica de estado/dependencias filtra explícitamente por `type == "file"`. Nada impide añadir más notas de texto a mano en Obsidian; Trellis simplemente no las toca.
 
 ## Convención de id
 
@@ -53,6 +54,7 @@ Lo que Obsidian/JSON Canvas no interpreta nativamente vive como YAML frontmatter
 
 | Campo | Tipo | Notas |
 |---|---|---|
+| `description` | string | una línea, resume la tarjeta; se pone en `add-card --description` o se actualiza después con `trellis describe` — nunca toca el cuerpo, así que no pasa por `propose`/`approve` |
 | `estimated_duration_hours` | number | lo rellena el agente al aceptar/empezar la tarea |
 | `actual_duration_hours` | number | se rellena al completarse, para comparar con la estimación |
 | `assigned_to` | `"agent"` \| `"human"` | |

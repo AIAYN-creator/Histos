@@ -59,7 +59,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         return 1
     (vault_root / "content").mkdir(parents=True, exist_ok=True)
     (vault_root / PROPOSALS_DIR).mkdir(parents=True, exist_ok=True)
-    canvas.save(vault_root, {"nodes": [], "edges": []})
+    canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
     _install_agent_templates(vault_root)
     print(f"vault inicializado en {vault_root}")
     return 0
@@ -108,9 +108,60 @@ def cmd_add_card(args: argparse.Namespace) -> int:
 
     md_path = canvas.card_file_path(vault_root, node)
     md_path.parent.mkdir(parents=True, exist_ok=True)
-    frontmatter.write(md_path, dict(frontmatter.DEFAULT_META), f"# {args.title}\n\n")
+    meta = dict(frontmatter.DEFAULT_META)
+    body = f"# {args.title}\n\n"
+    if args.description:
+        meta["description"] = args.description
+        body += f"{args.description}\n\n"
+    frontmatter.write(md_path, meta, body)
 
     print(f"tarjeta '{args.id}' creada ({STATE_NAMES[initial_color]}) -> {node['file']}")
+    return 0
+
+
+def cmd_link(args: argparse.Namespace) -> int:
+    """Anade dependencias a una tarjeta YA existente -- add-card --depends-on solo cubre
+    la creacion; esto cubre el caso de descubrir una dependencia despues de crear la tarjeta.
+    """
+    vault_root = _vault_root()
+    try:
+        data = _load_valid(vault_root)
+    except canvas.TrellisError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    if canvas.find_card(data, args.id) is None:
+        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        return 1
+
+    if not args.authorized:
+        print(
+            "error: 'link' toca el grafo de dependencias y necesita autorizacion humana "
+            "explicita -- anade --authorized solo si ya la obtuviste en la conversacion",
+            file=sys.stderr,
+        )
+        return 1
+
+    by_id = {c["id"]: c for c in canvas.cards(data)}
+    for dep in args.depends_on:
+        if dep == args.id:
+            print(f"error: '{args.id}' no puede depender de si misma", file=sys.stderr)
+            return 1
+        if dep not in by_id:
+            print(f"error: la dependencia '{dep}' no existe", file=sys.stderr)
+            return 1
+
+    for dep in args.depends_on:
+        canvas.add_edge(data, dep, args.id)
+
+    cycle = canvas.detect_cycle(data)
+    if cycle:
+        print(f"error: esa dependencia formaria un ciclo: {' -> '.join(cycle)}", file=sys.stderr)
+        return 1
+
+    canvas.recompute_blocked(data)
+    canvas.save(vault_root, data)
+    print(f"'{args.id}' ahora depende de: {', '.join(args.depends_on)}")
     return 0
 
 
@@ -143,6 +194,34 @@ def cmd_assign(args: argparse.Namespace) -> int:
         print(f"'{card_id}' -> En progreso (assigned_to={args.by})")
 
     canvas.save(vault_root, data)
+    return 0
+
+
+def cmd_describe(args: argparse.Namespace) -> int:
+    """Actualiza solo el campo description del frontmatter -- nunca toca el cuerpo, asi que
+    no hace falta pasar por propose/approve (es metadato, igual que assigned_to en 'assign').
+    """
+    vault_root = _vault_root()
+    try:
+        data = _load_valid(vault_root)
+    except canvas.TrellisError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    card = canvas.find_card(data, args.id)
+    if card is None:
+        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        return 1
+
+    md_path = canvas.card_file_path(vault_root, card)
+    if not md_path.exists():
+        print(f"error: no encuentro {md_path}", file=sys.stderr)
+        return 1
+
+    meta, body = frontmatter.read(md_path)
+    meta["description"] = args.text
+    frontmatter.write(md_path, meta, body)
+    print(f"'{args.id}': descripcion actualizada")
     return 0
 
 
@@ -311,7 +390,13 @@ def cmd_status(args: argparse.Namespace) -> int:
         entries = by_state.get(state, [])
         print(f"{STATE_NAMES[state]} ({len(entries)})")
         for card in entries:
-            print(f"  - {card['id']}  ({card['file']})")
+            desc = ""
+            md_path = canvas.card_file_path(vault_root, card)
+            if md_path.exists():
+                meta, _ = frontmatter.read(md_path)
+                if meta.get("description"):
+                    desc = f"  -- {meta['description']}"
+            print(f"  - {card['id']}  ({card['file']}){desc}")
     return 0
 
 
@@ -342,6 +427,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("add-card", help="crea una tarjeta nueva")
     p.add_argument("id")
     p.add_argument("--title", required=True)
+    p.add_argument("--description", default=None, help="una linea, va al frontmatter y al cuerpo inicial")
     p.add_argument("--depends-on", nargs="+", default=[], metavar="ID")
     p.add_argument(
         "--authorized", action="store_true",
@@ -349,10 +435,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_add_card)
 
+    p = sub.add_parser("link", help="anade dependencias a una tarjeta ya existente")
+    p.add_argument("id")
+    p.add_argument("--depends-on", nargs="+", required=True, metavar="ID")
+    p.add_argument(
+        "--authorized", action="store_true",
+        help="confirma que un humano autorizo tocar el grafo de dependencias",
+    )
+    p.set_defaults(func=cmd_link)
+
     p = sub.add_parser("assign", help="pasa una o mas tarjetas a En progreso")
     p.add_argument("ids", nargs="+", metavar="ID")
     p.add_argument("--by", choices=["agent", "human"], default="agent")
     p.set_defaults(func=cmd_assign)
+
+    p = sub.add_parser("describe", help="actualiza la descripcion (frontmatter) de una tarjeta existente")
+    p.add_argument("id")
+    p.add_argument("--text", required=True)
+    p.set_defaults(func=cmd_describe)
 
     p = sub.add_parser("propose", help="sube una propuesta de contenido para revision")
     p.add_argument("id")

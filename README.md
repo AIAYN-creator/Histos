@@ -4,7 +4,7 @@ Herramienta open source y agnóstica de agente que usa **Obsidian Canvas** como 
 
 El agente propone el flujo de trabajo y redacta las tareas; el humano aprueba los cambios reales antes de que se apliquen al contenido.
 
-> Estado: esquema formal ([`src/trellis/schema/`](src/trellis/schema/)) y CLI mínimo ([`src/trellis/`](src/trellis/), 9 comandos, `pytest` en verde) implementados y probados a mano en un vault real fuera de este repo. Siguiente paso: dogfooding sobre un TFG real. El `CLAUDE.md`/system prompt para agentes y el plugin de Obsidian todavía no existen.
+> Estado: esquema formal ([`src/trellis/schema/`](src/trellis/schema/)) y CLI mínimo ([`src/trellis/`](src/trellis/), 11 comandos, `pytest` en verde) implementados. En dogfooding activo sobre un TFG real. El plugin de Obsidian todavía no existe.
 
 ## Idea central
 
@@ -47,7 +47,7 @@ Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido
 
 > Esquema formal y machine-checkable: [`src/trellis/schema/trellis-canvas.schema.json`](src/trellis/schema/trellis-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
-- **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido.
+- **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido. (`text` se usa únicamente para la leyenda de colores decorativa que genera `trellis init`; el CLI la ignora por completo.)
 - **Layout:** lectura tipo diagrama de Gantt pero sin fechas de calendario — la posición horizontal aproxima el orden topológico de dependencias. Auto-layout tipo `dagre` al reestructurar.
 
 ### Leyenda de colores
@@ -80,12 +80,15 @@ pip install -e .
 Cada comando opera sobre el directorio actual, que debe ser la raíz de un vault Trellis (`trellis init` la crea). Ningún comando bloquea en un prompt interactivo, así que una cola de tarjetas se puede procesar en modo AFK con un simple bucle en el agente que invoca el CLI — no hace falta ningún flag ni modo especial.
 
 ```bash
-trellis init                                            # crea project.canvas + content/ + .trellis/proposals/
-trellis add-card cap1 --title "Intro"                    # tarjeta suelta -> Backlog
+trellis init                                            # crea project.canvas (con leyenda de colores) + content/
+trellis add-card cap1 --title "Intro" [--description "..."]
+                                                          # tarjeta suelta -> Backlog
 trellis add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
                                                           # --authorized es obligatorio en cuanto se toca el grafo
                                                           # de dependencias (Loop 1) -- sin prompt: una casilla que
                                                           # el agente marca solo tras pedir permiso en la conversación
+trellis link cap1 --depends-on cap0 --authorized         # añade dependencia a una tarjeta YA existente
+trellis describe cap1 --text "..."                       # actualiza solo la descripción (frontmatter, sin permiso)
 trellis assign cap1 [--by agent|human]                   # -> En progreso
 trellis propose cap1 --file borrador.md                  # -> Propuesta pendiente de revisión
 trellis diff cap1                                        # diff entre content/cap1.md y la propuesta pendiente
@@ -102,7 +105,7 @@ Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`
 **Dentro:**
 - Esquema formal del `.canvas` con la convención de colores y node types de arriba
 - Uso de frontmatter en los `.md` para metadatos que Obsidian no interpreta nativamente
-- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `assign`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/trellis/`](src/trellis/), [`tests/`](tests/))
+- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `link`, `describe`, `assign`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/trellis/`](src/trellis/), [`tests/`](tests/))
 - Modo no interactivo del CLI para trabajo AFK — resuelto: ningún comando usa prompts interactivos, no hace falta flag especial
 - Instrucciones para agentes documentando esquema, leyenda de colores y reglas de autorización de los dos loops — implementado como [`AGENTS.md`](src/trellis/templates/AGENTS.md) (fuente única, agnóstico de agente) + `CLAUDE.md` (una línea, `@AGENTS.md`), que `trellis init` copia a cada vault nuevo
 - Flujo de aprobación de escritura real vía diff antes de tocar un `.md` canónico
