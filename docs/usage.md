@@ -40,13 +40,13 @@ Cuando veas una tarjeta amarilla o cian, es tu turno.
 
 1. Le pides al agente (Claude Code, Codex, lo que uses) que trabaje una o varias tarjetas. El agente hace `trellis assign` y se pone a redactar.
 2. El agente sube su propuesta con `trellis propose` — la tarjeta se pone amarilla. **No ha tocado el `.md` real todavía.**
-3. Cuando tengas un rato, `trellis diff <id>` te enseña exactamente qué cambiaría (o abre el fichero de propuesta en `.trellis/proposals/` desde Obsidian).
+3. Cuando tengas un rato, `trellis diff <id>` te enseña exactamente qué cambiaría — o simplemente abre `propuestas/<id>.md` en Obsidian como cualquier otra nota (es una carpeta visible, no oculta: puedes verla, leerla, e incluso retocarla a mano antes de aprobar).
 4. Si te convence: `trellis approve <id>` — ahora sí se escribe el `.md` real. Si no: `trellis reject <id> --feedback "lo que le falta"` — el agente verá tu feedback la próxima vez que mire esa tarjeta.
 5. `trellis status` en cualquier momento para ver el panorama completo.
 
 ## Por qué es seguro dejarlo trabajando solo
 
-El agente **nunca** puede escribir en `content/*.md` sin pasar por los pasos 2-4 de arriba, y **nunca** puede tocar el grafo de dependencias sin pedírtelo primero en la conversación (regla que vive en `AGENTS.md`, y que el propio CLI hace cumplir con el flag `--authorized`). Puedes dejarlo procesando una cola de tarjetas sin estar presente: lo peor que te vas a encontrar al volver son varias tarjetas amarillas esperando revisión — nunca una sorpresa escrita sin tu permiso.
+El agente **nunca** puede escribir en `content/*.md` sin pasar por los pasos 2-4 de arriba, y **nunca** puede tocar el grafo de dependencias sin pedírtelo primero en la conversación (regla que vive en `AGENTS.md`, y que el propio CLI hace cumplir con el flag `--authorized`). Puedes dejarlo procesando una cola de tarjetas sin estar presente: lo peor que te vas a encontrar al volver son varias tarjetas amarillas esperando revisión, con sus borradores completos ya visibles en `propuestas/` — nunca una sorpresa escrita sin tu permiso.
 
 ## Otros comandos útiles
 

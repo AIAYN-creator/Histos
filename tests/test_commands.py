@@ -52,6 +52,22 @@ def test_add_card_without_authorized_fails(tmp_path, monkeypatch):
     assert canvas.find_card(canvas.load(tmp_path), "cap2") is None
 
 
+def test_propose_uses_visible_propuestas_folder(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    assert (tmp_path / "propuestas").is_dir()
+    assert not (tmp_path / ".trellis").exists()
+
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    run(monkeypatch, tmp_path, "assign", "cap1")
+    draft = tmp_path / "borrador.md"
+    draft.write_text("contenido\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "propose", "cap1", "--file", str(draft))
+    assert (tmp_path / "propuestas" / "cap1.md").exists()
+
+    run(monkeypatch, tmp_path, "approve", "cap1")
+    assert not (tmp_path / "propuestas" / "cap1.md").exists()
+
+
 def test_reject_records_feedback_and_returns_to_backlog(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
@@ -65,7 +81,7 @@ def test_reject_records_feedback_and_returns_to_backlog(tmp_path, monkeypatch):
     assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.BACKLOG
     meta, _ = frontmatter.read(tmp_path / "content" / "cap1.md")
     assert meta["status_note"] == "falta contexto"
-    assert not (tmp_path / ".trellis" / "proposals" / "cap1.md").exists()
+    assert not (tmp_path / "propuestas" / "cap1.md").exists()
 
 
 def test_validate_command_on_example_canvas(tmp_path, monkeypatch):

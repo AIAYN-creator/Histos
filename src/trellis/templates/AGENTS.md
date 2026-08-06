@@ -4,7 +4,7 @@ Este directorio es un vault gestionado por **Trellis**: un tablero de tareas en 
 
 ## Reglas duras (no negociables)
 
-1. **Nunca escribas directamente en `content/*.md`.** El unico camino para que un cambio de contenido llegue al `.md` canonico es `trellis propose <id> --file <borrador>` seguido de `trellis approve <id>` por parte de un humano. Si necesitas redactar contenido, escribelo en un fichero aparte (el borrador) y pasalo a `propose` -- nunca edites `content/<id>.md` directamente.
+1. **Nunca escribas directamente en `content/*.md`.** El unico camino para que un cambio de contenido llegue al `.md` canonico es `trellis propose <id> --file <borrador>` seguido de `trellis approve <id>` por parte de un humano. Si necesitas redactar contenido, escribelo en un fichero aparte (el borrador) y pasalo a `propose` -- nunca edites `content/<id>.md` directamente. `propose` copia el borrador a `propuestas/<id>.md` (carpeta visible en Obsidian, no oculta) hasta que se apruebe o rechace; el humano puede leerla o incluso retocarla ahi antes de decidir -- eso es cosa suya, la regla de esta linea es solo para ti.
 2. **Nunca pases `--authorized` sin que un humano te haya dado permiso explicito en la conversacion actual.** Aplica a `add-card --depends-on` y a `link` (para anadir una dependencia a una tarjeta ya existente). Pide permiso primero (di que dependencia quieres crear y por que), espera la respuesta, y solo entonces pasa `--authorized`.
 3. **No hace falta pedir permiso** para: crear tarjetas sueltas (sin `--depends-on`), asignar tarjetas (`assign`), actualizar la descripcion (`describe`), proponer contenido (`propose`), o consultar estado (`status`, `diff`, `validate`).
 

@@ -18,7 +18,7 @@ STATE_NAMES = {
     canvas.BACKLOG: "Backlog",
 }
 
-PROPOSALS_DIR = ".trellis/proposals"
+PROPOSALS_DIR = "propuestas"
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md"]
 
 

@@ -9,8 +9,10 @@ Lo que el JSON Schema **no** puede comprobar por sí solo — que `fromNode`/`to
 ```
 <vault>/
 ├── project.canvas
-└── content/
-    └── <slug>.md        # una tarjeta = un fichero
+├── content/
+│   └── <slug>.md        # una tarjeta = un fichero
+└── propuestas/
+    └── <slug>.md        # borrador pendiente de aprobar/rechazar (visible, no oculto)
 ```
 
 Subcarpetas adicionales dentro de `content/` (p. ej. `borradores/`) quedan abiertas — no forman parte de esta convención todavía.
