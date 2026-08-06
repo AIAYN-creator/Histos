@@ -121,6 +121,7 @@ Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`
 - Plugin nativo de Obsidian (TypeScript, Obsidian Plugin API) — posible v2 para interactividad en vivo
 - Integración de git como backend de historial del contenido del usuario
 - Fechas / calendario real tipo Gantt clásico
+- Traer contexto externo (p. ej. el `.tex` principal en Overleaf vía su integración Git, que requiere plan de pago) para que `trellis context` (ver preguntas abiertas) lo incluya automáticamente — posible v2
 
 ## Alcance de la distribución
 
@@ -134,5 +135,5 @@ Lo que se publica en este repo es la **herramienta** (CLI, esquema, prompt, docu
 
 ## Preguntas abiertas
 
-- Formato exacto del brief general del proyecto pasado como contexto en loop 2 — propuesta de partida: un `PROJECT.md` fijo en la raíz del vault, a validar
+- Formato exacto del brief general del proyecto pasado como contexto en loop 2 — propuesta de partida: un `PROJECT.md` fijo en la raíz del vault, a validar. Se completaría con un comando `trellis context <id>` que junte automáticamente descripción + contenido de las dependencias ya aprobadas + el brief, listo para pasarselo al agente sin montarlo a mano
 - Estructura de carpetas — **resuelto en parte:** las tarjetas viven en `content/<slug>.md` (ver [`docs/canvas-schema.md`](docs/canvas-schema.md)); subcarpetas adicionales como `content/borradores/` siguen abiertas
