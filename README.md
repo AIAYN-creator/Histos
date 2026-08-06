@@ -45,19 +45,21 @@ Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido
 
 ## Convenciones del canvas
 
+> Esquema formal y machine-checkable: [`schema/trellis-canvas.schema.json`](schema/trellis-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
+
 - **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido.
 - **Layout:** lectura tipo diagrama de Gantt pero sin fechas de calendario — la posición horizontal aproxima el orden topológico de dependencias. Auto-layout tipo `dagre` al reestructurar.
 
 ### Leyenda de colores
 
-| Estado | Significado |
-|---|---|
-| Backlog | Tarea pendiente, aún no empezada |
-| En progreso | El agente o el usuario está trabajando en ella activamente |
-| Bloqueada | No se puede empezar porque depende de una tarjeta anterior sin cerrar |
-| Propuesta pendiente de revisión | El agente propuso contenido y espera aprobación (loop 2) |
-| Solicitud cambio de dependencia | El agente quiere modificar el grafo de dependencias y espera autorización (loop 1) |
-| Aprobada | Cambio aceptado por el usuario y aplicado al contenido real |
+| Estado | Color | Preset | Significado |
+|---|---|---|---|
+| Backlog | morado | `"6"` | Tarea pendiente, aún no empezada |
+| En progreso | naranja | `"2"` | El agente o el usuario está trabajando en ella activamente |
+| Bloqueada | rojo | `"1"` | No se puede empezar porque depende de una tarjeta anterior sin cerrar (estado derivado, lo calcula el CLI) |
+| Propuesta pendiente de revisión | amarillo | `"3"` | El agente propuso contenido y espera aprobación (loop 2) |
+| Solicitud cambio de dependencia | cian | `"5"` | El agente quiere modificar el grafo de dependencias y espera autorización (loop 1) |
+| Aprobada | verde | `"4"` | Cambio aceptado por el usuario y aplicado al contenido real |
 
 ## Metadatos
 
@@ -112,4 +114,4 @@ Lo que se publica en este repo es la **herramienta** (CLI, esquema, prompt, docu
 - Formato exacto del brief general del proyecto pasado como contexto en loop 2 — propuesta de partida: un `PROJECT.md` fijo en la raíz del vault, a validar
 - Nombres exactos de subcomandos y flags del CLI más allá de los ilustrativos de este documento
 - Mecanismo concreto del modo no interactivo/AFK del CLI
-- Estructura de carpetas recomendada dentro del vault (p. ej. `/canvas/`, `/content/`, `/content/borradores/`)
+- Estructura de carpetas — **resuelto en parte:** las tarjetas viven en `content/<slug>.md` (ver [`docs/canvas-schema.md`](docs/canvas-schema.md)); subcarpetas adicionales como `content/borradores/` siguen abiertas

@@ -1,0 +1,82 @@
+# Esquema del `.canvas`
+
+Este documento formaliza las convenciones de Trellis sobre el formato [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/). El validador machine-checkable vive en [`schema/trellis-canvas.schema.json`](../schema/trellis-canvas.schema.json); aquí está el porqué.
+
+Lo que el JSON Schema **no** puede comprobar por sí solo — que `fromNode`/`toNode` de cada edge apunten a un `id` que existe, y que el grafo de dependencias sea acíclico — es responsabilidad del CLI (`trellis status` / `trellis validate`), no de este esquema.
+
+## Estructura de carpetas
+
+```
+<vault>/
+├── project.canvas
+└── content/
+    └── <slug>.md        # una tarjeta = un fichero
+```
+
+Subcarpetas adicionales dentro de `content/` (p. ej. `borradores/`) quedan abiertas — no forman parte de esta convención todavía.
+
+## Tipos de nodo
+
+Trellis solo usa dos de los cuatro node types de JSON Canvas:
+
+- **`file`** — una tarjeta de tarea. Apunta a un `.md` real en `content/`; nunca contiene texto embebido. `text` y `link` sueltos no están permitidos.
+- **`group`** — agrupación puramente geométrica (p. ej. "capítulo 3"). Un nodo "pertenece" a un grupo solo si sus coordenadas caen dentro del rectángulo del grupo — no hay `parent_id` en los datos. No lleva estado.
+
+## Convención de id
+
+El `id` de una tarjeta es el mismo slug que el nombre de su fichero: id `cap3` → `content/cap3.md`. Así los ejemplos del CLI (`trellis assign cap3`, `--depends-on cap2`) son legibles directamente. Los `group` solo necesitan ser únicos, sin convención adicional.
+
+## Color → estado
+
+El color de una tarjeta (campo `color`, preset `"1"`–`"6"`) **es** su estado — no se duplica en ningún otro sitio:
+
+| Preset | Color | Estado |
+|---|---|---|
+| `"1"` | rojo | Bloqueada |
+| `"2"` | naranja | En progreso |
+| `"3"` | amarillo | Propuesta pendiente de revisión |
+| `"4"` | verde | Aprobada |
+| `"5"` | cian | Solicitud cambio de dependencia |
+| `"6"` | morado | Backlog |
+
+Una tarjeta `file` sin `color` no está gestionada por Trellis (añadida a mano en Obsidian, o dato corrupto) — el schema la rechaza porque `color` es obligatorio en `cardNode`, y eso es intencional: la propia validación del schema es el mecanismo de detección.
+
+**Bloqueada es un estado derivado**, no algo que el agente o el humano asignen a mano: el CLI lo calcula viendo si *todas* las edges entrantes de una tarjeta apuntan a nodos ya en Aprobada (color `"4"`). Nada te impide poner color `"1"` manualmente, pero el CLI debería tratarlo como una señal a recalcular, no como fuente de verdad.
+
+## Edges — semántica de dependencia
+
+`fromNode → toNode` significa **"toNode depende de fromNode"**: fromNode debe llegar a Aprobada antes de que toNode pueda salir de Bloqueada. Coincide con el layout izquierda→derecha tipo Gantt del canvas y con el default del spec (`toEnd` = `"arrow"` apunta hacia toNode, es decir, hacia lo que se desbloquea).
+
+## Frontmatter del `.md`
+
+Lo que Obsidian/JSON Canvas no interpreta nativamente vive como YAML frontmatter en cada tarjeta — nunca en el `.canvas`:
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `estimated_duration_hours` | number | lo rellena el agente al aceptar/empezar la tarea |
+| `actual_duration_hours` | number | se rellena al completarse, para comparar con la estimación |
+| `assigned_to` | `"agent"` \| `"human"` | |
+| `status_note` | string | texto libre, p. ej. motivo de bloqueo |
+
+`status` deliberadamente no está aquí: vive como `color` en el canvas para no tener dos fuentes de verdad del mismo dato.
+
+## Ejemplo mínimo
+
+```jsonc
+{
+  "nodes": [
+    { "id": "cap1", "type": "file", "x": 0,    "y": 0, "width": 250, "height": 100,
+      "file": "content/cap1.md", "color": "4" },        // Aprobada
+    { "id": "cap2", "type": "file", "x": 320,  "y": 0, "width": 250, "height": 100,
+      "file": "content/cap2.md", "color": "3" },        // Propuesta pendiente de revision
+    { "id": "cap3", "type": "file", "x": 640,  "y": 0, "width": 250, "height": 100,
+      "file": "content/cap3.md", "color": "1" }         // Bloqueada (depende de cap2)
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "cap1", "toNode": "cap2" },
+    { "id": "e2", "fromNode": "cap2", "toNode": "cap3" }
+  ]
+}
+```
+
+Ver [`examples/example.canvas`](../examples/example.canvas) para uno completo, con un `group`.

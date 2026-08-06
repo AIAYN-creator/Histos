@@ -1,0 +1,14 @@
+{
+  "nodes": [
+    { "id": "group-capitulo-2", "type": "group", "x": 600, "y": 140, "width": 650, "height": 220, "label": "Capitulo 2" },
+    { "id": "cap1", "type": "file", "x": 0, "y": 200, "width": 250, "height": 100, "file": "content/cap1.md", "color": "4" },
+    { "id": "cap2", "type": "file", "x": 320, "y": 200, "width": 250, "height": 100, "file": "content/cap2.md", "color": "3" },
+    { "id": "cap3", "type": "file", "x": 640, "y": 200, "width": 250, "height": 100, "file": "content/cap3.md", "color": "1" },
+    { "id": "cap4", "type": "file", "x": 960, "y": 200, "width": 250, "height": 100, "file": "content/cap4.md", "color": "6" }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "cap1", "toNode": "cap2" },
+    { "id": "e2", "fromNode": "cap2", "toNode": "cap3" },
+    { "id": "e3", "fromNode": "cap3", "toNode": "cap4" }
+  ]
+}

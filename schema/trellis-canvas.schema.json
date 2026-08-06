@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AIAYN-creator/Trellis/blob/main/schema/trellis-canvas.schema.json",
+  "title": "Trellis canvas",
+  "description": "JSON Canvas 1.0 (https://jsoncanvas.org) restringido a las convenciones de Trellis. No valida integridad referencial entre nodes/edges ni aciclicidad del grafo de dependencias -- eso es responsabilidad del CLI. Ver docs/canvas-schema.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" },
+      "default": []
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" },
+      "default": []
+    }
+  },
+  "$defs": {
+    "statusColor": {
+      "description": "Leyenda de estado de Trellis: 1=Bloqueada, 2=En progreso, 3=Propuesta pendiente de revision, 4=Aprobada, 5=Solicitud cambio de dependencia, 6=Backlog.",
+      "type": "string",
+      "enum": ["1", "2", "3", "4", "5", "6"]
+    },
+    "canvasColor": {
+      "description": "Color JSON Canvas nativo (hex o preset 1-6), sin restriccion semantica de Trellis. Se usa solo en group.color y edge.color.",
+      "type": "string",
+      "pattern": "^(#[0-9A-Fa-f]{6}|[1-6])$"
+    },
+    "side": {
+      "type": "string",
+      "enum": ["top", "right", "bottom", "left"]
+    },
+    "node": {
+      "oneOf": [
+        { "$ref": "#/$defs/cardNode" },
+        { "$ref": "#/$defs/groupNode" }
+      ]
+    },
+    "cardNode": {
+      "description": "Una tarjeta de tarea. Apunta a un fichero .md real en content/ -- nunca contiene prosa embebida.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "x", "y", "width", "height", "file", "color"],
+      "properties": {
+        "id": {
+          "description": "Slug estable, igual al nombre de fichero sin extension (id 'cap3' -> content/cap3.md).",
+          "type": "string",
+          "minLength": 1
+        },
+        "type": { "const": "file" },
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "width": { "type": "integer", "exclusiveMinimum": 0 },
+        "height": { "type": "integer", "exclusiveMinimum": 0 },
+        "file": {
+          "type": "string",
+          "pattern": "^content/[^/]+\\.md$"
+        },
+        "subpath": {
+          "description": "Referencia opcional a un heading dentro del .md.",
+          "type": "string",
+          "pattern": "^#"
+        },
+        "color": { "$ref": "#/$defs/statusColor" }
+      }
+    },
+    "groupNode": {
+      "description": "Agrupacion puramente geometrica (p.ej. un capitulo). Un nodo 'pertenece' al grupo si sus coordenadas caen dentro del rectangulo -- no hay parent_id en los datos. No lleva estado.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "x", "y", "width", "height"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "group" },
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "width": { "type": "integer", "exclusiveMinimum": 0 },
+        "height": { "type": "integer", "exclusiveMinimum": 0 },
+        "label": { "type": "string" },
+        "background": { "type": "string" },
+        "backgroundStyle": { "type": "string", "enum": ["cover", "ratio", "repeat"] },
+        "color": { "$ref": "#/$defs/canvasColor" }
+      }
+    },
+    "edge": {
+      "description": "fromNode -> toNode significa 'toNode depende de fromNode'. fromNode debe estar Aprobada (color 4) para que toNode pueda salir de Bloqueada.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fromNode", "toNode"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "fromNode": { "type": "string", "minLength": 1 },
+        "toNode": { "type": "string", "minLength": 1 },
+        "fromSide": { "$ref": "#/$defs/side" },
+        "toSide": { "$ref": "#/$defs/side" },
+        "fromEnd": { "type": "string", "enum": ["none", "arrow"], "default": "none" },
+        "toEnd": { "type": "string", "enum": ["none", "arrow"], "default": "arrow" },
+        "color": { "$ref": "#/$defs/canvasColor" },
+        "label": { "type": "string" }
+      }
+    }
+  }
+}
