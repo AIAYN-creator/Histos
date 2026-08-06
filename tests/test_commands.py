@@ -68,6 +68,36 @@ def test_propose_uses_visible_propuestas_folder(tmp_path, monkeypatch):
     assert not (tmp_path / "propuestas" / "cap1.md").exists()
 
 
+def test_approve_archives_proposal_instead_of_deleting(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    run(monkeypatch, tmp_path, "assign", "cap1")
+    draft = tmp_path / "borrador.md"
+    draft.write_text("contenido aprobado\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "propose", "cap1", "--file", str(draft))
+
+    run(monkeypatch, tmp_path, "approve", "cap1")
+
+    assert not (tmp_path / "propuestas" / "cap1.md").exists()
+    archived = tmp_path / "aprobados" / "cap1.md"
+    assert archived.exists()
+    assert "contenido aprobado" in archived.read_text(encoding="utf-8")
+
+
+def test_reject_does_not_archive(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    run(monkeypatch, tmp_path, "assign", "cap1")
+    draft = tmp_path / "borrador.md"
+    draft.write_text("contenido rechazado\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "propose", "cap1", "--file", str(draft))
+
+    run(monkeypatch, tmp_path, "reject", "cap1")
+
+    assert not (tmp_path / "propuestas" / "cap1.md").exists()
+    assert not (tmp_path / "aprobados" / "cap1.md").exists()
+
+
 def test_reject_records_feedback_and_returns_to_backlog(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")

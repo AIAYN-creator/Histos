@@ -41,7 +41,7 @@ Cuando veas una tarjeta amarilla o cian, es tu turno.
 1. Le pides al agente (Claude Code, Codex, lo que uses) que trabaje una o varias tarjetas. El agente hace `trellis assign` y se pone a redactar.
 2. El agente sube su propuesta con `trellis propose` — la tarjeta se pone amarilla. **No ha tocado el `.md` real todavía.**
 3. Cuando tengas un rato, `trellis diff <id>` te enseña exactamente qué cambiaría — o simplemente abre `propuestas/<id>.md` en Obsidian como cualquier otra nota (es una carpeta visible, no oculta: puedes verla, leerla, e incluso retocarla a mano antes de aprobar).
-4. Si te convence: `trellis approve <id>` — ahora sí se escribe el `.md` real. Si no: `trellis reject <id> --feedback "lo que le falta"` — el agente verá tu feedback la próxima vez que mire esa tarjeta.
+4. Si te convence: `trellis approve <id>` — ahora sí se escribe el `.md` real, y una copia de lo aprobado se archiva en `aprobados/<id>.md` (por si luego quieres comparar o te arrepientes de una aprobación rápida). Si no: `trellis reject <id> --feedback "lo que le falta"` — se descarta sin dejar rastro (lo rechazado no se archiva, no hace falta) y el agente verá tu feedback la próxima vez que mire esa tarjeta.
 5. `trellis status` en cualquier momento para ver el panorama completo.
 
 ## Por qué es seguro dejarlo trabajando solo

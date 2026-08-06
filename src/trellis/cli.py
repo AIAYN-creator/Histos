@@ -19,6 +19,7 @@ STATE_NAMES = {
 }
 
 PROPOSALS_DIR = "propuestas"
+APPROVED_DIR = "aprobados"
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md"]
 
 
@@ -38,6 +39,10 @@ def _vault_root() -> Path:
 
 def _proposal_path(vault_root: Path, card_id: str) -> Path:
     return vault_root / PROPOSALS_DIR / f"{card_id}.md"
+
+
+def _approved_path(vault_root: Path, card_id: str) -> Path:
+    return vault_root / APPROVED_DIR / f"{card_id}.md"
 
 
 def _load_valid(vault_root: Path) -> dict:
@@ -71,6 +76,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         return 1
     (vault_root / "content").mkdir(parents=True, exist_ok=True)
     (vault_root / PROPOSALS_DIR).mkdir(parents=True, exist_ok=True)
+    (vault_root / APPROVED_DIR).mkdir(parents=True, exist_ok=True)
     canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
     _install_agent_templates(vault_root)
     print(f"vault inicializado en {vault_root}")
@@ -341,7 +347,10 @@ def cmd_approve(args: argparse.Namespace) -> int:
     else:
         meta = dict(frontmatter.DEFAULT_META)
     frontmatter.write(md_path, meta, proposal_path.read_text(encoding="utf-8"))
-    proposal_path.unlink()
+
+    approved_path = _approved_path(vault_root, args.id)
+    approved_path.parent.mkdir(parents=True, exist_ok=True)
+    proposal_path.replace(approved_path)
 
     card["color"] = canvas.APROBADA
     canvas.recompute_blocked(data)
