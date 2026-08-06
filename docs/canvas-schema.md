@@ -1,6 +1,6 @@
 # Esquema del `.canvas`
 
-Este documento formaliza las convenciones de Trellis sobre el formato [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/). El validador machine-checkable vive en [`schema/trellis-canvas.schema.json`](../schema/trellis-canvas.schema.json); aquí está el porqué.
+Este documento formaliza las convenciones de Trellis sobre el formato [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/). El validador machine-checkable vive en [`src/trellis/schema/trellis-canvas.schema.json`](../src/trellis/schema/trellis-canvas.schema.json) (empaquetado junto al CLI); aquí está el porqué.
 
 Lo que el JSON Schema **no** puede comprobar por sí solo — que `fromNode`/`toNode` de cada edge apunten a un `id` que existe, y que el grafo de dependencias sea acíclico — es responsabilidad del CLI (`trellis status` / `trellis validate`), no de este esquema.
 

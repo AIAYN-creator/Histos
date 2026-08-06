@@ -45,7 +45,7 @@ Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido
 
 ## Convenciones del canvas
 
-> Esquema formal y machine-checkable: [`schema/trellis-canvas.schema.json`](schema/trellis-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
+> Esquema formal y machine-checkable: [`src/trellis/schema/trellis-canvas.schema.json`](src/trellis/schema/trellis-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
 - **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido.
 - **Layout:** lectura tipo diagrama de Gantt pero sin fechas de calendario — la posición horizontal aproxima el orden topológico de dependencias. Auto-layout tipo `dagre` al reestructurar.
