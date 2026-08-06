@@ -4,7 +4,7 @@ Herramienta open source y agnóstica de agente que usa **Obsidian Canvas** como 
 
 El agente propone el flujo de trabajo y redacta las tareas; el humano aprueba los cambios reales antes de que se apliquen al contenido.
 
-> Estado: proyecto recién arrancado. Este README describe el diseño acordado hasta ahora; la implementación (esquema formal, CLI, prompts) todavía no existe.
+> Estado: esquema formal ([`src/trellis/schema/`](src/trellis/schema/)) y CLI mínimo ([`src/trellis/`](src/trellis/), 9 comandos, `pytest` en verde) implementados y probados a mano en un vault real fuera de este repo. Siguiente paso: dogfooding sobre un TFG real. El `CLAUDE.md`/system prompt para agentes y el plugin de Obsidian todavía no existen.
 
 ## Idea central
 
@@ -37,7 +37,7 @@ El agente decide si agrupar tarjetas según la envergadura del proyecto (un post
 6. El usuario revisa cuando puede (no hace falta estar presente mientras el agente trabaja) y ve un diff antes/después
 7. El usuario aprueba (se aplica el cambio real, tarjeta → "aprobada") o rechaza (no se toca el `.md`, tarjeta vuelve a backlog o queda marcada para reintento con feedback)
 
-**Propiedad clave — seguridad en modo AFK:** como el agente solo puede proponer y nunca escribir directo, es seguro dejarlo procesando una cola de tarjetas sin supervisión. El peor caso posible es encontrar varias tarjetas en naranja esperando revisión al volver — nunca contenido real escrito sin autorización. Es una propiedad estructural, no un comportamiento a vigilar.
+**Propiedad clave — seguridad en modo AFK:** como el agente solo puede proponer y nunca escribir directo, es seguro dejarlo procesando una cola de tarjetas sin supervisión. El peor caso posible es encontrar varias tarjetas en amarillo esperando revisión al volver — nunca contenido real escrito sin autorización. Es una propiedad estructural, no un comportamiento a vigilar.
 
 ### Grafo de dependencias
 
@@ -65,31 +65,45 @@ Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido
 
 Lo que Obsidian/JSON Canvas no interpreta de forma nativa (duración estimada, duración real, a quién está asignada la tarea, notas de por qué está bloqueada) no se fuerza dentro del `.canvas` — se guarda como **frontmatter YAML** al principio de cada `.md`, formato que Obsidian ya soporta nativamente. Así el `.canvas` se mantiene 100% compatible con Obsidian estándar.
 
-Campos previstos: `estimated_duration`, `actual_duration`, `assigned_to`, `status_note`. El histórico estimado vs. real permitirá calibrar con el tiempo qué tan fiables son las estimaciones del agente para este tipo de tareas.
+Campos: `estimated_duration_hours`, `actual_duration_hours`, `assigned_to`, `status_note`. El histórico estimado vs. real permitirá calibrar con el tiempo qué tan fiables son las estimaciones del agente para este tipo de tareas.
 
-## CLI (diseño, ejemplos ilustrativos — no final)
+## CLI
 
-Comandos concretos y con nombre claro en vez de que el agente edite el JSON del canvas a mano, para evitar romper el formato y limitar al agente a un conjunto conocido de operaciones seguras (igual que una API). Agnóstico de agente: debe funcionar con cualquier herramienta que ejecute comandos de shell y lea/escriba ficheros (Claude Code, Codex, Gemini CLI...).
+Comandos concretos y con nombre claro en vez de que el agente edite el JSON del canvas a mano, para evitar romper el formato y limitar al agente a un conjunto conocido de operaciones seguras (igual que una API). Agnóstico de agente: funciona con cualquier herramienta que ejecute comandos de shell y lea/escriba ficheros (Claude Code, Codex, Gemini CLI...).
 
-Necesita un modo no interactivo/scriptable para soportar trabajo en modo AFK (loop 2 sin supervisión) sobre una cola de tareas. El mecanismo exacto se define en fase de implementación.
+Instalación (editable, para desarrollo):
 
+```bash
+pip install -e .
 ```
-trellis init                                     # crea el vault con canvas vacío
-trellis add-card "Escribir intro" --depends-on cap2
-trellis assign cap3 [cap4 cap5...]               # agente empieza a trabajar, incluso en modo AFK
-trellis propose cap3 --file borrador.md          # agente sube su propuesta, tarjeta → pendiente revisión
-trellis approve cap3                             # usuario acepta, se escribe el .md real
-trellis reject cap3 [--feedback "..."]           # usuario rechaza, no se toca el .md real
-trellis status                                   # lista tarjetas por estado
+
+Cada comando opera sobre el directorio actual, que debe ser la raíz de un vault Trellis (`trellis init` la crea). Ningún comando bloquea en un prompt interactivo, así que una cola de tarjetas se puede procesar en modo AFK con un simple bucle en el agente que invoca el CLI — no hace falta ningún flag ni modo especial.
+
+```bash
+trellis init                                            # crea project.canvas + content/ + .trellis/proposals/
+trellis add-card cap1 --title "Intro"                    # tarjeta suelta -> Backlog
+trellis add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
+                                                          # --authorized es obligatorio en cuanto se toca el grafo
+                                                          # de dependencias (Loop 1) -- sin prompt: una casilla que
+                                                          # el agente marca solo tras pedir permiso en la conversación
+trellis assign cap1 [--by agent|human]                   # -> En progreso
+trellis propose cap1 --file borrador.md                  # -> Propuesta pendiente de revisión
+trellis diff cap1                                        # diff entre content/cap1.md y la propuesta pendiente
+trellis approve cap1                                     # aplica la propuesta al .md real -> Aprobada
+trellis reject cap1 [--feedback "..."]                   # descarta la propuesta -> Backlog, feedback en status_note
+trellis status                                           # tarjetas agrupadas por estado (recalcula Bloqueada/Backlog)
+trellis validate                                         # valida project.canvas contra el schema formal
 ```
+
+Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`).
 
 ## Alcance del MVP (v1)
 
 **Dentro:**
 - Esquema formal del `.canvas` con la convención de colores y node types de arriba
 - Uso de frontmatter en los `.md` para metadatos que Obsidian no interpreta nativamente
-- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `assign`, `propose`, `approve`, `reject`, `status`
-- Modo no interactivo del CLI para trabajo AFK
+- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `assign`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/trellis/`](src/trellis/), [`tests/`](tests/))
+- Modo no interactivo del CLI para trabajo AFK — resuelto: ningún comando usa prompts interactivos, no hace falta flag especial
 - `CLAUDE.md` / system prompt documentando esquema, leyenda de colores y reglas de autorización de los dos loops
 - Flujo de aprobación de escritura real vía diff antes de tocar un `.md` canónico
 - Dogfooding sobre un proyecto real de TFG
@@ -112,6 +126,4 @@ Lo que se publica en este repo es la **herramienta** (CLI, esquema, prompt, docu
 ## Preguntas abiertas
 
 - Formato exacto del brief general del proyecto pasado como contexto en loop 2 — propuesta de partida: un `PROJECT.md` fijo en la raíz del vault, a validar
-- Nombres exactos de subcomandos y flags del CLI más allá de los ilustrativos de este documento
-- Mecanismo concreto del modo no interactivo/AFK del CLI
 - Estructura de carpetas — **resuelto en parte:** las tarjetas viven en `content/<slug>.md` (ver [`docs/canvas-schema.md`](docs/canvas-schema.md)); subcarpetas adicionales como `content/borradores/` siguen abiertas
