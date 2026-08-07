@@ -62,8 +62,10 @@ El agente **nunca** puede escribir en `content/*.md` sin pasar por los pasos 2-4
 
 ## Otros comandos útiles
 
-- `histos describe <id> [--text "..."] [--sources ruta1 ruta2 ...]` — pone o cambia la descripción y/o la lista de ficheros de referencia externos de una tarjeta (`.txt`, `.md`, `.tex`, `.docx` — por ejemplo el Word donde llevas la bibliografía, o el `.tex` que estás editando en VSCode/Overleaf). `--sources` sustituye la lista entera, no añade. No toca el contenido, así que no hace falta aprobarlo.
-- `histos context <id>` — junta en un solo bloque de texto: la descripción y sources de la tarjeta, lo mismo de cada dependencia directa (más su contenido si ya está Aprobada), y `PROJECT.md` si existe. Pensado para que el agente lo corra antes de ponerse a redactar, en vez de ir a buscar cada pieza a mano.
+- `histos describe <id> [--text "..."] [--sources ruta1 ruta2 ...]` — pone o cambia la descripción y/o la lista de ficheros de referencia externos de una tarjeta (`.txt`, `.md`, `.tex`, `.docx` — por ejemplo el Word donde llevas la bibliografía, o el `.tex` que estás editando en VSCode/Overleaf). Las rutas pueden estar en cualquier sitio del disco, no tienen por qué vivir dentro del vault. `--sources` sustituye la lista entera, no añade. No toca el contenido, así que no hace falta aprobarlo.
+- `histos context <id>` — junta en un solo bloque de texto: la descripción y sources de la tarjeta, lo mismo de cada dependencia directa (más su contenido si ya está Aprobada), y `PROJECT.md` si existe. `AGENTS.md` le dice al agente que lo corra antes de ponerse a redactar una tarjeta asignada.
+
+**Importante — esto no es automático por ubicación.** Tener un Word o un `.tex` abierto en la misma carpeta del vault no hace que se use solo: hay que registrar la ruta explícitamente una vez con `describe --sources`. Es deliberado — sin ese registro no hay forma fiable de saber qué fichero suelto es relevante para qué tarjeta. Registro explícito una vez, uso automático (vía `context`) después.
 - `histos link <id> --depends-on ID [ID...] --authorized` — para cuando descubres una dependencia después de haber creado la tarjeta (si la sabías desde el principio, se pone directamente en `add-card --depends-on`).
 
 ## Si algo se ve raro
