@@ -39,11 +39,19 @@ En un vault recién inicializado (sin tarjetas), Loop 1 empieza con una entrevis
 6. El usuario revisa cuando puede (no hace falta estar presente mientras el agente trabaja) y ve un diff antes/después
 7. El usuario aprueba (se aplica el cambio real, tarjeta → "aprobada") o rechaza (no se toca el `.md`, tarjeta vuelve a backlog o queda marcada para reintento con feedback)
 
-**Propiedad clave — seguridad en modo AFK:** como el agente solo puede proponer y nunca escribir directo, es seguro dejarlo procesando una cola de tarjetas sin supervisión. El peor caso posible es encontrar varias tarjetas en amarillo esperando revisión al volver — nunca contenido real escrito sin autorización. Es una propiedad estructural, no un comportamiento a vigilar.
+**Propiedad clave — seguridad en modo AFK:** como el agente solo puede proponer y nunca escribir directo, es seguro dejarlo procesando una cola de tarjetas sin supervisión *mientras el agente respete las reglas de `AGENTS.md`*. El peor caso posible, con un agente que las sigue, es encontrar varias tarjetas en amarillo esperando revisión al volver — nunca contenido real escrito sin autorización. Ojo: esto es una convención que el agente cumple, no una barrera técnica que se lo impida — ver [Modelo de confianza](#modelo-de-confianza).
 
 ### Grafo de dependencias
 
 Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido). El agente respeta el orden topológico al elegir qué tarjeta trabajar a continuación. Si una acción rompería o ignoraría una dependencia existente, el agente debe avisar y pedir autorización **antes** de proceder, nunca después.
+
+## Modelo de confianza
+
+La regla "el agente nunca escribe directamente en `content/*.md`" es una **convención de prosa, no una garantía técnica**. Vive en [`AGENTS.md`](src/histos/templates/AGENTS.md), se carga en el contexto del agente, y depende de que el agente decida cumplirla. No hay permisos de sistema de ficheros, proceso intermedio, ni git hook que la haga cumplir — `content/` es una carpeta de escritura normal. Cualquier proceso con acceso de escritura al vault, incluido el propio agente usando sus herramientas de edición de fichero en vez de `histos propose`, puede saltársela sin que nada lo impida a nivel de herramienta.
+
+Es una decisión consciente, no un descuido: el caso de uso actual es un único usuario con un agente de confianza que lee y sigue instrucciones — el mismo nivel de confianza que cualquier `CLAUDE.md`/`AGENTS.md` de cualquier repo. Deja de ser suficiente si el agente no es de confianza (instrucciones inyectadas, modelo no alineado) o si varios usuarios/agentes con intereses distintos comparten el mismo vault.
+
+Una garantía real requeriría separar "quién tiene permiso de escritura en `content/`" de "el agente" a nivel de sistema operativo — por ejemplo, que solo el propio binario `histos` (no el agente directamente) tuviera permisos de escritura ahí, forzando que cualquier cambio pase por él. En un escritorio de un solo usuario esto no es trivial (agente y CLI corren como el mismo usuario del SO) — haría falta algo como una cuenta de sistema separada o un proceso intermediario con permisos elevados. Sandboxing real del agente es trabajo futuro explícito, no implementado todavía.
 
 ## Convenciones del canvas
 
@@ -125,6 +133,8 @@ Código en [`src/histos/`](src/histos/), tests en [`tests/`](tests/) (`pytest`).
 - Integración de git como backend de historial del contenido del usuario
 - Fechas / calendario real tipo Gantt clásico
 - Traer contexto externo (p. ej. el `.tex` principal en Overleaf vía su integración Git, que requiere plan de pago) para que `histos context` (ver preguntas abiertas) lo incluya automáticamente — posible v2
+- Sandboxing real del agente (ver [Modelo de confianza](#modelo-de-confianza)): que `propose`/`approve` sea una barrera técnica y no solo una convención de `AGENTS.md` — próximo en la agenda
+- Soporte multi-agente: varios agentes trabajando en paralelo sobre el mismo vault — depende del sandboxing anterior para no pisarse entre sí
 
 ## Alcance de la distribución
 
