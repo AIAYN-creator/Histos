@@ -28,7 +28,7 @@ _CHARS_PER_LINE = 30
 _LINE_HEIGHT = 28
 
 LEGEND_ID = "legend"
-_LEGEND_TEXT = """## Leyenda de estados (Trellis)
+_LEGEND_TEXT = """## Leyenda de estados (Histos)
 
 | Color | Estado |
 |---|---|
@@ -39,11 +39,11 @@ _LEGEND_TEXT = """## Leyenda de estados (Trellis)
 | \U0001F535 cian | Solicitud cambio de dependencia |
 | \U0001F7E2 verde | Aprobada |
 
-Detalle: docs/canvas-schema.md en el repo de Trellis.
+Detalle: docs/canvas-schema.md en el repo de Histos.
 """
 
 
-class TrellisError(Exception):
+class HistosError(Exception):
     """Errores esperables (vault no encontrado, id duplicado, etc.) -- mensaje ya listo para el usuario."""
 
 
@@ -54,8 +54,8 @@ def vault_canvas_path(vault_root: Path) -> Path:
 def load(vault_root: Path) -> dict:
     path = vault_canvas_path(vault_root)
     if not path.exists():
-        raise TrellisError(
-            f"no encuentro {CANVAS_FILENAME} en {vault_root} -- ejecuta 'trellis init' primero"
+        raise HistosError(
+            f"no encuentro {CANVAS_FILENAME} en {vault_root} -- ejecuta 'histos init' primero"
         )
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)

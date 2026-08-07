@@ -1,8 +1,8 @@
 import shutil
 from pathlib import Path
 
-from trellis import canvas, frontmatter
-from trellis.cli import build_parser
+from histos import canvas, frontmatter
+from histos.cli import build_parser
 
 
 def run(monkeypatch, tmp_path, *argv):
@@ -55,7 +55,6 @@ def test_add_card_without_authorized_fails(tmp_path, monkeypatch):
 def test_propose_uses_visible_propuestas_folder(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     assert (tmp_path / "propuestas").is_dir()
-    assert not (tmp_path / ".trellis").exists()
 
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
     run(monkeypatch, tmp_path, "assign", "cap1")

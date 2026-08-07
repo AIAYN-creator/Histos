@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/AIAYN-creator/Trellis/blob/main/schema/trellis-canvas.schema.json",
-  "title": "Trellis canvas",
-  "description": "JSON Canvas 1.0 (https://jsoncanvas.org) restringido a las convenciones de Trellis. No valida integridad referencial entre nodes/edges ni aciclicidad del grafo de dependencias -- eso es responsabilidad del CLI. Ver docs/canvas-schema.md.",
+  "$id": "https://github.com/AIAYN-creator/Histos/blob/main/src/histos/schema/histos-canvas.schema.json",
+  "title": "Histos canvas",
+  "description": "JSON Canvas 1.0 (https://jsoncanvas.org) restringido a las convenciones de Histos. No valida integridad referencial entre nodes/edges ni aciclicidad del grafo de dependencias -- eso es responsabilidad del CLI. Ver docs/canvas-schema.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -19,12 +19,12 @@
   },
   "$defs": {
     "statusColor": {
-      "description": "Leyenda de estado de Trellis: 1=Bloqueada, 2=En progreso, 3=Propuesta pendiente de revision, 4=Aprobada, 5=Solicitud cambio de dependencia, 6=Backlog.",
+      "description": "Leyenda de estado de Histos: 1=Bloqueada, 2=En progreso, 3=Propuesta pendiente de revision, 4=Aprobada, 5=Solicitud cambio de dependencia, 6=Backlog.",
       "type": "string",
       "enum": ["1", "2", "3", "4", "5", "6"]
     },
     "canvasColor": {
-      "description": "Color JSON Canvas nativo (hex o preset 1-6), sin restriccion semantica de Trellis. Se usa solo en group.color y edge.color.",
+      "description": "Color JSON Canvas nativo (hex o preset 1-6), sin restriccion semantica de Histos. Se usa solo en group.color y edge.color.",
       "type": "string",
       "pattern": "^(#[0-9A-Fa-f]{6}|[1-6])$"
     },
@@ -86,7 +86,7 @@
       }
     },
     "textNode": {
-      "description": "Texto decorativo/documentacion (p.ej. la leyenda de colores que 'trellis init' coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo, solo filtra por type=='file' para todo lo que es logica de estado/dependencias.",
+      "description": "Texto decorativo/documentacion (p.ej. la leyenda de colores que 'histos init' coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo, solo filtra por type=='file' para todo lo que es logica de estado/dependencias.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "type", "x", "y", "width", "height", "text"],

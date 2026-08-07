@@ -1,4 +1,4 @@
-from trellis import validation
+from histos import validation
 
 
 def test_valid_minimal_canvas_passes():

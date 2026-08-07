@@ -1,4 +1,4 @@
-from trellis import canvas
+from histos import canvas
 
 
 def _card(id_, color):
@@ -11,8 +11,8 @@ def _card(id_, color):
 def test_load_missing_raises(tmp_path):
     try:
         canvas.load(tmp_path)
-        assert False, "esperaba TrellisError"
-    except canvas.TrellisError:
+        assert False, "esperaba HistosError"
+    except canvas.HistosError:
         pass
 
 

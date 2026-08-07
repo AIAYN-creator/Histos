@@ -5,16 +5,16 @@ Para el diseño completo ver el [README](../README.md); esto es una guía práct
 ## Instalar
 
 ```bash
-pip install -e /ruta/a/Trellis
+pip install -e /ruta/a/Histos
 ```
 
-(hasta que se publique en PyPI, instálalo apuntando a tu copia local del repo de Trellis — funciona desde cualquier directorio, no hace falta estar dentro de `Trellis/`.)
+(hasta que se publique en PyPI, instálalo apuntando a tu copia local del repo de Histos — funciona desde cualquier directorio, no hace falta estar dentro de `Histos/`.)
 
 ## Arrancar un proyecto
 
 ```bash
 cd /ruta/a/tu/proyecto-de-escritura
-trellis init
+histos init
 ```
 
 Esto crea `project.canvas` (con una leyenda de colores ya puesta en el propio canvas), `content/`, y las instrucciones para el agente (`AGENTS.md`, `CLAUDE.md`). Abre esa misma carpeta como vault en Obsidian — Canvas es una función nativa de Obsidian, no hace falta ningún plugin — y verás el tablero visual con su leyenda arriba.
@@ -38,11 +38,11 @@ Cuando veas una tarjeta amarilla o cian, es tu turno.
 
 ## El ciclo del día a día
 
-1. Le pides al agente (Claude Code, Codex, lo que uses) que trabaje una o varias tarjetas. El agente hace `trellis assign` y se pone a redactar.
-2. El agente sube su propuesta con `trellis propose` — la tarjeta se pone amarilla. **No ha tocado el `.md` real todavía.**
-3. Cuando tengas un rato, `trellis diff <id>` te enseña exactamente qué cambiaría — o simplemente abre `propuestas/<id>.md` en Obsidian como cualquier otra nota (es una carpeta visible, no oculta: puedes verla, leerla, e incluso retocarla a mano antes de aprobar).
-4. Si te convence: `trellis approve <id>` — ahora sí se escribe el `.md` real, y una copia de lo aprobado se archiva en `aprobados/<id>.md` (por si luego quieres comparar o te arrepientes de una aprobación rápida). Si no: `trellis reject <id> --feedback "lo que le falta"` — se descarta sin dejar rastro (lo rechazado no se archiva, no hace falta) y el agente verá tu feedback la próxima vez que mire esa tarjeta.
-5. `trellis status` en cualquier momento para ver el panorama completo.
+1. Le pides al agente (Claude Code, Codex, lo que uses) que trabaje una o varias tarjetas. El agente hace `histos assign` y se pone a redactar.
+2. El agente sube su propuesta con `histos propose` — la tarjeta se pone amarilla. **No ha tocado el `.md` real todavía.**
+3. Cuando tengas un rato, `histos diff <id>` te enseña exactamente qué cambiaría — o simplemente abre `propuestas/<id>.md` en Obsidian como cualquier otra nota (es una carpeta visible, no oculta: puedes verla, leerla, e incluso retocarla a mano antes de aprobar).
+4. Si te convence: `histos approve <id>` — ahora sí se escribe el `.md` real, y una copia de lo aprobado se archiva en `aprobados/<id>.md` (por si luego quieres comparar o te arrepientes de una aprobación rápida). Si no: `histos reject <id> --feedback "lo que le falta"` — se descarta sin dejar rastro (lo rechazado no se archiva, no hace falta) y el agente verá tu feedback la próxima vez que mire esa tarjeta.
+5. `histos status` en cualquier momento para ver el panorama completo.
 
 ## Por qué es seguro dejarlo trabajando solo
 
@@ -50,13 +50,13 @@ El agente **nunca** puede escribir en `content/*.md` sin pasar por los pasos 2-4
 
 ## Otros comandos útiles
 
-- `trellis describe <id> --text "..."` — pone o cambia la descripción de una tarjeta (una línea, aparece en `trellis status` y en el frontmatter). No toca el contenido, así que no hace falta aprobarlo.
-- `trellis link <id> --depends-on ID [ID...] --authorized` — para cuando descubres una dependencia después de haber creado la tarjeta (si la sabías desde el principio, se pone directamente en `add-card --depends-on`).
+- `histos describe <id> --text "..."` — pone o cambia la descripción de una tarjeta (una línea, aparece en `histos status` y en el frontmatter). No toca el contenido, así que no hace falta aprobarlo.
+- `histos link <id> --depends-on ID [ID...] --authorized` — para cuando descubres una dependencia después de haber creado la tarjeta (si la sabías desde el principio, se pone directamente en `add-card --depends-on`).
 
 ## Si algo se ve raro
 
 ```bash
-trellis validate
+histos validate
 ```
 
 Valida `project.canvas` contra el esquema formal y te dice exactamente qué está mal si algo se corrompió (referencias rotas, ciclos en las dependencias, tarjetas mal formadas).

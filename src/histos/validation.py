@@ -16,7 +16,7 @@ _SCHEMA_CACHE: dict | None = None
 def load_schema() -> dict:
     global _SCHEMA_CACHE
     if _SCHEMA_CACHE is None:
-        ref = resources.files("trellis").joinpath("schema", "trellis-canvas.schema.json")
+        ref = resources.files("histos").joinpath("schema", "histos-canvas.schema.json")
         _SCHEMA_CACHE = json.loads(ref.read_text(encoding="utf-8"))
     return _SCHEMA_CACHE
 

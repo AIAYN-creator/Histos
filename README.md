@@ -1,10 +1,10 @@
-# Trellis
+# Histos
 
 Herramienta open source y agnóstica de agente que usa **Obsidian Canvas** como tablero compartido humano-IA para gestionar proyectos de producción escrita: TFGs, tesis, papers, posts de blog, informes.
 
 El agente propone el flujo de trabajo y redacta las tareas; el humano aprueba los cambios reales antes de que se apliquen al contenido.
 
-> Estado: esquema formal ([`src/trellis/schema/`](src/trellis/schema/)) y CLI mínimo ([`src/trellis/`](src/trellis/), 11 comandos, `pytest` en verde) implementados. En dogfooding activo sobre un TFG real. El plugin de Obsidian todavía no existe.
+> Estado: esquema formal ([`src/histos/schema/`](src/histos/schema/)) y CLI mínimo ([`src/histos/`](src/histos/), 11 comandos, `pytest` en verde) implementados. En dogfooding activo sobre un TFG real. El plugin de Obsidian todavía no existe.
 
 ## Idea central
 
@@ -45,9 +45,9 @@ Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido
 
 ## Convenciones del canvas
 
-> Esquema formal y machine-checkable: [`src/trellis/schema/trellis-canvas.schema.json`](src/trellis/schema/trellis-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
+> Esquema formal y machine-checkable: [`src/histos/schema/histos-canvas.schema.json`](src/histos/schema/histos-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
-- **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido. (`text` se usa únicamente para la leyenda de colores decorativa que genera `trellis init`; el CLI la ignora por completo.)
+- **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido. (`text` se usa únicamente para la leyenda de colores decorativa que genera `histos init`; el CLI la ignora por completo.)
 - **Layout:** lectura tipo diagrama de Gantt pero sin fechas de calendario — la columna (x) es el rango de dependencia (camino más largo desde una raíz), las tarjetas del mismo rango se apilan en vertical. El tamaño de cada tarjeta se calcula a partir de la longitud de su `description`. `add-card`, `link` y `describe` recalculan tamaño+posición de todas las tarjetas automáticamente. No es un dagre completo (sin minimización de cruces de edges), pero cubre el caso de uso real.
 
 ### Leyenda de colores
@@ -77,43 +77,43 @@ Instalación (editable, para desarrollo):
 pip install -e .
 ```
 
-Cada comando opera sobre el directorio actual, que debe ser la raíz de un vault Trellis (`trellis init` la crea). Ningún comando bloquea en un prompt interactivo, así que una cola de tarjetas se puede procesar en modo AFK con un simple bucle en el agente que invoca el CLI — no hace falta ningún flag ni modo especial.
+Cada comando opera sobre el directorio actual, que debe ser la raíz de un vault Histos (`histos init` la crea). Ningún comando bloquea en un prompt interactivo, así que una cola de tarjetas se puede procesar en modo AFK con un simple bucle en el agente que invoca el CLI — no hace falta ningún flag ni modo especial.
 
 ```bash
-trellis init                                            # crea project.canvas (con leyenda de colores) + content/
-trellis add-card cap1 --title "Intro" [--description "..."]
+histos init                                            # crea project.canvas (con leyenda de colores) + content/
+histos add-card cap1 --title "Intro" [--description "..."]
                                                           # tarjeta suelta -> Backlog
-trellis add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
+histos add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
                                                           # --authorized es obligatorio en cuanto se toca el grafo
                                                           # de dependencias (Loop 1) -- sin prompt: una casilla que
                                                           # el agente marca solo tras pedir permiso en la conversación
-trellis link cap1 --depends-on cap0 --authorized         # añade dependencia a una tarjeta YA existente
-trellis describe cap1 --text "..."                       # actualiza solo la descripción (frontmatter, sin permiso)
-trellis assign cap1 [--by agent|human]                   # -> En progreso
-trellis propose cap1 --file borrador.md                  # -> Propuesta pendiente de revisión
-trellis diff cap1                                        # diff entre content/cap1.md y la propuesta pendiente
-trellis approve cap1                                     # aplica la propuesta al .md real -> Aprobada
-trellis reject cap1 [--feedback "..."]                   # descarta la propuesta -> Backlog, feedback en status_note
-trellis status                                           # tarjetas agrupadas por estado (recalcula Bloqueada/Backlog)
-trellis validate                                         # valida project.canvas contra el schema formal
+histos link cap1 --depends-on cap0 --authorized         # añade dependencia a una tarjeta YA existente
+histos describe cap1 --text "..."                       # actualiza solo la descripción (frontmatter, sin permiso)
+histos assign cap1 [--by agent|human]                   # -> En progreso
+histos propose cap1 --file borrador.md                  # -> Propuesta pendiente de revisión
+histos diff cap1                                        # diff entre content/cap1.md y la propuesta pendiente
+histos approve cap1                                     # aplica la propuesta al .md real -> Aprobada
+histos reject cap1 [--feedback "..."]                   # descarta la propuesta -> Backlog, feedback en status_note
+histos status                                           # tarjetas agrupadas por estado (recalcula Bloqueada/Backlog)
+histos validate                                         # valida project.canvas contra el schema formal
 ```
 
 ### Abrir el vault en Obsidian
 
-`trellis init` crea `project.canvas` en el directorio actual — esa carpeta, **exactamente esa y ninguna por encima**, es la que tienes que abrir como vault en Obsidian (`Open folder as vault`). Canvas es una función nativa de Obsidian; no hace falta ningún plugin.
+`histos init` crea `project.canvas` en el directorio actual — esa carpeta, **exactamente esa y ninguna por encima**, es la que tienes que abrir como vault en Obsidian (`Open folder as vault`). Canvas es una función nativa de Obsidian; no hace falta ningún plugin.
 
-Por qué importa tanto: las tarjetas referencian sus `.md` con rutas relativas al vault (`content/cap1.md`). Si abres una carpeta por encima de la que contiene `project.canvas` (p. ej. el directorio padre en vez del propio vault), esas rutas ya no resuelven y Obsidian te muestra las tarjetas como "Create new note" / "Swap file..." en vez de con contenido — no está roto, es la carpeta equivocada. Si te pasa después de tener el vault bien abierto (p. ej. porque `trellis` creó ficheros mientras Obsidian ya estaba abierto), recarga con `Ctrl+R` antes de sospechar de nada más.
+Por qué importa tanto: las tarjetas referencian sus `.md` con rutas relativas al vault (`content/cap1.md`). Si abres una carpeta por encima de la que contiene `project.canvas` (p. ej. el directorio padre en vez del propio vault), esas rutas ya no resuelven y Obsidian te muestra las tarjetas como "Create new note" / "Swap file..." en vez de con contenido — no está roto, es la carpeta equivocada. Si te pasa después de tener el vault bien abierto (p. ej. porque `histos` creó ficheros mientras Obsidian ya estaba abierto), recarga con `Ctrl+R` antes de sospechar de nada más.
 
-Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`). Guía práctica de uso día a día (para humanos, no para agentes): [`docs/usage.md`](docs/usage.md).
+Código en [`src/histos/`](src/histos/), tests en [`tests/`](tests/) (`pytest`). Guía práctica de uso día a día (para humanos, no para agentes): [`docs/usage.md`](docs/usage.md).
 
 ## Alcance del MVP (v1)
 
 **Dentro:**
 - Esquema formal del `.canvas` con la convención de colores y node types de arriba
 - Uso de frontmatter en los `.md` para metadatos que Obsidian no interpreta nativamente
-- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `link`, `describe`, `assign`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/trellis/`](src/trellis/), [`tests/`](tests/))
+- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `link`, `describe`, `assign`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/histos/`](src/histos/), [`tests/`](tests/))
 - Modo no interactivo del CLI para trabajo AFK — resuelto: ningún comando usa prompts interactivos, no hace falta flag especial
-- Instrucciones para agentes documentando esquema, leyenda de colores y reglas de autorización de los dos loops — implementado como [`AGENTS.md`](src/trellis/templates/AGENTS.md) (fuente única, agnóstico de agente) + `CLAUDE.md` (una línea, `@AGENTS.md`), que `trellis init` copia a cada vault nuevo
+- Instrucciones para agentes documentando esquema, leyenda de colores y reglas de autorización de los dos loops — implementado como [`AGENTS.md`](src/histos/templates/AGENTS.md) (fuente única, agnóstico de agente) + `CLAUDE.md` (una línea, `@AGENTS.md`), que `histos init` copia a cada vault nuevo
 - Flujo de aprobación de escritura real vía diff antes de tocar un `.md` canónico
 - Dogfooding sobre un proyecto real de TFG
 
@@ -121,7 +121,7 @@ Código en [`src/trellis/`](src/trellis/), tests en [`tests/`](tests/) (`pytest`
 - Plugin nativo de Obsidian (TypeScript, Obsidian Plugin API) — posible v2 para interactividad en vivo
 - Integración de git como backend de historial del contenido del usuario
 - Fechas / calendario real tipo Gantt clásico
-- Traer contexto externo (p. ej. el `.tex` principal en Overleaf vía su integración Git, que requiere plan de pago) para que `trellis context` (ver preguntas abiertas) lo incluya automáticamente — posible v2
+- Traer contexto externo (p. ej. el `.tex` principal en Overleaf vía su integración Git, que requiere plan de pago) para que `histos context` (ver preguntas abiertas) lo incluya automáticamente — posible v2
 
 ## Alcance de la distribución
 
@@ -129,11 +129,11 @@ Lo que se publica en este repo es la **herramienta** (CLI, esquema, prompt, docu
 
 ## Prior art
 
-- **Kanvas (XMihura)** — referencia directa de arquitectura. Mismo patrón pero orientado a código: prompt + CLI en Python que el agente usa para tocar el canvas + el `.canvas` en sí. Sin SaaS, sin build step, agnóstico de agente. Trellis adapta ese patrón a proyectos de escritura en vez de código.
+- **Kanvas (XMihura)** — referencia directa de arquitectura. Mismo patrón pero orientado a código: prompt + CLI en Python que el agente usa para tocar el canvas + el `.canvas` en sí. Sin SaaS, sin build step, agnóstico de agente. Histos adapta ese patrón a proyectos de escritura en vez de código.
 - **claude-canvas (AgriciDaniel)** — referencia solo para el algoritmo de auto-layout (`dagre`) y la idea de zonas/grupos visuales. No es la arquitectura base.
 - **JSON Canvas spec (jsoncanvas.org)** — el formato `.canvas` es el estándar abierto JSON Canvas, no propietario de Obsidian. Node types disponibles: `text` (markdown embebido), `file` (ruta a un fichero real del vault), `link` (URL), `group` (contenedor puramente geométrico — un nodo "pertenece" a un grupo solo si sus coordenadas caen dentro del rectángulo del grupo; no hay `parent_id` en los datos).
 
 ## Preguntas abiertas
 
-- Formato exacto del brief general del proyecto pasado como contexto en loop 2 — propuesta de partida: un `PROJECT.md` fijo en la raíz del vault, a validar. Se completaría con un comando `trellis context <id>` que junte automáticamente descripción + contenido de las dependencias ya aprobadas + el brief, listo para pasarselo al agente sin montarlo a mano
+- Formato exacto del brief general del proyecto pasado como contexto en loop 2 — propuesta de partida: un `PROJECT.md` fijo en la raíz del vault, a validar. Se completaría con un comando `histos context <id>` que junte automáticamente descripción + contenido de las dependencias ya aprobadas + el brief, listo para pasarselo al agente sin montarlo a mano
 - Estructura de carpetas — **resuelto en parte:** las tarjetas viven en `content/<slug>.md` (ver [`docs/canvas-schema.md`](docs/canvas-schema.md)); subcarpetas adicionales como `content/borradores/` siguen abiertas

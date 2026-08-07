@@ -1,4 +1,4 @@
-"""CLI de Trellis. Cada subcomando es un cmd_xxx(args) -> int, testeable sin pasar por argparse."""
+"""CLI de Histos. Cada subcomando es un cmd_xxx(args) -> int, testeable sin pasar por argparse."""
 from __future__ import annotations
 
 import argparse
@@ -29,7 +29,7 @@ def _install_agent_templates(vault_root: Path) -> None:
         if target.exists():
             print(f"aviso: ya existe {name}, no lo toco -- copia el contenido de referencia a mano si quieres", file=sys.stderr)
             continue
-        ref = resources.files("trellis").joinpath("templates", name)
+        ref = resources.files("histos").joinpath("templates", name)
         target.write_text(ref.read_text(encoding="utf-8"), encoding="utf-8")
 
 
@@ -49,8 +49,8 @@ def _load_valid(vault_root: Path) -> dict:
     data = canvas.load(vault_root)
     errors = validation.validate_all(data)
     if errors:
-        raise canvas.TrellisError(
-            "el canvas no es valido -- corrigelo antes de continuar ('trellis validate' para detalle):\n"
+        raise canvas.HistosError(
+            "el canvas no es valido -- corrigelo antes de continuar ('histos validate' para detalle):\n"
             + "\n".join(f"  - {e}" for e in errors)
         )
     return data
@@ -87,7 +87,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -146,7 +146,7 @@ def cmd_link(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -190,7 +190,7 @@ def cmd_assign(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -225,7 +225,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -254,7 +254,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -265,7 +265,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     if card["color"] != canvas.EN_PROGRESO:
         print(
             f"error: '{args.id}' no esta En progreso (estado actual: {STATE_NAMES[card['color']]}) "
-            "-- usa 'trellis assign' primero",
+            "-- usa 'histos assign' primero",
             file=sys.stderr,
         )
         return 1
@@ -281,7 +281,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
 
     card["color"] = canvas.PROPUESTA_PENDIENTE
     canvas.save(vault_root, data)
-    print(f"'{args.id}' -> Propuesta pendiente de revision ('trellis diff {args.id}' para revisarla)")
+    print(f"'{args.id}' -> Propuesta pendiente de revision ('histos diff {args.id}' para revisarla)")
     return 0
 
 
@@ -289,7 +289,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -321,7 +321,7 @@ def cmd_approve(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -363,7 +363,7 @@ def cmd_reject(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -399,7 +399,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -432,7 +432,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
         data = canvas.load(vault_root)
-    except canvas.TrellisError as e:
+    except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
@@ -446,7 +446,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="trellis", description="CLI de Trellis (ver docs/canvas-schema.md)")
+    parser = argparse.ArgumentParser(prog="histos", description="CLI de Histos (ver docs/canvas-schema.md)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("init", help="crea project.canvas + content/ en el directorio actual")

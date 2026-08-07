@@ -1,8 +1,8 @@
 # Esquema del `.canvas`
 
-Este documento formaliza las convenciones de Trellis sobre el formato [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/). El validador machine-checkable vive en [`src/trellis/schema/trellis-canvas.schema.json`](../src/trellis/schema/trellis-canvas.schema.json) (empaquetado junto al CLI); aquí está el porqué.
+Este documento formaliza las convenciones de Histos sobre el formato [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/). El validador machine-checkable vive en [`src/histos/schema/histos-canvas.schema.json`](../src/histos/schema/histos-canvas.schema.json) (empaquetado junto al CLI); aquí está el porqué.
 
-Lo que el JSON Schema **no** puede comprobar por sí solo — que `fromNode`/`toNode` de cada edge apunten a un `id` que existe, y que el grafo de dependencias sea acíclico — es responsabilidad del CLI (`trellis status` / `trellis validate`), no de este esquema.
+Lo que el JSON Schema **no** puede comprobar por sí solo — que `fromNode`/`toNode` de cada edge apunten a un `id` que existe, y que el grafo de dependencias sea acíclico — es responsabilidad del CLI (`histos status` / `histos validate`), no de este esquema.
 
 ## Estructura de carpetas
 
@@ -21,15 +21,15 @@ Subcarpetas adicionales dentro de `content/` (p. ej. `borradores/`) quedan abier
 
 ## Tipos de nodo
 
-Trellis usa tres de los cuatro node types de JSON Canvas:
+Histos usa tres de los cuatro node types de JSON Canvas:
 
 - **`file`** — una tarjeta de tarea. Apunta a un `.md` real en `content/`; nunca contiene texto embebido. `link` suelto no está permitido.
 - **`group`** — agrupación puramente geométrica (p. ej. "capítulo 3"). Un nodo "pertenece" a un grupo solo si sus coordenadas caen dentro del rectángulo del grupo — no hay `parent_id` en los datos. No lleva estado.
-- **`text`** — únicamente para contenido decorativo/documentación (la leyenda de colores que `trellis init` coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo — toda la lógica de estado/dependencias filtra explícitamente por `type == "file"`. Nada impide añadir más notas de texto a mano en Obsidian; Trellis simplemente no las toca.
+- **`text`** — únicamente para contenido decorativo/documentación (la leyenda de colores que `histos init` coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo — toda la lógica de estado/dependencias filtra explícitamente por `type == "file"`. Nada impide añadir más notas de texto a mano en Obsidian; Histos simplemente no las toca.
 
 ## Convención de id
 
-El `id` de una tarjeta es el mismo slug que el nombre de su fichero: id `cap3` → `content/cap3.md`. Así los ejemplos del CLI (`trellis assign cap3`, `--depends-on cap2`) son legibles directamente. Los `group` solo necesitan ser únicos, sin convención adicional.
+El `id` de una tarjeta es el mismo slug que el nombre de su fichero: id `cap3` → `content/cap3.md`. Así los ejemplos del CLI (`histos assign cap3`, `--depends-on cap2`) son legibles directamente. Los `group` solo necesitan ser únicos, sin convención adicional.
 
 ## Color → estado
 
@@ -44,7 +44,7 @@ El color de una tarjeta (campo `color`, preset `"1"`–`"6"`) **es** su estado �
 | `"5"` | cian | Solicitud cambio de dependencia |
 | `"6"` | morado | Backlog |
 
-Una tarjeta `file` sin `color` no está gestionada por Trellis (añadida a mano en Obsidian, o dato corrupto) — el schema la rechaza porque `color` es obligatorio en `cardNode`, y eso es intencional: la propia validación del schema es el mecanismo de detección.
+Una tarjeta `file` sin `color` no está gestionada por Histos (añadida a mano en Obsidian, o dato corrupto) — el schema la rechaza porque `color` es obligatorio en `cardNode`, y eso es intencional: la propia validación del schema es el mecanismo de detección.
 
 **Bloqueada es un estado derivado**, no algo que el agente o el humano asignen a mano: el CLI lo calcula viendo si *todas* las edges entrantes de una tarjeta apuntan a nodos ya en Aprobada (color `"4"`). Nada te impide poner color `"1"` manualmente, pero el CLI debería tratarlo como una señal a recalcular, no como fuente de verdad.
 
@@ -58,7 +58,7 @@ Lo que Obsidian/JSON Canvas no interpreta nativamente vive como YAML frontmatter
 
 | Campo | Tipo | Notas |
 |---|---|---|
-| `description` | string | una línea, resume la tarjeta; se pone en `add-card --description` o se actualiza después con `trellis describe` — nunca toca el cuerpo, así que no pasa por `propose`/`approve` |
+| `description` | string | una línea, resume la tarjeta; se pone en `add-card --description` o se actualiza después con `histos describe` — nunca toca el cuerpo, así que no pasa por `propose`/`approve` |
 | `estimated_duration_hours` | number | lo rellena el agente al aceptar/empezar la tarea |
 | `actual_duration_hours` | number | se rellena al completarse, para comparar con la estimación |
 | `assigned_to` | `"agent"` \| `"human"` | |

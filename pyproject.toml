@@ -1,5 +1,5 @@
 [project]
-name = "trellis-cli"
+name = "histos-cli"
 version = "0.1.0"
 description = "CLI que gestiona un canvas de Obsidian como tablero de tareas compartido humano-IA"
 readme = "README.md"
@@ -13,11 +13,11 @@ dependencies = [
 dev = ["pytest>=7.0"]
 
 [project.scripts]
-trellis = "trellis.cli:main"
+histos = "histos.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/trellis"]
+packages = ["src/histos"]
