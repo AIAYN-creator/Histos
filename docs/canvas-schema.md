@@ -59,6 +59,7 @@ Lo que Obsidian/JSON Canvas no interpreta nativamente vive como YAML frontmatter
 | Campo | Tipo | Notas |
 |---|---|---|
 | `description` | string | una línea, resume la tarjeta; se pone en `add-card --description` o se actualiza después con `histos describe` — nunca toca el cuerpo, así que no pasa por `propose`/`approve` |
+| `sources` | lista de strings | rutas a ficheros externos (`.txt`, `.md`, `.tex`, `.docx`) con material de referencia para esta tarjeta — `describe --sources` la sustituye entera, no la añade. `histos context <id>` los lee e incluye su texto |
 | `estimated_duration_hours` | number | lo rellena el agente al aceptar/empezar la tarea |
 | `actual_duration_hours` | number | se rellena al completarse, para comparar con la estimación |
 | `assigned_to` | `"agent"` \| `"human"` | |

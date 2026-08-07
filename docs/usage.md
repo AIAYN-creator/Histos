@@ -21,6 +21,8 @@ Esto crea `project.canvas` (con una leyenda de colores ya puesta en el propio ca
 
 **Importante:** abre la carpeta que contiene `project.canvas` directamente como vault, no una carpeta por encima — si no, Obsidian no encuentra los `.md` de las tarjetas y las verás como "Create new note" en vez de con contenido.
 
+Con el vault ya abierto, pídele al agente que te ayude a montar el proyecto. Debería preguntarte de qué trata, si es experimental/revisión bibliográfica/mixto, si hay una plantilla obligatoria que seguir, y si tiene sentido meter checkpoints de revisión — con eso te propone una tabla de tarjetas y dependencias antes de crear nada (regla que vive en `AGENTS.md`). Si no te pregunta nada y se lanza directo a crear tarjetas genéricas, pídeselo tú explícitamente.
+
 ## Leer el tablero
 
 El color de cada tarjeta es su estado:
@@ -50,7 +52,8 @@ El agente **nunca** puede escribir en `content/*.md` sin pasar por los pasos 2-4
 
 ## Otros comandos útiles
 
-- `histos describe <id> --text "..."` — pone o cambia la descripción de una tarjeta (una línea, aparece en `histos status` y en el frontmatter). No toca el contenido, así que no hace falta aprobarlo.
+- `histos describe <id> [--text "..."] [--sources ruta1 ruta2 ...]` — pone o cambia la descripción y/o la lista de ficheros de referencia externos de una tarjeta (`.txt`, `.md`, `.tex`, `.docx` — por ejemplo el Word donde llevas la bibliografía, o el `.tex` que estás editando en VSCode/Overleaf). `--sources` sustituye la lista entera, no añade. No toca el contenido, así que no hace falta aprobarlo.
+- `histos context <id>` — junta en un solo bloque de texto: la descripción y sources de la tarjeta, lo mismo de cada dependencia directa (más su contenido si ya está Aprobada), y `PROJECT.md` si existe. Pensado para que el agente lo corra antes de ponerse a redactar, en vez de ir a buscar cada pieza a mano.
 - `histos link <id> --depends-on ID [ID...] --authorized` — para cuando descubres una dependencia después de haber creado la tarjeta (si la sabías desde el principio, se pone directamente en `add-card --depends-on`).
 
 ## Si algo se ve raro

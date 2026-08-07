@@ -4,7 +4,7 @@ Herramienta open source y agnóstica de agente que usa **Obsidian Canvas** como 
 
 El agente propone el flujo de trabajo y redacta las tareas; el humano aprueba los cambios reales antes de que se apliquen al contenido.
 
-> Estado: esquema formal ([`src/histos/schema/`](src/histos/schema/)) y CLI mínimo ([`src/histos/`](src/histos/), 11 comandos, `pytest` en verde) implementados. En dogfooding activo sobre un TFG real. El plugin de Obsidian todavía no existe.
+> Estado: esquema formal ([`src/histos/schema/`](src/histos/schema/)) y CLI mínimo ([`src/histos/`](src/histos/), 12 comandos, `pytest` en verde) implementados. En dogfooding activo sobre un TFG real. El plugin de Obsidian todavía no existe.
 
 ## Idea central
 
@@ -26,6 +26,8 @@ Requiere autorización explícita del usuario:
 - Crear, borrar o redirigir una **arista de dependencia** — porque redefine qué se desbloquea y en qué orden, no es un cambio puramente estético
 
 El agente decide si agrupar tarjetas según la envergadura del proyecto (un post de blog probablemente no necesita grupos; una tesis probablemente sí). No se fuerza jerarquía en v1.
+
+En un vault recién inicializado (sin tarjetas), Loop 1 empieza con una entrevista breve — de qué trata el proyecto, tipo de trabajo, si hay una estructura obligatoria, si conviene modelar checkpoints de revisión como tarjetas — antes de proponer el índice inicial. Protocolo completo en [`AGENTS.md`](src/histos/templates/AGENTS.md).
 
 ### Loop 2 — Ejecución (el agente trabaja, el humano decide)
 
@@ -88,8 +90,9 @@ histos add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
                                                           # de dependencias (Loop 1) -- sin prompt: una casilla que
                                                           # el agente marca solo tras pedir permiso en la conversación
 histos link cap1 --depends-on cap0 --authorized         # añade dependencia a una tarjeta YA existente
-histos describe cap1 --text "..."                       # actualiza solo la descripción (frontmatter, sin permiso)
+histos describe cap1 --text "..." [--sources f1 f2]     # descripción y/o fuentes externas (frontmatter, sin permiso)
 histos assign cap1 [--by agent|human]                   # -> En progreso
+histos context cap1                                     # junta descripción+dependencias aprobadas+sources+PROJECT.md
 histos propose cap1 --file borrador.md                  # -> Propuesta pendiente de revisión
 histos diff cap1                                        # diff entre content/cap1.md y la propuesta pendiente
 histos approve cap1                                     # aplica la propuesta al .md real -> Aprobada
@@ -111,7 +114,7 @@ Código en [`src/histos/`](src/histos/), tests en [`tests/`](tests/) (`pytest`).
 **Dentro:**
 - Esquema formal del `.canvas` con la convención de colores y node types de arriba
 - Uso de frontmatter en los `.md` para metadatos que Obsidian no interpreta nativamente
-- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `link`, `describe`, `assign`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/histos/`](src/histos/), [`tests/`](tests/))
+- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/histos/`](src/histos/), [`tests/`](tests/))
 - Modo no interactivo del CLI para trabajo AFK — resuelto: ningún comando usa prompts interactivos, no hace falta flag especial
 - Instrucciones para agentes documentando esquema, leyenda de colores y reglas de autorización de los dos loops — implementado como [`AGENTS.md`](src/histos/templates/AGENTS.md) (fuente única, agnóstico de agente) + `CLAUDE.md` (una línea, `@AGENTS.md`), que `histos init` copia a cada vault nuevo
 - Flujo de aprobación de escritura real vía diff antes de tocar un `.md` canónico
@@ -135,5 +138,5 @@ Lo que se publica en este repo es la **herramienta** (CLI, esquema, prompt, docu
 
 ## Preguntas abiertas
 
-- Formato exacto del brief general del proyecto pasado como contexto en loop 2 — propuesta de partida: un `PROJECT.md` fijo en la raíz del vault, a validar. Se completaría con un comando `histos context <id>` que junte automáticamente descripción + contenido de las dependencias ya aprobadas + el brief, listo para pasarselo al agente sin montarlo a mano
+- Formato exacto del brief general del proyecto — **resuelto en parte:** `histos context <id>` ya junta descripción + contenido aprobado de las dependencias + `sources` externas (`.txt`/`.md`/`.tex`/`.docx`, registradas con `describe --sources`) + `PROJECT.md` si existe. Lo que sigue abierto: `PROJECT.md` en sí no tiene formato definido todavía, simplemente se incluye tal cual si está presente
 - Estructura de carpetas — **resuelto en parte:** las tarjetas viven en `content/<slug>.md` (ver [`docs/canvas-schema.md`](docs/canvas-schema.md)); subcarpetas adicionales como `content/borradores/` siguen abiertas

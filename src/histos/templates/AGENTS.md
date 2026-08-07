@@ -6,7 +6,7 @@ Este directorio es un vault gestionado por **Histos**: un tablero de tareas en `
 
 1. **Nunca escribas directamente en `content/*.md`.** El unico camino para que un cambio de contenido llegue al `.md` canonico es `histos propose <id> --file <borrador>` seguido de `histos approve <id>` por parte de un humano. Si necesitas redactar contenido, escribelo en un fichero aparte (el borrador) y pasalo a `propose` -- nunca edites `content/<id>.md` directamente. `propose` copia el borrador a `propuestas/<id>.md` (carpeta visible en Obsidian, no oculta) hasta que se apruebe o rechace; el humano puede leerla o incluso retocarla ahi antes de decidir -- eso es cosa suya, la regla de esta linea es solo para ti. Al aprobar, esa copia se archiva en `aprobados/<id>.md` (historico); al rechazar se descarta sin dejar rastro.
 2. **Nunca pases `--authorized` sin que un humano te haya dado permiso explicito en la conversacion actual.** Aplica a `add-card --depends-on` y a `link` (para anadir una dependencia a una tarjeta ya existente). Pide permiso primero (di que dependencia quieres crear y por que), espera la respuesta, y solo entonces pasa `--authorized`.
-3. **No hace falta pedir permiso** para: crear tarjetas sueltas (sin `--depends-on`), asignar tarjetas (`assign`), actualizar la descripcion (`describe`), proponer contenido (`propose`), o consultar estado (`status`, `diff`, `validate`).
+3. **No hace falta pedir permiso** para: crear tarjetas sueltas (sin `--depends-on`), asignar tarjetas (`assign`), actualizar descripcion/sources (`describe`), proponer contenido (`propose`), o consultar estado (`status`, `diff`, `context`, `validate`).
 
 ## Estados (color de la tarjeta)
 
@@ -19,6 +19,17 @@ Este directorio es un vault gestionado por **Histos**: un tablero de tareas en `
 | cian | `"5"` | Solicitud cambio de dependencia | pendiente de autorizacion (regla 2) |
 | verde | `"4"` | Aprobada | terminada |
 
+## Arrancar un proyecto nuevo (vault sin tarjetas todavia)
+
+Si `histos status` no muestra ninguna tarjeta, no te lances a crear el indice por tu cuenta. Antes de la primera `add-card`, pregunta al humano (es una conversacion normal, no hace falta CLI para esto):
+
+1. **De que trata el proyecto** -- una frase basta, pero sin eso las tarjetas salen genericas.
+2. **Que tipo de trabajo es**: experimental/investigacion, revision bibliografica, o mixto -- cambia bastante que va en cada tarjeta (sobre todo si hay una seccion tipo "Resultados"/"Metodologia").
+3. **Si hay una estructura obligatoria** (plantilla de universidad, revista, organizacion) que seguir al pie de la letra, o si partimos de una estructura estandar para ese tipo de proyecto y la ajustamos juntos.
+4. **Si tiene sentido anadir checkpoints** (revisiones periodicas con un tutor/editor/responsable) como tarjetas propias, no solo capitulos de contenido.
+
+Con las respuestas, propon una tabla de tarjetas + dependencias (id, titulo, de que depende) y pide confirmacion explicita antes de crear nada con dependencias -- tarjetas sueltas no necesitan autorizacion (regla 3), pero en cuanto la tabla tenga una dependencia, si (regla 2). Una vez confirmada, crea las tarjetas en orden topologico.
+
 ## Comandos
 
 Empieza siempre por `histos status` para saber que hay. Luego:
@@ -26,8 +37,9 @@ Empieza siempre por `histos status` para saber que hay. Luego:
 ```
 histos add-card <id> --title "..." [--description "..."] [--depends-on ID...] [--authorized]
 histos link <id> --depends-on ID [ID...] --authorized   # anade dependencia a una tarjeta EXISTENTE
-histos describe <id> --text "..."                        # solo frontmatter, no requiere autorizacion
+histos describe <id> [--text "..."] [--sources PATH...]  # solo frontmatter, no requiere autorizacion
 histos assign <id> [id...] [--by agent|human]
+histos context <id>                                      # descripcion+dependencias aprobadas+sources+PROJECT.md
 histos propose <id> --file <borrador.md>
 histos diff <id>
 histos approve <id>
@@ -35,7 +47,7 @@ histos reject <id> [--feedback "..."]
 histos validate
 ```
 
-`histos <comando> --help` para el detalle de cada flag.
+`histos <comando> --help` para el detalle de cada flag. Antes de proponer contenido para una tarjeta con dependencias, corre `histos context <id>` en vez de ir a leer cada `content/<dep>.md` a mano -- te junta todo (incluye ficheros externos que el humano haya registrado con `describe --sources`, por ejemplo un Word con bibliografia).
 
 ## Modo sin supervision (AFK)
 

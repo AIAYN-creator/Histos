@@ -227,3 +227,65 @@ def test_describe_updates_frontmatter_only(tmp_path, monkeypatch):
     meta, body = frontmatter.read(tmp_path / "content" / "cap1.md")
     assert meta["description"] == "nueva descripcion"
     assert body == before_body
+
+
+def test_describe_requires_text_or_sources(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+
+    assert run(monkeypatch, tmp_path, "describe", "cap1") != 0
+
+
+def test_describe_sources_rejects_missing_file(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+
+    result = run(monkeypatch, tmp_path, "describe", "cap1", "--sources", str(tmp_path / "no-existe.txt"))
+    assert result != 0
+
+
+def test_describe_sources_updates_frontmatter(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+    source_file = tmp_path / "notas.txt"
+    source_file.write_text("apuntes externos\n", encoding="utf-8")
+
+    assert run(monkeypatch, tmp_path, "describe", "cap1", "--sources", str(source_file)) == 0
+
+    meta, _ = frontmatter.read(tmp_path / "content" / "cap1.md")
+    assert meta["sources"] == [str(source_file)]
+
+
+def test_context_includes_dependency_content_and_sources(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "biblio", "--title", "Biblioteca")
+    run(monkeypatch, tmp_path, "add-card", "intro", "--title", "Intro", "--depends-on", "biblio", "--authorized")
+
+    source_file = tmp_path / "referencias.txt"
+    source_file.write_text("Autor (2024) -- paper relevante\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "describe", "biblio", "--sources", str(source_file))
+
+    run(monkeypatch, tmp_path, "assign", "biblio")
+    draft = tmp_path / "borrador.md"
+    draft.write_text("Lista final de referencias.\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "propose", "biblio", "--file", str(draft))
+    run(monkeypatch, tmp_path, "approve", "biblio")
+
+    capsys.readouterr()  # descarta el output de los comandos anteriores
+    assert run(monkeypatch, tmp_path, "context", "intro") == 0
+    output = capsys.readouterr().out
+
+    assert "Lista final de referencias." in output
+    assert "Autor (2024) -- paper relevante" in output
+
+
+def test_context_includes_project_md(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    (tmp_path / "PROJECT.md").write_text("Brief: un TFG sobre pruebas.\n", encoding="utf-8")
+
+    capsys.readouterr()
+    assert run(monkeypatch, tmp_path, "context", "cap1") == 0
+    output = capsys.readouterr().out
+
+    assert "Brief: un TFG sobre pruebas." in output

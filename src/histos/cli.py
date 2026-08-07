@@ -219,9 +219,13 @@ def cmd_assign(args: argparse.Namespace) -> int:
 
 
 def cmd_describe(args: argparse.Namespace) -> int:
-    """Actualiza solo el campo description del frontmatter -- nunca toca el cuerpo, asi que
+    """Actualiza description y/o sources del frontmatter -- nunca toca el cuerpo, asi que
     no hace falta pasar por propose/approve (es metadato, igual que assigned_to en 'assign').
     """
+    if args.text is None and args.sources is None:
+        print("error: pasa --text, --sources, o ambos", file=sys.stderr)
+        return 1
+
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)
@@ -239,14 +243,23 @@ def cmd_describe(args: argparse.Namespace) -> int:
         print(f"error: no encuentro {md_path}", file=sys.stderr)
         return 1
 
+    if args.sources is not None:
+        missing = [s for s in args.sources if not Path(s).expanduser().exists()]
+        if missing:
+            print(f"error: no encuentro estos ficheros de source: {', '.join(missing)}", file=sys.stderr)
+            return 1
+
     meta, body = frontmatter.read(md_path)
-    meta["description"] = args.text
+    if args.text is not None:
+        meta["description"] = args.text
+    if args.sources is not None:
+        meta["sources"] = args.sources
     frontmatter.write(md_path, meta, body)
 
     _resync_sizes_and_layout(vault_root, data)
     canvas.save(vault_root, data)
 
-    print(f"'{args.id}': descripcion actualizada")
+    print(f"'{args.id}': actualizada")
     return 0
 
 
@@ -314,6 +327,74 @@ def cmd_diff(args: argparse.Namespace) -> int:
         tofile=f"propuesta/{args.id}.md (propuesta)",
     )
     sys.stdout.writelines(diff)
+    return 0
+
+
+def _read_source_text(path: Path) -> str:
+    if path.suffix.lower() == ".docx":
+        try:
+            import docx
+        except ImportError:
+            return f"[no se pudo leer {path}: falta la dependencia python-docx]"
+        try:
+            doc = docx.Document(str(path))
+            return "\n".join(p.text for p in doc.paragraphs)
+        except Exception as e:
+            return f"[no se pudo leer {path}: {e}]"
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return f"[no se pudo leer {path}: {e}]"
+
+
+def _render_card_context(vault_root: Path, card: dict, label: str) -> str:
+    md_path = canvas.card_file_path(vault_root, card)
+    meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
+
+    parts = [f"## {label}: {card['id']} ({STATE_NAMES[card['color']]})"]
+    if meta.get("description"):
+        parts.append(f"Descripcion: {meta['description']}")
+    if card["color"] == canvas.APROBADA and body.strip():
+        parts.append(f"Contenido aprobado:\n{body.strip()}")
+    for src in meta.get("sources") or []:
+        src_path = Path(src).expanduser()
+        if not src_path.exists():
+            parts.append(f"[source no encontrada: {src}]")
+            continue
+        parts.append(f"Source ({src}):\n{_read_source_text(src_path)}")
+    return "\n\n".join(parts)
+
+
+def cmd_context(args: argparse.Namespace) -> int:
+    """Junta descripcion+contenido aprobado+sources de la tarjeta y de sus dependencias
+    directas, mas PROJECT.md si existe -- todo lo que un agente necesita para arrancar
+    a trabajar la tarjeta sin tener que reunirlo el mismo a mano.
+    """
+    vault_root = _vault_root()
+    try:
+        data = _load_valid(vault_root)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    card = canvas.find_card(data, args.id)
+    if card is None:
+        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        return 1
+
+    sections = [_render_card_context(vault_root, card, "Tarjeta")]
+
+    by_id = {c["id"]: c for c in canvas.cards(data)}
+    for e in canvas.incoming_edges(data, args.id):
+        dep_card = by_id.get(e["fromNode"])
+        if dep_card:
+            sections.append(_render_card_context(vault_root, dep_card, "Dependencia"))
+
+    project_md = vault_root / "PROJECT.md"
+    if project_md.exists():
+        sections.append("## Brief del proyecto (PROJECT.md)\n\n" + project_md.read_text(encoding="utf-8").strip())
+
+    print("\n\n---\n\n".join(sections))
     return 0
 
 
@@ -477,9 +558,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--by", choices=["agent", "human"], default="agent")
     p.set_defaults(func=cmd_assign)
 
-    p = sub.add_parser("describe", help="actualiza la descripcion (frontmatter) de una tarjeta existente")
+    p = sub.add_parser("describe", help="actualiza descripcion y/o sources (frontmatter) de una tarjeta existente")
     p.add_argument("id")
-    p.add_argument("--text", required=True)
+    p.add_argument("--text", default=None, help="descripcion de una linea")
+    p.add_argument(
+        "--sources", nargs="+", default=None, metavar="PATH",
+        help="rutas a ficheros externos (txt/md/tex/docx) relevantes para esta tarjeta -- sustituye la lista anterior entera",
+    )
     p.set_defaults(func=cmd_describe)
 
     p = sub.add_parser("propose", help="sube una propuesta de contenido para revision")
@@ -490,6 +575,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("diff", help="muestra el diff entre el contenido actual y la propuesta pendiente")
     p.add_argument("id")
     p.set_defaults(func=cmd_diff)
+
+    p = sub.add_parser("context", help="junta descripcion+dependencias aprobadas+sources+PROJECT.md para trabajar la tarjeta")
+    p.add_argument("id")
+    p.set_defaults(func=cmd_context)
 
     p = sub.add_parser("approve", help="aplica la propuesta pendiente al .md real")
     p.add_argument("id")
