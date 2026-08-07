@@ -12,16 +12,26 @@ pip install -e /ruta/a/Histos
 
 ## Arrancar un proyecto
 
-```bash
-cd /ruta/a/tu/proyecto-de-escritura
-histos init
-```
+Probado de verdad (2026-08-07): una sesión de agente completamente nueva, sin nada de contexto previo sobre el proyecto ni sobre Histos, siguió estos pasos sin un solo problema.
 
-Esto crea `project.canvas` (con una leyenda de colores ya puesta en el propio canvas), `content/`, y las instrucciones para el agente (`AGENTS.md`, `CLAUDE.md`). Abre esa misma carpeta como vault en Obsidian — Canvas es una función nativa de Obsidian, no hace falta ningún plugin — y verás el tablero visual con su leyenda arriba.
+1. **Crea una carpeta nueva** para el proyecto, distinta de cualquier vault existente — p. ej. `C:\Users\Usuario\Projects\MiProyecto`.
 
-**Importante:** abre la carpeta que contiene `project.canvas` directamente como vault, no una carpeta por encima — si no, Obsidian no encuentra los `.md` de las tarjetas y las verás como "Create new note" en vez de con contenido.
+2. **Corre `histos init` tú mismo**, en una terminal normal, *antes* de abrir el agente:
 
-Con el vault ya abierto, pídele al agente que te ayude a montar el proyecto. Debería preguntarte de qué trata, si es experimental/revisión bibliográfica/mixto, si hay una plantilla obligatoria que seguir, y si tiene sentido meter checkpoints de revisión — con eso te propone una tabla de tarjetas y dependencias antes de crear nada (regla que vive en `AGENTS.md`). Si no te pregunta nada y se lanza directo a crear tarjetas genéricas, pídeselo tú explícitamente.
+   ```bash
+   cd /ruta/a/tu/proyecto-de-escritura
+   histos init
+   ```
+
+   Esto crea `project.canvas` (con la leyenda de colores ya puesta), `content/`, y las instrucciones para el agente (`AGENTS.md`, `CLAUDE.md`). El orden importa: hasta que estos ficheros existen, un agente nuevo no tiene forma de saber que esto es un proyecto Histos.
+
+3. **Abre esa misma carpeta como vault en Obsidian** — Canvas es una función nativa, no hace falta ningún plugin — y verás el tablero con la leyenda arriba. **Importante:** la carpeta que abras tiene que ser exactamente la que contiene `project.canvas`, nunca una por encima — si no, Obsidian no encuentra los `.md` de las tarjetas y las verás como "Create new note" en vez de con contenido.
+
+4. **Abre una sesión de agente nueva** (ventana/conversación distinta) con esa carpeta como directorio de trabajo. Claude Code carga `CLAUDE.md` automáticamente al arrancar, que a su vez importa `AGENTS.md` entero — no hace falta que le expliques nada sobre Histos.
+
+5. **Dile de qué trata el proyecto**, sin más — algo natural tipo "quiero organizar mi TFG sobre X" o "ayúdame a montar este proyecto de escritura". Si `AGENTS.md` está haciendo su trabajo, el agente te pregunta de qué trata, si es experimental/revisión bibliográfica/mixto, si hay una plantilla obligatoria, y si conviene meter checkpoints de revisión — y con eso propone una tabla de tarjetas y dependencias, que puedes ajustar antes de confirmar. Si se lanza directo a crear tarjetas genéricas sin preguntar nada, pídeselo tú explícitamente (y avisa, porque significa que `AGENTS.md` necesita un repaso).
+
+6. **Refresca Obsidian (`Ctrl+R`) después de que el agente cree las tarjetas.** Igual que con los ficheros de contenido, el canvas se edita por fuera de Obsidian (vía el CLI) y Obsidian no siempre se entera solo de que `project.canvas` cambió mientras lo tenías abierto.
 
 ## Leer el tablero
 
@@ -66,4 +76,4 @@ Valida `project.canvas` contra el esquema formal y te dice exactamente qué est�
 
 ## Referencia completa
 
-Los 9 comandos con todos sus flags están en la sección [CLI del README](../README.md#cli). El esquema formal del `.canvas` está en [docs/canvas-schema.md](canvas-schema.md).
+Los 12 comandos con todos sus flags están en la sección [CLI del README](../README.md#cli). El esquema formal del `.canvas` está en [docs/canvas-schema.md](canvas-schema.md).
