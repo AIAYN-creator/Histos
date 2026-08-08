@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "deny": [
+      "Write(content/**)",
+      "Edit(content/**)"
+    ]
+  }
+}

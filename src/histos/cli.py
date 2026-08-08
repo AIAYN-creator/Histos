@@ -20,16 +20,17 @@ STATE_NAMES = {
 
 PROPOSALS_DIR = "propuestas"
 APPROVED_DIR = "aprobados"
-AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md"]
+AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
 def _install_agent_templates(vault_root: Path) -> None:
-    for name in AGENT_TEMPLATES:
-        target = vault_root / name
+    for rel_path in AGENT_TEMPLATES:
+        target = vault_root / rel_path
         if target.exists():
-            print(f"aviso: ya existe {name}, no lo toco -- copia el contenido de referencia a mano si quieres", file=sys.stderr)
+            print(f"aviso: ya existe {rel_path}, no lo toco -- copia el contenido de referencia a mano si quieres", file=sys.stderr)
             continue
-        ref = resources.files("histos").joinpath("templates", name)
+        ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(ref.read_text(encoding="utf-8"), encoding="utf-8")
 
 

@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 
@@ -126,6 +127,10 @@ def test_init_installs_agent_templates(tmp_path, monkeypatch):
     agents_md = tmp_path / "AGENTS.md"
     assert claude_md.read_text(encoding="utf-8").strip() == "@AGENTS.md"
     assert "--authorized" in agents_md.read_text(encoding="utf-8")
+
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "Write(content/**)" in settings["permissions"]["deny"]
+    assert "Edit(content/**)" in settings["permissions"]["deny"]
 
 
 def test_init_does_not_overwrite_existing_agent_files(tmp_path, monkeypatch):

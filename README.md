@@ -47,11 +47,13 @@ Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido
 
 ## Modelo de confianza
 
-La regla "el agente nunca escribe directamente en `content/*.md`" es una **convención de prosa, no una garantía técnica**. Vive en [`AGENTS.md`](src/histos/templates/AGENTS.md), se carga en el contexto del agente, y depende de que el agente decida cumplirla. No hay permisos de sistema de ficheros, proceso intermedio, ni git hook que la haga cumplir — `content/` es una carpeta de escritura normal. Cualquier proceso con acceso de escritura al vault, incluido el propio agente usando sus herramientas de edición de fichero en vez de `histos propose`, puede saltársela sin que nada lo impida a nivel de herramienta.
+La regla "el agente nunca escribe directamente en `content/*.md`" vive en [`AGENTS.md`](src/histos/templates/AGENTS.md) como **convención de prosa** — depende de que el agente decida cumplirla. No hay permisos de sistema de ficheros, proceso intermedio, ni git hook a nivel del sistema operativo que la haga cumplir por sí sola, y eso sigue siendo cierto para `project.canvas` (el agente puede tocarlo directamente en vez de usar los comandos del CLI) y para los ficheros de `sources` (ver `describe --sources`).
 
-Es una decisión consciente, no un descuido: el caso de uso actual es un único usuario con un agente de confianza que lee y sigue instrucciones — el mismo nivel de confianza que cualquier `CLAUDE.md`/`AGENTS.md` de cualquier repo. Deja de ser suficiente si el agente no es de confianza (instrucciones inyectadas, modelo no alineado) o si varios usuarios/agentes con intereses distintos comparten el mismo vault.
+**Excepción parcial, específica de Claude Code:** `histos init` también instala [`.claude/settings.json`](src/histos/templates/.claude/settings.json) con `permissions.deny` sobre `Write(content/**)` y `Edit(content/**)`. Verificado en vivo: bloquea `Edit`, `Write`, e incluso `Bash` cuando el comando referencia una ruta bajo `content/` ("File is in a directory that is denied by your permission settings"). Para Claude Code específicamente, `content/*.md` ya **no** depende solo de que el agente respete la regla. Dos límites honestos: (1) es de Claude Code, no del sistema operativo — no protege si el agente es otra herramienta (Codex, Gemini CLI...) que no respete ese `settings.json`; (2) no cubre `project.canvas` ni `sources`, que siguen siendo convención pura.
 
-Una garantía real requeriría separar "quién tiene permiso de escritura en `content/`" de "el agente" a nivel de sistema operativo — por ejemplo, que solo el propio binario `histos` (no el agente directamente) tuviera permisos de escritura ahí, forzando que cualquier cambio pase por él. En un escritorio de un solo usuario esto no es trivial (agente y CLI corren como el mismo usuario del SO) — haría falta algo como una cuenta de sistema separada o un proceso intermediario con permisos elevados. Sandboxing real del agente es trabajo futuro explícito, no implementado todavía.
+Es una decisión consciente, no un descuido: el caso de uso actual es un único usuario con un agente de confianza que lee y sigue instrucciones. Deja de ser suficiente si el agente no es de confianza (instrucciones inyectadas, modelo no alineado) o si varios usuarios/agentes con intereses distintos comparten el mismo vault.
+
+Una garantía real y agnóstica de agente (no solo para Claude Code) requeriría separar "quién tiene permiso de escritura en `content/`" de "el agente" a nivel de sistema operativo — por ejemplo un contenedor (Docker) donde `content/` se monta de solo lectura para el agente. En un escritorio de un solo usuario esto no es trivial (agente y CLI corren como el mismo usuario del SO si no hay contenedor de por medio). Sandboxing real es trabajo futuro explícito, no implementado todavía.
 
 ## Convenciones del canvas
 
@@ -133,7 +135,7 @@ Código en [`src/histos/`](src/histos/), tests en [`tests/`](tests/) (`pytest`).
 - Integración de git como backend de historial del contenido del usuario
 - Fechas / calendario real tipo Gantt clásico
 - Traer contexto externo (p. ej. el `.tex` principal en Overleaf vía su integración Git, que requiere plan de pago) para que `histos context` (ver preguntas abiertas) lo incluya automáticamente — posible v2
-- Sandboxing real del agente (ver [Modelo de confianza](#modelo-de-confianza)): que `propose`/`approve` sea una barrera técnica y no solo una convención de `AGENTS.md` — próximo en la agenda
+- Sandboxing real y agnóstico de agente del `content/` del vault (ver [Modelo de confianza](#modelo-de-confianza)) — **parcialmente resuelto para Claude Code** vía `permissions.deny` en `.claude/settings.json`; falta cubrir `project.canvas`/`sources`, y falta una solución que no dependa de una herramienta concreta (contenedor con montaje de solo lectura) — próximo en la agenda
 - Soporte multi-agente: varios agentes trabajando en paralelo sobre el mismo vault — depende del sandboxing anterior para no pisarse entre sí
 
 ## Alcance de la distribución
