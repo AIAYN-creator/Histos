@@ -8,6 +8,18 @@ def _card(id_, color):
     }
 
 
+def test_is_valid_card_id_accepts_slug():
+    assert canvas.is_valid_card_id("cap1") is True
+    assert canvas.is_valid_card_id("cap-1_intro") is True
+
+
+def test_is_valid_card_id_rejects_path_traversal():
+    assert canvas.is_valid_card_id("../evil") is False
+    assert canvas.is_valid_card_id("..\\evil") is False
+    assert canvas.is_valid_card_id("a/b") is False
+    assert canvas.is_valid_card_id("") is False
+
+
 def test_load_missing_raises(tmp_path):
     try:
         canvas.load(tmp_path)

@@ -85,6 +85,14 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_add_card(args: argparse.Namespace) -> int:
+    if not canvas.is_valid_card_id(args.id):
+        print(
+            f"error: id '{args.id}' no valido -- solo letras, numeros, '_' y '-' "
+            "(se usa tal cual como nombre de fichero; no puede contener '/', '\\' ni '..')",
+            file=sys.stderr,
+        )
+        return 1
+
     vault_root = _vault_root()
     try:
         data = _load_valid(vault_root)

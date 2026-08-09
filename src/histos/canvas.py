@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -85,6 +86,16 @@ def incoming_edges(data: dict, card_id: str) -> list[dict]:
 
 def card_file_path(vault_root: Path, card: dict) -> Path:
     return vault_root / card["file"]
+
+
+_VALID_CARD_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def is_valid_card_id(card_id: str) -> bool:
+    """El id se usa tal cual como nombre de fichero (content/{id}.md): sin esta
+    restriccion, un id como '../../etc/algo' escribiria fuera del vault.
+    """
+    return bool(_VALID_CARD_ID_RE.match(card_id))
 
 
 def add_card_node(data: dict, card_id: str, color: str, width: int = CARD_WIDTH, height: int = CARD_HEIGHT) -> dict:

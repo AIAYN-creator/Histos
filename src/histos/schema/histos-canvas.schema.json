@@ -48,7 +48,7 @@
         "id": {
           "description": "Slug estable, igual al nombre de fichero sin extension (id 'cap3' -> content/cap3.md).",
           "type": "string",
-          "minLength": 1
+          "pattern": "^[A-Za-z0-9_-]+$"
         },
         "type": { "const": "file" },
         "x": { "type": "integer" },

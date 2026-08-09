@@ -53,6 +53,20 @@ def test_add_card_without_authorized_fails(tmp_path, monkeypatch):
     assert canvas.find_card(canvas.load(tmp_path), "cap2") is None
 
 
+def test_add_card_rejects_path_traversal_id(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    result = run(monkeypatch, tmp_path, "add-card", "../../evil", "--title", "x")
+    assert result != 0
+    assert canvas.find_card(canvas.load(tmp_path), "../../evil") is None
+    assert not (tmp_path.parent / "evil.md").exists()
+
+
+def test_add_card_rejects_backslash_id(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    result = run(monkeypatch, tmp_path, "add-card", "..\\..\\evil", "--title", "x")
+    assert result != 0
+
+
 def test_propose_uses_visible_propuestas_folder(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     assert (tmp_path / "propuestas").is_dir()
