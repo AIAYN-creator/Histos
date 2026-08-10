@@ -215,6 +215,55 @@ def test_link_rejects_cycle(tmp_path, monkeypatch):
     assert not any(e["fromNode"] == "cap2" and e["toNode"] == "cap1" for e in edges)
 
 
+def test_link_blocks_already_assigned_card(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "fuentes-apis", "--title", "Fuentes APIs")
+    run(monkeypatch, tmp_path, "add-card", "diseno-expansion", "--title", "Diseno expansion")
+
+    run(monkeypatch, tmp_path, "assign", "diseno-expansion")
+    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.EN_PROGRESO
+
+    assert run(
+        monkeypatch, tmp_path, "link", "diseno-expansion",
+        "--depends-on", "fuentes-apis", "--authorized",
+    ) == 0
+
+    # el cambio de estado se persiste ya en el propio 'link'...
+    data = canvas.load(tmp_path)
+    assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BLOQUEADA
+
+    # ...y 'status' lo confirma (era el sintoma original del bug: seguia listada
+    # bajo "En progreso" en el siguiente 'histos status').
+    capsys.readouterr()
+    run(monkeypatch, tmp_path, "status")
+    output = capsys.readouterr().out
+    assert "Bloqueada (1)" in output
+    assert "En progreso (0)" in output
+
+
+def test_link_blocked_card_returns_to_backlog_once_dependency_approved(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "fuentes-apis", "--title", "Fuentes APIs")
+    run(monkeypatch, tmp_path, "add-card", "diseno-expansion", "--title", "Diseno expansion")
+    run(monkeypatch, tmp_path, "assign", "diseno-expansion")
+    run(
+        monkeypatch, tmp_path, "link", "diseno-expansion",
+        "--depends-on", "fuentes-apis", "--authorized",
+    )
+    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.BLOQUEADA
+
+    run(monkeypatch, tmp_path, "assign", "fuentes-apis")
+    draft = tmp_path / "borrador.md"
+    draft.write_text("contenido\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "propose", "fuentes-apis", "--file", str(draft))
+    assert run(monkeypatch, tmp_path, "approve", "fuentes-apis") == 0
+
+    data = canvas.load(tmp_path)
+    assert canvas.find_card(data, "fuentes-apis")["color"] == canvas.APROBADA
+    # vuelve a un estado trabajable (Backlog) solo, sin que nadie mueva el color a mano
+    assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BACKLOG
+
+
 def test_add_card_size_reflects_description_length(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     run(monkeypatch, tmp_path, "add-card", "corto", "--title", "Corto", "--description", "poco texto")

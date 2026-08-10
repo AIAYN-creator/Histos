@@ -52,13 +52,53 @@ def test_recompute_blocked_unblocks_when_dep_approved():
     assert canvas.find_card(data, "b")["color"] == canvas.BACKLOG
 
 
-def test_recompute_blocked_does_not_touch_active_states():
+def test_recompute_blocked_demotes_en_progreso_when_dep_not_approved():
+    # p.ej. 'histos link' anade una dependencia sin aprobar a una tarjeta ya asignada:
+    # Bloqueada es derivada del grafo, no algo que solo se fija al crear/asignar.
     data = {
         "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.EN_PROGRESO)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
     }
+    assert canvas.recompute_blocked(data) is True
+    assert canvas.find_card(data, "b")["color"] == canvas.BLOQUEADA
+
+
+def test_recompute_blocked_leaves_en_progreso_alone_when_deps_satisfied():
+    data = {
+        "nodes": [_card("a", canvas.APROBADA), _card("b", canvas.EN_PROGRESO)],
+        "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
+    }
     assert canvas.recompute_blocked(data) is False
     assert canvas.find_card(data, "b")["color"] == canvas.EN_PROGRESO
+
+
+def test_recompute_blocked_does_not_auto_restore_en_progreso():
+    # Una tarjeta degradada a Bloqueada no vuelve sola a En progreso al aprobarse la
+    # dependencia -- aterriza en Backlog, hace falta 'assign' de nuevo para retomarla.
+    data = {
+        "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.BLOQUEADA)],
+        "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
+    }
+    canvas.find_card(data, "a")["color"] = canvas.APROBADA
+    assert canvas.recompute_blocked(data) is True
+    assert canvas.find_card(data, "b")["color"] == canvas.BACKLOG
+
+
+def test_recompute_blocked_does_not_touch_review_or_approved_states():
+    data = {
+        "nodes": [
+            _card("a", canvas.BACKLOG),
+            _card("b", canvas.PROPUESTA_PENDIENTE),
+            _card("c", canvas.APROBADA),
+        ],
+        "edges": [
+            {"id": "e1", "fromNode": "a", "toNode": "b"},
+            {"id": "e2", "fromNode": "a", "toNode": "c"},
+        ],
+    }
+    assert canvas.recompute_blocked(data) is False
+    assert canvas.find_card(data, "b")["color"] == canvas.PROPUESTA_PENDIENTE
+    assert canvas.find_card(data, "c")["color"] == canvas.APROBADA
 
 
 def test_detect_cycle_finds_cycle():

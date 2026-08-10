@@ -16,9 +16,13 @@ APROBADA = "4"
 SOLICITUD_CAMBIO_DEPENDENCIA = "5"
 BACKLOG = "6"
 
-# Solo estos dos colores se recalculan automaticamente en funcion del grafo;
-# el resto son estados activos que solo cambian por accion explicita.
-_DERIVED_COLORS = {BLOQUEADA, BACKLOG}
+# Backlog/Bloqueada se recalculan libremente en las dos direcciones segun el grafo.
+# En progreso solo se degrada a Bloqueada (nunca se auto-restaura desde aqui: una
+# tarjeta desbloqueada aterriza en Backlog y hace falta 'assign' de nuevo para
+# retomarla). Propuesta/Solicitud/Aprobada quedan fuera del todo: son estados con una
+# accion humana de por medio, no derivables solo del grafo.
+_FREELY_DERIVED_COLORS = {BLOQUEADA, BACKLOG}
+_DEMOTABLE_TO_BLOQUEADA = _FREELY_DERIVED_COLORS | {EN_PROGRESO}
 
 CARD_WIDTH = 280
 CARD_HEIGHT = 100
@@ -230,22 +234,34 @@ def detect_cycle(data: dict) -> Optional[list[str]]:
 
 
 def recompute_blocked(data: dict) -> bool:
-    """Cards no arrancadas (Bloqueada/Backlog): pasan a Bloqueada si les falta
-    alguna dependencia por Aprobar, o a Backlog si ya pueden empezar.
-    Cards en un estado activo (En progreso/Propuesta/Solicitud/Aprobada) no se tocan.
+    """Bloqueada es un estado derivado del grafo (docs/canvas-schema.md): una tarjeta
+    esta Bloqueada si le falta alguna dependencia por Aprobar, sea cual sea su estado
+    previo -- incluida una ya asignada (En progreso), p.ej. tras 'histos link' anadirle
+    una dependencia nueva sin aprobar todavia.
+    Backlog/Bloqueada alternan libremente en las dos direcciones. En progreso solo se
+    degrada a Bloqueada; nunca se auto-restaura desde aqui (una tarjeta que se
+    desbloquea aterriza en Backlog, hace falta 'assign' de nuevo para retomarla).
+    Propuesta/Solicitud/Aprobada no se tocan: son estados con una accion humana de por
+    medio, no derivables solo del grafo.
     Devuelve True si cambio algo.
     """
     changed = False
     by_id = {c["id"]: c for c in cards(data)}
     for card in cards(data):
-        if card.get("color") not in _DERIVED_COLORS:
+        color = card.get("color")
+        if color not in _DEMOTABLE_TO_BLOQUEADA:
             continue
         deps = incoming_edges(data, card["id"])
         all_approved = all(
             by_id.get(e["fromNode"], {}).get("color") == APROBADA for e in deps
         )
-        target = BACKLOG if all_approved else BLOQUEADA
-        if card.get("color") != target:
+        if not all_approved:
+            target = BLOQUEADA
+        elif color in _FREELY_DERIVED_COLORS:
+            target = BACKLOG
+        else:
+            target = color
+        if color != target:
             card["color"] = target
             changed = True
     return changed
