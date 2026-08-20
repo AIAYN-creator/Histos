@@ -1,15 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Histos desktop app -- PyInstaller build spec. Run from the repo root with:
-#   pyinstaller packaging/histos-gui.spec
+#   pyinstaller --distpath packaging/dist --workpath packaging/build packaging/histos-gui.spec
 #
-# console=True and onedir (not onefile) are deliberate for now: this is still the Stage 2
-# packaging spike, not a polished release build. A visible console means a crash shows a
-# traceback instead of a silently vanishing window; onedir lets you open the output folder
-# and confirm histos/schema and histos/templates actually landed where operations.py expects
-# them at runtime (see the "Histos desktop app" plan's PyInstaller/importlib.resources
-# gotcha -- this is the thing this whole spike exists to prove, verified via
-# HISTOS_GUI_SELFTEST=1 against the built exe). Revisit both once packaging is proven and
-# this is closer to something a non-technical user installs.
+# onefile (switched from onedir once packaging was proven in Stage 2): a GitHub Release
+# asset should be one file to download and double-click, not a zip you have to extract and
+# hunt through a 200-file folder for the right exe -- that's exactly the kind of friction
+# this app exists to remove. Verified with HISTOS_GUI_SELFTEST=1 against the onefile build
+# specifically before this became the shipped default, not assumed from the onedir result.
+#
+# console=True stays, deliberately, even for this release: nobody (including the person who
+# built it) has yet clicked through a live window -- every check so far has been the
+# headless selftest or driving the Api directly. A visible console means a first-run crash
+# leaves a traceback someone can screenshot and report, instead of the window silently
+# vanishing with zero information. Worth revisiting once the app has real runtime history.
 
 import os
 
@@ -40,8 +43,10 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
+    exclude_binaries=False,
     name='histos-gui',
     debug=False,
     bootloader_ignore_signals=False,
@@ -53,13 +58,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='histos-gui',
 )
