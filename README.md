@@ -4,6 +4,8 @@ Open-source, agent-agnostic tool that uses **Obsidian Canvas** as a shared human
 
 The agent proposes the workflow and drafts the tasks; the human approves real changes before they're applied to the content.
 
+Installing: [INSTALL.md](INSTALL.md). Day-to-day use (terminal and desktop app, side by side): [docs/usage.md](docs/usage.md).
+
 > **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 12 commands, `pytest` green), actively dogfooded on a real thesis. v2 is done: stable card layout, broadened sandboxing, a security hardening pass, and a desktop app (`src/histos/gui/`, packaged with PyInstaller) alongside the terminal, not instead of it — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 didn't build one either (see below).
 
 ## Core idea
