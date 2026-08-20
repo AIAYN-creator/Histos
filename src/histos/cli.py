@@ -73,18 +73,6 @@ def _load_valid(vault_root: Path) -> dict:
     return data
 
 
-def _resync_sizes_and_layout(vault_root: Path, data: dict) -> None:
-    """Recomputes size (from each card's real description) and position (by dependency
-    rank). Called after any change that affects the graph or a description.
-    """
-    for card in canvas.cards(data):
-        md_path = canvas.card_file_path(vault_root, card)
-        if md_path.exists():
-            meta, _ = frontmatter.read(md_path)
-            card["width"], card["height"] = canvas.estimate_card_size(meta.get("description"))
-    canvas.relayout(data)
-
-
 def cmd_init(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     canvas_path = canvas.vault_canvas_path(vault_root)
@@ -157,7 +145,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
         body += f"{args.description}\n\n"
     frontmatter.write(md_path, meta, body)
 
-    _resync_sizes_and_layout(vault_root, data)
+    canvas.place_new_card(data, node)
     canvas.save(vault_root, data)
 
     print(f"card '{args.id}' created ({STATE_NAMES[initial_color]}) -> {node['file']}")
@@ -205,7 +193,6 @@ def cmd_link(args: argparse.Namespace) -> int:
         return 1
 
     canvas.recompute_blocked(data)
-    _resync_sizes_and_layout(vault_root, data)
     canvas.save(vault_root, data)
     print(f"'{args.id}' now depends on: {', '.join(args.depends_on)}")
     return 0
@@ -281,7 +268,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
         meta["sources"] = args.sources
     frontmatter.write(md_path, meta, body)
 
-    _resync_sizes_and_layout(vault_root, data)
+    card["width"], card["height"] = canvas.estimate_card_size(meta.get("description"))
     canvas.save(vault_root, data)
 
     print(f"'{args.id}': updated")

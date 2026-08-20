@@ -120,8 +120,8 @@ def add_card_node(data: dict, card_id: str, color: str, width: int = CARD_WIDTH,
 
 def estimate_card_size(description: Optional[str]) -> tuple[int, int]:
     """Heuristica de tamano a partir de la longitud de la descripcion (ancho fijo, para que
-    las columnas del relayout queden alineadas). Aproximado -- Obsidian decide el wrap real --
-    pero muchisimo mejor que un 250x100 fijo para toda tarjeta sea cual sea su contenido.
+    las columnas queden alineadas). Aproximado -- Obsidian decide el wrap real -- pero
+    muchisimo mejor que un 250x100 fijo para toda tarjeta sea cual sea su contenido.
     """
     desc = description or ""
     desc_lines = -(-len(desc) // _CHARS_PER_LINE) if desc else 0  # ceil division
@@ -154,21 +154,41 @@ def compute_ranks(data: dict) -> dict[str, int]:
     return rank
 
 
-def relayout(data: dict) -> None:
-    """Reposiciona todas las tarjetas: columna = rango de dependencia, apiladas en vertical
-    dentro de cada columna (usa el width/height que ya tenga cada una). No toca group/text.
-    """
-    ranks = compute_ranks(data)
-    by_rank: dict[int, list[dict]] = {}
-    for card in cards(data):
-        by_rank.setdefault(ranks[card["id"]], []).append(card)
+def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
 
-    for r, group in by_rank.items():
-        y = CARD_ROW_Y
-        for card in sorted(group, key=lambda c: c["id"]):
-            card["x"] = r * CARD_X_STEP
-            card["y"] = y
-            y += card["height"] + CARD_Y_GAP
+
+def place_new_card(data: dict, card: dict) -> None:
+    """Positions a single newly created card and nothing else: x by dependency rank (same
+    left-to-right column reading as before), y found by scanning down for the first spot
+    that doesn't overlap any other node already on the board (cards, groups, the legend).
+
+    Deliberately never touches any other node's x/y/width/height. Once a card has a
+    position, the CLI never moves or resizes it again -- only the user, by hand in
+    Obsidian, does. This means the rank-based columns are only a placement heuristic for
+    where a *new* card lands, not an invariant kept forever: after cards get dragged
+    around, or after a later 'link' changes what a card's rank would have been, the board
+    is no longer a clean grid. That's the accepted trade-off for never moving a card out
+    from under the user.
+    """
+    rank = compute_ranks(data).get(card["id"], 0)
+    x = rank * CARD_X_STEP
+    others = [n for n in data.get("nodes", []) if n is not card]
+
+    y = CARD_ROW_Y
+    while True:
+        blocking = [
+            n for n in others
+            if _rects_overlap((x, y, card["width"], card["height"]), (n["x"], n["y"], n["width"], n["height"]))
+        ]
+        if not blocking:
+            break
+        y = max(n["y"] + n["height"] for n in blocking) + CARD_Y_GAP
+
+    card["x"] = x
+    card["y"] = y
 
 
 def build_legend_node() -> dict:

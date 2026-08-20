@@ -159,19 +159,65 @@ def test_compute_ranks_takes_longest_incoming_path():
     assert canvas.compute_ranks(data)["d"] == 2
 
 
-def test_relayout_stacks_same_rank_vertically():
-    data = {"nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.BACKLOG)], "edges": []}
-    canvas.relayout(data)
-    a, b = canvas.find_card(data, "a"), canvas.find_card(data, "b")
+def test_place_new_card_stacks_same_rank_vertically():
+    data = {"nodes": [], "edges": []}
+    a = _card("a", canvas.BACKLOG)
+    data["nodes"].append(a)
+    canvas.place_new_card(data, a)
+
+    b = _card("b", canvas.BACKLOG)
+    data["nodes"].append(b)
+    canvas.place_new_card(data, b)
+
     assert a["x"] == b["x"]
     assert a["y"] != b["y"]
+    assert not canvas._rects_overlap(
+        (a["x"], a["y"], a["width"], a["height"]),
+        (b["x"], b["y"], b["width"], b["height"]),
+    )
 
 
-def test_relayout_separates_columns_by_rank():
-    data = {
-        "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.BACKLOG)],
-        "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
-    }
-    canvas.relayout(data)
-    a, b = canvas.find_card(data, "a"), canvas.find_card(data, "b")
+def test_place_new_card_separates_columns_by_rank():
+    data = {"nodes": [], "edges": []}
+    a = _card("a", canvas.BACKLOG)
+    data["nodes"].append(a)
+    canvas.place_new_card(data, a)
+
+    b = _card("b", canvas.BACKLOG)
+    data["nodes"].append(b)
+    data["edges"].append({"id": "e1", "fromNode": "a", "toNode": "b"})
+    canvas.place_new_card(data, b)
+
     assert b["x"] > a["x"]
+
+
+def test_place_new_card_never_moves_existing_cards():
+    data = {"nodes": [], "edges": []}
+    a = _card("a", canvas.BACKLOG)
+    data["nodes"].append(a)
+    canvas.place_new_card(data, a)
+    a["x"], a["y"] = 999, 777  # simulates the user having dragged it by hand in Obsidian
+
+    b = _card("b", canvas.BACKLOG)
+    data["nodes"].append(b)
+    canvas.place_new_card(data, b)
+
+    assert (a["x"], a["y"]) == (999, 777)
+
+
+def test_place_new_card_avoids_overlap_even_off_grid():
+    # After manual moves the board is no longer a clean rank-based grid -- a new card at
+    # the same rank as an existing one must still dodge it wherever it actually sits.
+    data = {"nodes": [], "edges": []}
+    a = _card("a", canvas.BACKLOG)
+    a["x"], a["y"] = 0, 500
+    data["nodes"].append(a)
+
+    b = _card("b", canvas.BACKLOG)
+    data["nodes"].append(b)
+    canvas.place_new_card(data, b)
+
+    assert not canvas._rects_overlap(
+        (a["x"], a["y"], a["width"], a["height"]),
+        (b["x"], b["y"], b["width"], b["height"]),
+    )

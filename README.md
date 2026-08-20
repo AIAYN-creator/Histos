@@ -4,7 +4,7 @@ Open-source, agent-agnostic tool that uses **Obsidian Canvas** as a shared human
 
 The agent proposes the workflow and drafts the tasks; the human approves real changes before they're applied to the content.
 
-> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 12 commands, `pytest` green), actively dogfooded on a real thesis. v2 (desktop app, hardening, layout fixes) is scoped but not yet built — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 isn't planning to build one either (see below).
+> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 12 commands, `pytest` green), actively dogfooded on a real thesis. v2 is in progress — stable card layout is done; desktop app, sandboxing, and security hardening are still ahead — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 isn't planning to build one either (see below).
 
 ## Core idea
 
@@ -60,7 +60,7 @@ A real, agent-agnostic guarantee (not just for Claude Code) would require separa
 > Formal, machine-checkable schema: [`src/histos/schema/histos-canvas.schema.json`](src/histos/schema/histos-canvas.schema.json) — full detail in [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
 - **Node type:** `file` — each card points to a real `.md` in the vault, it never contains embedded text. (`text` is used only for the decorative color legend that `histos init` generates; the CLI ignores it entirely.)
-- **Layout:** reads like a Gantt chart but without calendar dates — the column (x) is the dependency rank (longest path from a root), cards of the same rank stack vertically. Each card's size is computed from its `description` length. Today, `add-card`, `link`, and `describe` automatically recompute size and position for *every* card — **planned to change in v2** (see [Roadmap](#roadmap)): new cards will be placed without moving or resizing any existing one. Not a full dagre implementation (no edge-crossing minimization), but it covers the real use case.
+- **Layout:** reads like a Gantt chart but without calendar dates — a new card's column (x) is the dependency rank (longest path from a root); its row (y) is the first spot, scanning down, that doesn't overlap any other node already on the board. `add-card` places only the card it creates this way; `describe` may resize a card to fit a new description but never repositions it; `link` never touches position or size at all. Once a card has a position, only the user (by hand, in Obsidian) moves it again — see [Roadmap](#roadmap) v2. Not a full dagre implementation (no edge-crossing minimization), but it covers the real use case.
 
 ### Color legend
 
@@ -131,12 +131,12 @@ Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Pr
 - Real-write approval flow via diff before touching a canonical `.md`
 - Dogfooding on a real thesis project
 
-### v2 — scoped, not yet built
+### v2 — in progress
 
 1. **Desktop app for non-technical use.** A thin Python wrapper around the existing CLI (likely `pywebview`, packaged into a single `.exe` with PyInstaller) — no terminal required. Obsidian stays the visual canvas, installed separately (not bundled). Planned screens: a project-init wizard, a status overview, and the core review loop (diff → approve/reject) that today requires the terminal, plus a button to open the vault in Obsidian. Out of scope: launching or managing agent sessions — the user still runs their agent of choice (Claude Code, Codex...) separately, so Histos stays agent-agnostic.
 2. **Broaden the sandboxing convention** (still tool-level, not OS-level — see [Trust model](#trust-model)): extend Claude Code's `permissions.deny` to also cover `project.canvas` (today only `content/**`), and have `describe --sources` auto-register each registered source path into the deny list too. Best-effort investigation into equivalent permission mechanisms for other agents (Codex, Gemini CLI...) where they exist.
 3. **Security hardening pass.** Audit for path traversal beyond the id check already in `add-card`, confirm YAML is loaded safely, run a dependency vulnerability scan. The new desktop-app surface (a local `pywebview`-backed process) gets its own audit once built, since v1's CLI-only design didn't have one.
-4. **Stable card layout.** Stop recomputing every card's position and size on every `add-card`/`link`/`describe` call. New cards get placed via collision-avoidance so they don't overlap anything; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian.
+4. **Stable card layout — done.** `add-card`, `link`, and `describe` no longer recompute every card's position and size on every call. A new card is placed via collision-avoidance so it doesn't overlap anything already on the board; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian.
 
 ### v3 — future, not scoped yet
 

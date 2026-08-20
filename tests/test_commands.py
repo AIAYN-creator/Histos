@@ -297,16 +297,66 @@ def test_add_card_size_reflects_description_length(tmp_path, monkeypatch):
     assert canvas.find_card(data, "largo")["height"] > canvas.find_card(data, "corto")["height"]
 
 
-def test_link_triggers_relayout(tmp_path, monkeypatch):
+def test_link_does_not_move_existing_cards(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
     run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Dos")
-    before_x = canvas.find_card(canvas.load(tmp_path), "cap2")["x"]
+    before = canvas.find_card(canvas.load(tmp_path), "cap2")
+    before_pos = (before["x"], before["y"])
 
+    # cap2's rank changes (0 -> 1) once it depends on cap1, but that must not move it:
+    # position is only ever set once, when a card is first created.
     run(monkeypatch, tmp_path, "link", "cap2", "--depends-on", "cap1", "--authorized")
 
-    after_x = canvas.find_card(canvas.load(tmp_path), "cap2")["x"]
-    assert after_x != before_x
+    after = canvas.find_card(canvas.load(tmp_path), "cap2")
+    assert (after["x"], after["y"]) == before_pos
+
+
+def test_add_card_does_not_move_existing_cards(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    before = canvas.find_card(canvas.load(tmp_path), "cap1")
+    before_pos = (before["x"], before["y"])
+
+    run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Dos")
+
+    after = canvas.find_card(canvas.load(tmp_path), "cap1")
+    assert (after["x"], after["y"]) == before_pos
+
+
+def test_add_card_does_not_reset_a_manually_moved_card(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+
+    data = canvas.load(tmp_path)
+    canvas.find_card(data, "cap1")["x"] = 12345
+    canvas.find_card(data, "cap1")["y"] = 6789
+    canvas.save(tmp_path, data)
+
+    run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Dos")
+
+    after = canvas.find_card(canvas.load(tmp_path), "cap1")
+    assert (after["x"], after["y"]) == (12345, 6789)
+
+
+def test_describe_resizes_card_without_moving_it_or_others(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    run(monkeypatch, tmp_path, "add-card", "cap2", "--title", "Dos")
+
+    data = canvas.load(tmp_path)
+    cap1_before = canvas.find_card(data, "cap1")
+    pos_before = (cap1_before["x"], cap1_before["y"])
+    height_before = cap1_before["height"]
+    cap2_before = dict(canvas.find_card(data, "cap2"))
+
+    assert run(monkeypatch, tmp_path, "describe", "cap1", "--text", "x" * 200) == 0
+
+    data = canvas.load(tmp_path)
+    cap1_after = canvas.find_card(data, "cap1")
+    assert (cap1_after["x"], cap1_after["y"]) == pos_before
+    assert cap1_after["height"] > height_before
+    assert canvas.find_card(data, "cap2") == cap2_before
 
 
 def test_describe_updates_frontmatter_only(tmp_path, monkeypatch):
