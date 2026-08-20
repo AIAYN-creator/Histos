@@ -73,21 +73,52 @@ def test_pick_vault_folder_handles_no_selection(monkeypatch):
     assert app.Api().pick_vault_folder() == {"ok": False, "error": "No folder selected"}
 
 
-def test_get_pending_reviews_returns_only_that_group(tmp_path):
+def test_get_status_returns_all_groups_in_order(tmp_path):
     operations.init_vault(tmp_path)
     _add_pending_card(tmp_path, "cap1", description="a thing to review")
 
-    result = app.Api().get_pending_reviews(str(tmp_path))
+    result = app.Api().get_status(str(tmp_path))
     assert result["ok"] is True
-    assert result["data"]["color"] == canvas.PROPUESTA_PENDIENTE
-    assert [c["id"] for c in result["data"]["cards"]] == ["cap1"]
-    assert result["data"]["cards"][0]["description"] == "a thing to review"
+    labels = [g["label"] for g in result["data"]["groups"]]
+    assert labels == [
+        "Backlog", "Blocked", "In progress",
+        "Proposal pending review", "Dependency change request", "Approved",
+    ]
+    pending = next(g for g in result["data"]["groups"] if g["color"] == canvas.PROPUESTA_PENDIENTE)
+    assert [c["id"] for c in pending["cards"]] == ["cap1"]
+    assert pending["cards"][0]["description"] == "a thing to review"
 
 
-def test_get_pending_reviews_error_shape_for_bad_vault(tmp_path):
-    result = app.Api().get_pending_reviews(str(tmp_path))
+def test_get_status_error_shape_for_bad_vault(tmp_path):
+    result = app.Api().get_status(str(tmp_path))
     assert result["ok"] is False
     assert "error" in result
+
+
+def test_open_in_obsidian_calls_startfile_with_encoded_uri(monkeypatch):
+    calls = []
+    monkeypatch.setattr(app.os, "startfile", lambda uri: calls.append(uri))
+    result = app.Api().open_in_obsidian("C:\\a folder\\my vault")
+    assert result == {"ok": True}
+    assert calls == ["obsidian://open?path=C%3A%5Ca%20folder%5Cmy%20vault"]
+
+
+def test_open_in_obsidian_error_shape_when_startfile_fails(monkeypatch):
+    def _boom(uri):
+        raise OSError("no application is associated")
+
+    monkeypatch.setattr(app.os, "startfile", _boom)
+    result = app.Api().open_in_obsidian("C:\\vault")
+    assert result["ok"] is False
+    assert "error" in result
+
+
+def test_open_folder_calls_startfile_with_raw_path(monkeypatch):
+    calls = []
+    monkeypatch.setattr(app.os, "startfile", lambda path: calls.append(path))
+    result = app.Api().open_folder("C:\\some\\vault")
+    assert result == {"ok": True}
+    assert calls == ["C:\\some\\vault"]
 
 
 def test_get_diff_success_and_error_shape(tmp_path):

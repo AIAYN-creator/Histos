@@ -1,12 +1,11 @@
 """Histos desktop app -- a pywebview shell over operations.py.
 
-Stage 3 (see the "Histos desktop app" plan): the actual review-loop screen -- the
-biggest remaining terminal dependency in the human side of the workflow. A user picks a
-vault folder once (remembered afterward), sees the cards waiting for review, and can
-approve or reject each one with a real before/after comparison instead of a unified diff
-dump. Every Api method catches HistosError itself and returns a single, uniform shape --
-{"ok": bool, ...} -- so the JS side never has to guess how a Python exception crossed the
-bridge.
+Stage 4 (see the "Histos desktop app" plan) adds the full status dashboard (all 6 states,
+not just what's pending review -- Stage 3's get_pending_reviews is superseded by the
+fuller get_status here, since the overview now shows the pending group inline alongside
+everything else) plus a way to jump into Obsidian or the plain file explorer. Every Api
+method catches HistosError itself and returns a single, uniform shape -- {"ok": bool,
+...} -- so the JS side never has to guess how a Python exception crossed the bridge.
 """
 from __future__ import annotations
 
@@ -14,6 +13,7 @@ import dataclasses
 import json
 import os
 import tempfile
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -67,13 +67,34 @@ class Api:
         _save_config(config)
         return {"ok": True, "path": path}
 
-    def get_pending_reviews(self, vault_path: str) -> dict:
+    def get_status(self, vault_path: str) -> dict:
         try:
             result = operations.get_status(Path(vault_path))
         except canvas.HistosError as e:
             return {"ok": False, "error": str(e)}
-        pending = next(g for g in result.groups if g.color == canvas.PROPUESTA_PENDIENTE)
-        return {"ok": True, "data": dataclasses.asdict(pending)}
+        return {"ok": True, "data": dataclasses.asdict(result)}
+
+    def open_in_obsidian(self, vault_path: str) -> dict:
+        """Best-effort, not guaranteed: Obsidian's own `open?path=` URI handling has
+        several open, longstanding reports of not working reliably on Windows (vault not
+        found, silently no-ops when Obsidian is already running). There's no more robust
+        alternative available from here -- open_folder() is the reliable fallback the UI
+        always shows alongside this button, precisely because this one might not do
+        anything visible.
+        """
+        encoded = urllib.parse.quote(vault_path, safe="")
+        try:
+            os.startfile(f"obsidian://open?path={encoded}")
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True}
+
+    def open_folder(self, vault_path: str) -> dict:
+        try:
+            os.startfile(vault_path)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True}
 
     def get_diff(self, vault_path: str, card_id: str) -> dict:
         try:

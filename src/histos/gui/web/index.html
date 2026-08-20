@@ -8,7 +8,11 @@
 <body>
   <header>
     <h1>Histos</h1>
-    <button id="change-folder-btn" class="link-btn" hidden>Change folder</button>
+    <div id="header-actions" hidden>
+      <button id="open-obsidian-btn" class="link-btn">Open in Obsidian</button>
+      <button id="open-folder-btn" class="link-btn">Show folder</button>
+      <button id="change-folder-btn" class="link-btn">Change folder</button>
+    </div>
   </header>
 
   <main>
@@ -19,14 +23,14 @@
       <p id="picker-error" class="error"></p>
     </section>
 
-    <section id="view-list" hidden>
-      <h2>Waiting for your review</h2>
-      <p id="list-empty" class="empty" hidden>Nothing to review right now.</p>
-      <ul id="list-items"></ul>
+    <section id="view-overview" hidden>
+      <h2>Your project</h2>
+      <p id="overview-error" class="error"></p>
+      <div id="overview-groups"></div>
     </section>
 
     <section id="view-detail" hidden>
-      <button id="back-btn" class="link-btn">&larr; Back to list</button>
+      <button id="back-btn" class="link-btn">&larr; Back to overview</button>
       <h2 id="detail-title"></h2>
       <p class="hint">Approving replaces what's saved in your project with what's suggested below. You'll see the result in your notes right after.</p>
 
