@@ -1,4 +1,4 @@
-"""CLI de Histos. Cada subcomando es un cmd_xxx(args) -> int, testeable sin pasar por argparse."""
+"""Histos CLI. Each subcommand is a cmd_xxx(args) -> int, testable without going through argparse."""
 from __future__ import annotations
 
 import argparse
@@ -10,11 +10,11 @@ from pathlib import Path
 from . import canvas, frontmatter, validation
 
 STATE_NAMES = {
-    canvas.BLOQUEADA: "Bloqueada",
-    canvas.EN_PROGRESO: "En progreso",
-    canvas.PROPUESTA_PENDIENTE: "Propuesta pendiente de revision",
-    canvas.APROBADA: "Aprobada",
-    canvas.SOLICITUD_CAMBIO_DEPENDENCIA: "Solicitud cambio de dependencia",
+    canvas.BLOQUEADA: "Blocked",
+    canvas.EN_PROGRESO: "In progress",
+    canvas.PROPUESTA_PENDIENTE: "Proposal pending review",
+    canvas.APROBADA: "Approved",
+    canvas.SOLICITUD_CAMBIO_DEPENDENCIA: "Dependency change request",
     canvas.BACKLOG: "Backlog",
 }
 
@@ -27,7 +27,7 @@ def _install_agent_templates(vault_root: Path) -> None:
     for rel_path in AGENT_TEMPLATES:
         target = vault_root / rel_path
         if target.exists():
-            print(f"aviso: ya existe {rel_path}, no lo toco -- copia el contenido de referencia a mano si quieres", file=sys.stderr)
+            print(f"warning: {rel_path} already exists, leaving it alone -- copy the reference content by hand if you want it", file=sys.stderr)
             continue
         ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -51,15 +51,15 @@ def _load_valid(vault_root: Path) -> dict:
     errors = validation.validate_all(data)
     if errors:
         raise canvas.HistosError(
-            "el canvas no es valido -- corrigelo antes de continuar ('histos validate' para detalle):\n"
+            "the canvas is not valid -- fix it before continuing ('histos validate' for detail):\n"
             + "\n".join(f"  - {e}" for e in errors)
         )
     return data
 
 
 def _resync_sizes_and_layout(vault_root: Path, data: dict) -> None:
-    """Recalcula tamano (segun la descripcion real de cada tarjeta) y posicion (por rango
-    de dependencia). Se llama tras cualquier cambio que afecte al grafo o a una descripcion.
+    """Recomputes size (from each card's real description) and position (by dependency
+    rank). Called after any change that affects the graph or a description.
     """
     for card in canvas.cards(data):
         md_path = canvas.card_file_path(vault_root, card)
@@ -73,22 +73,22 @@ def cmd_init(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     canvas_path = canvas.vault_canvas_path(vault_root)
     if canvas_path.exists():
-        print(f"error: ya existe {canvas_path}", file=sys.stderr)
+        print(f"error: {canvas_path} already exists", file=sys.stderr)
         return 1
     (vault_root / "content").mkdir(parents=True, exist_ok=True)
     (vault_root / PROPOSALS_DIR).mkdir(parents=True, exist_ok=True)
     (vault_root / APPROVED_DIR).mkdir(parents=True, exist_ok=True)
     canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
     _install_agent_templates(vault_root)
-    print(f"vault inicializado en {vault_root}")
+    print(f"vault initialized at {vault_root}")
     return 0
 
 
 def cmd_add_card(args: argparse.Namespace) -> int:
     if not canvas.is_valid_card_id(args.id):
         print(
-            f"error: id '{args.id}' no valido -- solo letras, numeros, '_' y '-' "
-            "(se usa tal cual como nombre de fichero; no puede contener '/', '\\' ni '..')",
+            f"error: id '{args.id}' is not valid -- only letters, numbers, '_' and '-' "
+            "(used as-is as the file name; can't contain '/', '\\', or '..')",
             file=sys.stderr,
         )
         return 1
@@ -101,14 +101,14 @@ def cmd_add_card(args: argparse.Namespace) -> int:
         return 1
 
     if canvas.find_card(data, args.id) is not None:
-        print(f"error: ya existe una tarjeta con id '{args.id}'", file=sys.stderr)
+        print(f"error: a card with id '{args.id}' already exists", file=sys.stderr)
         return 1
 
     depends_on = args.depends_on or []
     if depends_on and not args.authorized:
         print(
-            "error: --depends-on toca el grafo de dependencias y necesita autorizacion humana "
-            "explicita -- anade --authorized solo si ya la obtuviste en la conversacion",
+            "error: --depends-on touches the dependency graph and needs explicit human "
+            "authorization -- only add --authorized if you already got it in the conversation",
             file=sys.stderr,
         )
         return 1
@@ -116,7 +116,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     by_id = {c["id"]: c for c in canvas.cards(data)}
     for dep in depends_on:
         if dep not in by_id:
-            print(f"error: la dependencia '{dep}' no existe", file=sys.stderr)
+            print(f"error: dependency '{dep}' doesn't exist", file=sys.stderr)
             return 1
 
     all_approved = all(by_id[dep]["color"] == canvas.APROBADA for dep in depends_on)
@@ -129,7 +129,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
 
     cycle = canvas.detect_cycle(data)
     if cycle:
-        print(f"error: esa dependencia formaria un ciclo: {' -> '.join(cycle)}", file=sys.stderr)
+        print(f"error: that dependency would form a cycle: {' -> '.join(cycle)}", file=sys.stderr)
         return 1
 
     md_path = canvas.card_file_path(vault_root, node)
@@ -144,13 +144,13 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     _resync_sizes_and_layout(vault_root, data)
     canvas.save(vault_root, data)
 
-    print(f"tarjeta '{args.id}' creada ({STATE_NAMES[initial_color]}) -> {node['file']}")
+    print(f"card '{args.id}' created ({STATE_NAMES[initial_color]}) -> {node['file']}")
     return 0
 
 
 def cmd_link(args: argparse.Namespace) -> int:
-    """Anade dependencias a una tarjeta YA existente -- add-card --depends-on solo cubre
-    la creacion; esto cubre el caso de descubrir una dependencia despues de crear la tarjeta.
+    """Adds dependencies to an ALREADY existing card -- add-card --depends-on only covers
+    creation; this covers discovering a dependency after the card was already created.
     """
     vault_root = _vault_root()
     try:
@@ -160,13 +160,13 @@ def cmd_link(args: argparse.Namespace) -> int:
         return 1
 
     if canvas.find_card(data, args.id) is None:
-        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
 
     if not args.authorized:
         print(
-            "error: 'link' toca el grafo de dependencias y necesita autorizacion humana "
-            "explicita -- anade --authorized solo si ya la obtuviste en la conversacion",
+            "error: 'link' touches the dependency graph and needs explicit human "
+            "authorization -- only add --authorized if you already got it in the conversation",
             file=sys.stderr,
         )
         return 1
@@ -174,10 +174,10 @@ def cmd_link(args: argparse.Namespace) -> int:
     by_id = {c["id"]: c for c in canvas.cards(data)}
     for dep in args.depends_on:
         if dep == args.id:
-            print(f"error: '{args.id}' no puede depender de si misma", file=sys.stderr)
+            print(f"error: '{args.id}' can't depend on itself", file=sys.stderr)
             return 1
         if dep not in by_id:
-            print(f"error: la dependencia '{dep}' no existe", file=sys.stderr)
+            print(f"error: dependency '{dep}' doesn't exist", file=sys.stderr)
             return 1
 
     for dep in args.depends_on:
@@ -185,13 +185,13 @@ def cmd_link(args: argparse.Namespace) -> int:
 
     cycle = canvas.detect_cycle(data)
     if cycle:
-        print(f"error: esa dependencia formaria un ciclo: {' -> '.join(cycle)}", file=sys.stderr)
+        print(f"error: that dependency would form a cycle: {' -> '.join(cycle)}", file=sys.stderr)
         return 1
 
     canvas.recompute_blocked(data)
     _resync_sizes_and_layout(vault_root, data)
     canvas.save(vault_root, data)
-    print(f"'{args.id}' ahora depende de: {', '.join(args.depends_on)}")
+    print(f"'{args.id}' now depends on: {', '.join(args.depends_on)}")
     return 0
 
 
@@ -208,10 +208,10 @@ def cmd_assign(args: argparse.Namespace) -> int:
     for card_id in args.ids:
         card = canvas.find_card(data, card_id)
         if card is None:
-            print(f"error: no existe la tarjeta '{card_id}'", file=sys.stderr)
+            print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
             return 1
         if card["color"] == canvas.BLOQUEADA:
-            print(f"error: '{card_id}' esta Bloqueada, no se puede asignar todavia", file=sys.stderr)
+            print(f"error: '{card_id}' is Blocked, can't be assigned yet", file=sys.stderr)
             return 1
 
     for card_id in args.ids:
@@ -221,18 +221,18 @@ def cmd_assign(args: argparse.Namespace) -> int:
         meta, body = frontmatter.read(md_path)
         meta["assigned_to"] = args.by
         frontmatter.write(md_path, meta, body)
-        print(f"'{card_id}' -> En progreso (assigned_to={args.by})")
+        print(f"'{card_id}' -> In progress (assigned_to={args.by})")
 
     canvas.save(vault_root, data)
     return 0
 
 
 def cmd_describe(args: argparse.Namespace) -> int:
-    """Actualiza description y/o sources del frontmatter -- nunca toca el cuerpo, asi que
-    no hace falta pasar por propose/approve (es metadato, igual que assigned_to en 'assign').
+    """Updates description and/or sources in the frontmatter -- never touches the body, so
+    it doesn't need to go through propose/approve (it's metadata, like assigned_to in 'assign').
     """
     if args.text is None and args.sources is None:
-        print("error: pasa --text, --sources, o ambos", file=sys.stderr)
+        print("error: pass --text, --sources, or both", file=sys.stderr)
         return 1
 
     vault_root = _vault_root()
@@ -244,18 +244,18 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
     card = canvas.find_card(data, args.id)
     if card is None:
-        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
 
     md_path = canvas.card_file_path(vault_root, card)
     if not md_path.exists():
-        print(f"error: no encuentro {md_path}", file=sys.stderr)
+        print(f"error: can't find {md_path}", file=sys.stderr)
         return 1
 
     if args.sources is not None:
         missing = [s for s in args.sources if not Path(s).expanduser().exists()]
         if missing:
-            print(f"error: no encuentro estos ficheros de source: {', '.join(missing)}", file=sys.stderr)
+            print(f"error: can't find these source files: {', '.join(missing)}", file=sys.stderr)
             return 1
 
     meta, body = frontmatter.read(md_path)
@@ -268,7 +268,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
     _resync_sizes_and_layout(vault_root, data)
     canvas.save(vault_root, data)
 
-    print(f"'{args.id}': actualizada")
+    print(f"'{args.id}': updated")
     return 0
 
 
@@ -282,19 +282,19 @@ def cmd_propose(args: argparse.Namespace) -> int:
 
     card = canvas.find_card(data, args.id)
     if card is None:
-        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
     if card["color"] != canvas.EN_PROGRESO:
         print(
-            f"error: '{args.id}' no esta En progreso (estado actual: {STATE_NAMES[card['color']]}) "
-            "-- usa 'histos assign' primero",
+            f"error: '{args.id}' isn't In progress (current state: {STATE_NAMES[card['color']]}) "
+            "-- use 'histos assign' first",
             file=sys.stderr,
         )
         return 1
 
     draft_path = Path(args.file)
     if not draft_path.exists():
-        print(f"error: no encuentro el borrador '{draft_path}'", file=sys.stderr)
+        print(f"error: can't find the draft '{draft_path}'", file=sys.stderr)
         return 1
 
     proposal_path = _proposal_path(vault_root, args.id)
@@ -303,7 +303,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
 
     card["color"] = canvas.PROPUESTA_PENDIENTE
     canvas.save(vault_root, data)
-    print(f"'{args.id}' -> Propuesta pendiente de revision ('histos diff {args.id}' para revisarla)")
+    print(f"'{args.id}' -> Proposal pending review ('histos diff {args.id}' to review it)")
     return 0
 
 
@@ -317,12 +317,12 @@ def cmd_diff(args: argparse.Namespace) -> int:
 
     card = canvas.find_card(data, args.id)
     if card is None:
-        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
 
     proposal_path = _proposal_path(vault_root, args.id)
     if not proposal_path.exists():
-        print(f"error: no hay propuesta pendiente para '{args.id}'", file=sys.stderr)
+        print(f"error: no pending proposal for '{args.id}'", file=sys.stderr)
         return 1
 
     md_path = canvas.card_file_path(vault_root, card)
@@ -332,8 +332,8 @@ def cmd_diff(args: argparse.Namespace) -> int:
     diff = difflib.unified_diff(
         current_body.splitlines(keepends=True),
         proposed_body.splitlines(keepends=True),
-        fromfile=f"content/{args.id}.md (actual)",
-        tofile=f"propuesta/{args.id}.md (propuesta)",
+        fromfile=f"content/{args.id}.md (current)",
+        tofile=f"proposal/{args.id}.md (proposed)",
     )
     sys.stdout.writelines(diff)
     return 0
@@ -344,16 +344,16 @@ def _read_source_text(path: Path) -> str:
         try:
             import docx
         except ImportError:
-            return f"[no se pudo leer {path}: falta la dependencia python-docx]"
+            return f"[couldn't read {path}: missing the python-docx dependency]"
         try:
             doc = docx.Document(str(path))
             return "\n".join(p.text for p in doc.paragraphs)
         except Exception as e:
-            return f"[no se pudo leer {path}: {e}]"
+            return f"[couldn't read {path}: {e}]"
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError as e:
-        return f"[no se pudo leer {path}: {e}]"
+        return f"[couldn't read {path}: {e}]"
 
 
 def _render_card_context(vault_root: Path, card: dict, label: str) -> str:
@@ -362,22 +362,22 @@ def _render_card_context(vault_root: Path, card: dict, label: str) -> str:
 
     parts = [f"## {label}: {card['id']} ({STATE_NAMES[card['color']]})"]
     if meta.get("description"):
-        parts.append(f"Descripcion: {meta['description']}")
+        parts.append(f"Description: {meta['description']}")
     if card["color"] == canvas.APROBADA and body.strip():
-        parts.append(f"Contenido aprobado:\n{body.strip()}")
+        parts.append(f"Approved content:\n{body.strip()}")
     for src in meta.get("sources") or []:
         src_path = Path(src).expanduser()
         if not src_path.exists():
-            parts.append(f"[source no encontrada: {src}]")
+            parts.append(f"[source not found: {src}]")
             continue
         parts.append(f"Source ({src}):\n{_read_source_text(src_path)}")
     return "\n\n".join(parts)
 
 
 def cmd_context(args: argparse.Namespace) -> int:
-    """Junta descripcion+contenido aprobado+sources de la tarjeta y de sus dependencias
-    directas, mas PROJECT.md si existe -- todo lo que un agente necesita para arrancar
-    a trabajar la tarjeta sin tener que reunirlo el mismo a mano.
+    """Bundles description+approved content+sources for the card and its direct
+    dependencies, plus PROJECT.md if it exists -- everything an agent needs to start
+    working the card without having to gather it by hand.
     """
     vault_root = _vault_root()
     try:
@@ -388,20 +388,20 @@ def cmd_context(args: argparse.Namespace) -> int:
 
     card = canvas.find_card(data, args.id)
     if card is None:
-        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
 
-    sections = [_render_card_context(vault_root, card, "Tarjeta")]
+    sections = [_render_card_context(vault_root, card, "Card")]
 
     by_id = {c["id"]: c for c in canvas.cards(data)}
     for e in canvas.incoming_edges(data, args.id):
         dep_card = by_id.get(e["fromNode"])
         if dep_card:
-            sections.append(_render_card_context(vault_root, dep_card, "Dependencia"))
+            sections.append(_render_card_context(vault_root, dep_card, "Dependency"))
 
     project_md = vault_root / "PROJECT.md"
     if project_md.exists():
-        sections.append("## Brief del proyecto (PROJECT.md)\n\n" + project_md.read_text(encoding="utf-8").strip())
+        sections.append("## Project brief (PROJECT.md)\n\n" + project_md.read_text(encoding="utf-8").strip())
 
     print("\n\n---\n\n".join(sections))
     return 0
@@ -417,18 +417,18 @@ def cmd_approve(args: argparse.Namespace) -> int:
 
     card = canvas.find_card(data, args.id)
     if card is None:
-        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
     if card["color"] != canvas.PROPUESTA_PENDIENTE:
         print(
-            f"error: '{args.id}' no tiene una propuesta pendiente (estado actual: {STATE_NAMES[card['color']]})",
+            f"error: '{args.id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})",
             file=sys.stderr,
         )
         return 1
 
     proposal_path = _proposal_path(vault_root, args.id)
     if not proposal_path.exists():
-        print(f"error: no encuentro el fichero de propuesta para '{args.id}'", file=sys.stderr)
+        print(f"error: can't find the proposal file for '{args.id}'", file=sys.stderr)
         return 1
 
     md_path = canvas.card_file_path(vault_root, card)
@@ -445,7 +445,7 @@ def cmd_approve(args: argparse.Namespace) -> int:
     card["color"] = canvas.APROBADA
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
-    print(f"'{args.id}' -> Aprobada")
+    print(f"'{args.id}' -> Approved")
     return 0
 
 
@@ -459,11 +459,11 @@ def cmd_reject(args: argparse.Namespace) -> int:
 
     card = canvas.find_card(data, args.id)
     if card is None:
-        print(f"error: no existe la tarjeta '{args.id}'", file=sys.stderr)
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
     if card["color"] != canvas.PROPUESTA_PENDIENTE:
         print(
-            f"error: '{args.id}' no tiene una propuesta pendiente (estado actual: {STATE_NAMES[card['color']]})",
+            f"error: '{args.id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})",
             file=sys.stderr,
         )
         return 1
@@ -481,7 +481,7 @@ def cmd_reject(args: argparse.Namespace) -> int:
 
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
-    print(f"'{args.id}' -> Backlog (propuesta descartada)")
+    print(f"'{args.id}' -> Backlog (proposal discarded)")
     return 0
 
 
@@ -536,72 +536,72 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="histos", description="CLI de Histos (ver docs/canvas-schema.md)")
+    parser = argparse.ArgumentParser(prog="histos", description="Histos CLI (see docs/canvas-schema.md)")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("init", help="crea project.canvas + content/ en el directorio actual")
+    p = sub.add_parser("init", help="creates project.canvas + content/ in the current directory")
     p.set_defaults(func=cmd_init)
 
-    p = sub.add_parser("add-card", help="crea una tarjeta nueva")
+    p = sub.add_parser("add-card", help="creates a new card")
     p.add_argument("id")
     p.add_argument("--title", required=True)
-    p.add_argument("--description", default=None, help="una linea, va al frontmatter y al cuerpo inicial")
+    p.add_argument("--description", default=None, help="one line, goes into the frontmatter and the initial body")
     p.add_argument("--depends-on", nargs="+", default=[], metavar="ID")
     p.add_argument(
         "--authorized", action="store_true",
-        help="confirma que un humano autorizo tocar el grafo de dependencias",
+        help="confirms a human authorized touching the dependency graph",
     )
     p.set_defaults(func=cmd_add_card)
 
-    p = sub.add_parser("link", help="anade dependencias a una tarjeta ya existente")
+    p = sub.add_parser("link", help="adds dependencies to an already existing card")
     p.add_argument("id")
     p.add_argument("--depends-on", nargs="+", required=True, metavar="ID")
     p.add_argument(
         "--authorized", action="store_true",
-        help="confirma que un humano autorizo tocar el grafo de dependencias",
+        help="confirms a human authorized touching the dependency graph",
     )
     p.set_defaults(func=cmd_link)
 
-    p = sub.add_parser("assign", help="pasa una o mas tarjetas a En progreso")
+    p = sub.add_parser("assign", help="moves one or more cards to In progress")
     p.add_argument("ids", nargs="+", metavar="ID")
     p.add_argument("--by", choices=["agent", "human"], default="agent")
     p.set_defaults(func=cmd_assign)
 
-    p = sub.add_parser("describe", help="actualiza descripcion y/o sources (frontmatter) de una tarjeta existente")
+    p = sub.add_parser("describe", help="updates description and/or sources (frontmatter) of an existing card")
     p.add_argument("id")
-    p.add_argument("--text", default=None, help="descripcion de una linea")
+    p.add_argument("--text", default=None, help="one-line description")
     p.add_argument(
         "--sources", nargs="+", default=None, metavar="PATH",
-        help="rutas a ficheros externos (txt/md/tex/docx) relevantes para esta tarjeta -- sustituye la lista anterior entera",
+        help="paths to external files (txt/md/tex/docx) relevant to this card -- replaces the previous list entirely",
     )
     p.set_defaults(func=cmd_describe)
 
-    p = sub.add_parser("propose", help="sube una propuesta de contenido para revision")
+    p = sub.add_parser("propose", help="uploads a content proposal for review")
     p.add_argument("id")
-    p.add_argument("--file", required=True, help="ruta al borrador con el contenido propuesto")
+    p.add_argument("--file", required=True, help="path to the draft with the proposed content")
     p.set_defaults(func=cmd_propose)
 
-    p = sub.add_parser("diff", help="muestra el diff entre el contenido actual y la propuesta pendiente")
+    p = sub.add_parser("diff", help="shows the diff between the current content and the pending proposal")
     p.add_argument("id")
     p.set_defaults(func=cmd_diff)
 
-    p = sub.add_parser("context", help="junta descripcion+dependencias aprobadas+sources+PROJECT.md para trabajar la tarjeta")
+    p = sub.add_parser("context", help="bundles description+approved dependencies+sources+PROJECT.md to work the card")
     p.add_argument("id")
     p.set_defaults(func=cmd_context)
 
-    p = sub.add_parser("approve", help="aplica la propuesta pendiente al .md real")
+    p = sub.add_parser("approve", help="applies the pending proposal to the real .md")
     p.add_argument("id")
     p.set_defaults(func=cmd_approve)
 
-    p = sub.add_parser("reject", help="descarta la propuesta pendiente")
+    p = sub.add_parser("reject", help="discards the pending proposal")
     p.add_argument("id")
     p.add_argument("--feedback", default=None)
     p.set_defaults(func=cmd_reject)
 
-    p = sub.add_parser("status", help="lista las tarjetas agrupadas por estado")
+    p = sub.add_parser("status", help="lists cards grouped by status")
     p.set_defaults(func=cmd_status)
 
-    p = sub.add_parser("validate", help="valida project.canvas contra el schema formal")
+    p = sub.add_parser("validate", help="validates project.canvas against the formal schema")
     p.set_defaults(func=cmd_validate)
 
     return parser

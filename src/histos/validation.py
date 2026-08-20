@@ -25,7 +25,7 @@ def validate_schema(data: dict) -> list[str]:
     validator = Draft202012Validator(load_schema())
     errors = []
     for e in validator.iter_errors(data):
-        where = "/".join(str(p) for p in e.path) or "(raiz)"
+        where = "/".join(str(p) for p in e.path) or "(root)"
         errors.append(f"schema: {where}: {e.message}")
     return errors
 
@@ -37,7 +37,7 @@ def validate_references(data: dict) -> list[str]:
         for key in ("fromNode", "toNode"):
             if e.get(key) not in node_ids:
                 errors.append(
-                    f"referencia: edge {e.get('id')} apunta a {key}={e.get(key)!r}, no existe como id de nodo"
+                    f"reference: edge {e.get('id')} points to {key}={e.get(key)!r}, no such node id exists"
                 )
     return errors
 
@@ -45,7 +45,7 @@ def validate_references(data: dict) -> list[str]:
 def validate_acyclic(data: dict) -> list[str]:
     cycle = canvas.detect_cycle(data)
     if cycle:
-        return [f"ciclo: dependencia circular entre {' -> '.join(cycle)}"]
+        return [f"cycle: circular dependency between {' -> '.join(cycle)}"]
     return []
 
 

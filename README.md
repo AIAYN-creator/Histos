@@ -1,154 +1,166 @@
 # Histos
 
-Herramienta open source y agnóstica de agente que usa **Obsidian Canvas** como tablero compartido humano-IA para gestionar proyectos de producción escrita: TFGs, tesis, papers, posts de blog, informes.
+Open-source, agent-agnostic tool that uses **Obsidian Canvas** as a shared human-AI board for managing written-production projects: theses, dissertations, papers, blog posts, reports.
 
-El agente propone el flujo de trabajo y redacta las tareas; el humano aprueba los cambios reales antes de que se apliquen al contenido.
+The agent proposes the workflow and drafts the tasks; the human approves real changes before they're applied to the content.
 
-> Estado: esquema formal ([`src/histos/schema/`](src/histos/schema/)) y CLI mínimo ([`src/histos/`](src/histos/), 12 comandos, `pytest` en verde) implementados. En dogfooding activo sobre un TFG real. El plugin de Obsidian todavía no existe.
+> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 12 commands, `pytest` green), actively dogfooded on a real thesis. v2 (desktop app, hardening, layout fixes) is scoped but not yet built — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 isn't planning to build one either (see below).
 
-## Idea central
+## Core idea
 
-Separación estricta entre el **mapa del proyecto** (`canvas.json`) y el **contenido real** (ficheros `.md`). El canvas nunca contiene prosa — solo referencias a ficheros, metadatos de estado y el grafo de dependencias.
+Strict separation between the **project map** (`canvas.json`) and the **actual content** (`.md` files). The canvas never contains prose — only file references, status metadata, and the dependency graph.
 
-Todo vive en local, en un vault de Obsidian normal (una carpeta con subcarpeta `.obsidian/`). No hay servidor propio ni backend remoto; el único salto fuera de local es la llamada al agente/LLM.
+Everything lives locally, in a normal Obsidian vault (a folder with an `.obsidian/` subfolder). There's no server or remote backend of its own — the only step that leaves local is the call to the agent/LLM.
 
-## Los dos loops
+## The two loops
 
-### Loop 1 — Planificación (el agente tiene libertad casi total)
+### Loop 1 — Planning (the agent has near-total freedom)
 
-El agente puede libremente:
-- Crear, editar y mover tarjetas
-- Cambiar el estado/color de una tarjeta
-- Editar el texto/descripción de una tarjeta
-- Agrupar tarjetas visualmente (grupos geométricos; sin jerarquía rígida en los datos)
+The agent can freely:
+- Create, edit, and move cards
+- Change a card's status/color
+- Edit a card's text/description
+- Visually group cards (geometric groups; no rigid hierarchy in the data)
 
-Requiere autorización explícita del usuario:
-- Crear, borrar o redirigir una **arista de dependencia** — porque redefine qué se desbloquea y en qué orden, no es un cambio puramente estético
+Requires explicit user authorization:
+- Creating, deleting, or redirecting a **dependency edge** — because it redefines what unblocks and in what order, it's not a purely cosmetic change
 
-El agente decide si agrupar tarjetas según la envergadura del proyecto (un post de blog probablemente no necesita grupos; una tesis probablemente sí). No se fuerza jerarquía en v1.
+The agent decides whether to group cards based on the project's scale (a blog post probably doesn't need groups; a thesis probably does). No hierarchy is forced in v1.
 
-En un vault recién inicializado (sin tarjetas), Loop 1 empieza con una entrevista breve — de qué trata el proyecto, tipo de trabajo, si hay una estructura obligatoria, si conviene modelar checkpoints de revisión como tarjetas — antes de proponer el índice inicial. Protocolo completo en [`AGENTS.md`](src/histos/templates/AGENTS.md).
+In a freshly initialized vault (no cards yet), Loop 1 starts with a short interview — what the project is about, what type of work it is, whether there's a mandatory structure, whether review checkpoints should be modeled as cards — before proposing the initial card index. Full protocol in [`AGENTS.md`](src/histos/templates/AGENTS.md).
 
-### Loop 2 — Ejecución (el agente trabaja, el humano decide)
+### Loop 2 — Execution (the agent works, the human decides)
 
-1. El usuario asigna una o varias tarjetas al agente (por id)
-2. El agente recibe como contexto: el `.md` de esa tarjeta, el contenido de las tarjetas upstream (dependencias) y el brief general del proyecto
-3. El agente redacta una propuesta de contenido
-4. El agente **nunca** escribe directamente en el `.md` canónico — solo puede proponer
-5. La tarjeta pasa a estado "propuesta pendiente de revisión"
-6. El usuario revisa cuando puede (no hace falta estar presente mientras el agente trabaja) y ve un diff antes/después
-7. El usuario aprueba (se aplica el cambio real, tarjeta → "aprobada") o rechaza (no se toca el `.md`, tarjeta vuelve a backlog o queda marcada para reintento con feedback)
+1. The user assigns one or more cards to the agent (by id)
+2. The agent receives as context: that card's `.md`, the content of upstream (dependency) cards, and the general project brief
+3. The agent drafts a content proposal
+4. The agent **never** writes directly to the canonical `.md` — it can only propose
+5. The card moves to "proposal pending review"
+6. The user reviews when they can (no need to be present while the agent works) and sees a before/after diff
+7. The user approves (the real change gets applied, card → "approved") or rejects (the `.md` isn't touched, the card goes back to backlog or is flagged for retry with feedback)
 
-**Propiedad clave — seguridad en modo AFK:** como el agente solo puede proponer y nunca escribir directo, es seguro dejarlo procesando una cola de tarjetas sin supervisión *mientras el agente respete las reglas de `AGENTS.md`*. El peor caso posible, con un agente que las sigue, es encontrar varias tarjetas en amarillo esperando revisión al volver — nunca contenido real escrito sin autorización. Ojo: esto es una convención que el agente cumple, no una barrera técnica que se lo impida — ver [Modelo de confianza](#modelo-de-confianza).
+**Key property — AFK-mode safety:** since the agent can only propose and never write directly, it's safe to leave it processing a queue of cards unsupervised *as long as the agent follows the rules in `AGENTS.md`*. The worst case with an agent that follows them is finding several yellow cards waiting for review when you get back — never real content written without authorization. Careful: this is a convention the agent complies with, not a technical barrier that enforces it — see [Trust model](#trust-model).
 
-### Grafo de dependencias
+### Dependency graph
 
-Representado mediante los edges del canvas como un DAG (grafo acíclico dirigido). El agente respeta el orden topológico al elegir qué tarjeta trabajar a continuación. Si una acción rompería o ignoraría una dependencia existente, el agente debe avisar y pedir autorización **antes** de proceder, nunca después.
+Represented via the canvas edges as a DAG (directed acyclic graph). The agent respects topological order when choosing which card to work on next. If an action would break or ignore an existing dependency, the agent must flag it and ask for authorization **before** proceeding, never after.
 
-## Modelo de confianza
+## Trust model
 
-La regla "el agente nunca escribe directamente en `content/*.md`" vive en [`AGENTS.md`](src/histos/templates/AGENTS.md) como **convención de prosa** — depende de que el agente decida cumplirla. No hay permisos de sistema de ficheros, proceso intermedio, ni git hook a nivel del sistema operativo que la haga cumplir por sí sola, y eso sigue siendo cierto para `project.canvas` (el agente puede tocarlo directamente en vez de usar los comandos del CLI) y para los ficheros de `sources` (ver `describe --sources`).
+The rule "the agent never writes directly to `content/*.md`" lives in [`AGENTS.md`](src/histos/templates/AGENTS.md) as a **prose convention** — it depends on the agent choosing to follow it. There's no filesystem permission, intermediate process, or OS-level git hook enforcing it on its own, and that remains true for `project.canvas` (the agent can touch it directly instead of using the CLI commands) and for `sources` files (see `describe --sources`).
 
-**Excepción parcial, específica de Claude Code:** `histos init` también instala [`.claude/settings.json`](src/histos/templates/.claude/settings.json) con `permissions.deny` sobre `Write(content/**)` y `Edit(content/**)`. Verificado en vivo: bloquea `Edit`, `Write`, e incluso `Bash` cuando el comando referencia una ruta bajo `content/` ("File is in a directory that is denied by your permission settings"). Para Claude Code específicamente, `content/*.md` ya **no** depende solo de que el agente respete la regla. Dos límites honestos: (1) es de Claude Code, no del sistema operativo — no protege si el agente es otra herramienta (Codex, Gemini CLI...) que no respete ese `settings.json`; (2) no cubre `project.canvas` ni `sources`, que siguen siendo convención pura.
+**Partial, Claude-Code-specific exception:** `histos init` also installs [`.claude/settings.json`](src/histos/templates/.claude/settings.json) with `permissions.deny` on `Write(content/**)` and `Edit(content/**)`. Verified live: it blocks `Edit`, `Write`, and even `Bash` when the command references a path under `content/` ("File is in a directory that is denied by your permission settings"). For Claude Code specifically, `content/*.md` no longer depends solely on the agent respecting the rule. Two honest limits: (1) it's Claude-Code-specific, not OS-level — it doesn't protect you if the agent is another tool (Codex, Gemini CLI...) that doesn't respect that `settings.json`; (2) it doesn't cover `project.canvas` or `sources`, which remain pure convention. **Planned for v2** — see [Roadmap](#roadmap).
 
-Es una decisión consciente, no un descuido: el caso de uso actual es un único usuario con un agente de confianza que lee y sigue instrucciones. Deja de ser suficiente si el agente no es de confianza (instrucciones inyectadas, modelo no alineado) o si varios usuarios/agentes con intereses distintos comparten el mismo vault.
+This is a deliberate decision, not an oversight: the current use case is a single user with a trusted agent that reads and follows instructions. It stops being sufficient if the agent isn't trustworthy (injected instructions, a misaligned model) or if several users/agents with different interests share the same vault.
 
-Una garantía real y agnóstica de agente (no solo para Claude Code) requeriría separar "quién tiene permiso de escritura en `content/`" de "el agente" a nivel de sistema operativo — por ejemplo un contenedor (Docker) donde `content/` se monta de solo lectura para el agente. En un escritorio de un solo usuario esto no es trivial (agente y CLI corren como el mismo usuario del SO si no hay contenedor de por medio). Sandboxing real es trabajo futuro explícito, no implementado todavía.
+A real, agent-agnostic guarantee (not just for Claude Code) would require separating "who has write permission on `content/`" from "the agent" at the OS level — e.g. a container (Docker) where `content/` is mounted read-only for the agent. On a single-user desktop this isn't trivial (the agent and the CLI run as the same OS user without a container in between). Real, OS-level sandboxing is explicit future work, not implemented yet — see [Roadmap](#roadmap) (v3).
 
-## Convenciones del canvas
+## Canvas conventions
 
-> Esquema formal y machine-checkable: [`src/histos/schema/histos-canvas.schema.json`](src/histos/schema/histos-canvas.schema.json) — detalle completo en [`docs/canvas-schema.md`](docs/canvas-schema.md).
+> Formal, machine-checkable schema: [`src/histos/schema/histos-canvas.schema.json`](src/histos/schema/histos-canvas.schema.json) — full detail in [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
-- **Node type:** `file` — cada tarjeta apunta a un `.md` real del vault, no contiene texto embebido. (`text` se usa únicamente para la leyenda de colores decorativa que genera `histos init`; el CLI la ignora por completo.)
-- **Layout:** lectura tipo diagrama de Gantt pero sin fechas de calendario — la columna (x) es el rango de dependencia (camino más largo desde una raíz), las tarjetas del mismo rango se apilan en vertical. El tamaño de cada tarjeta se calcula a partir de la longitud de su `description`. `add-card`, `link` y `describe` recalculan tamaño+posición de todas las tarjetas automáticamente. No es un dagre completo (sin minimización de cruces de edges), pero cubre el caso de uso real.
+- **Node type:** `file` — each card points to a real `.md` in the vault, it never contains embedded text. (`text` is used only for the decorative color legend that `histos init` generates; the CLI ignores it entirely.)
+- **Layout:** reads like a Gantt chart but without calendar dates — the column (x) is the dependency rank (longest path from a root), cards of the same rank stack vertically. Each card's size is computed from its `description` length. Today, `add-card`, `link`, and `describe` automatically recompute size and position for *every* card — **planned to change in v2** (see [Roadmap](#roadmap)): new cards will be placed without moving or resizing any existing one. Not a full dagre implementation (no edge-crossing minimization), but it covers the real use case.
 
-### Leyenda de colores
+### Color legend
 
-| Estado | Color | Preset | Significado |
+| Status | Color | Preset | Meaning |
 |---|---|---|---|
-| Backlog | morado | `"6"` | Tarea pendiente, aún no empezada |
-| En progreso | naranja | `"2"` | El agente o el usuario está trabajando en ella activamente |
-| Bloqueada | rojo | `"1"` | No se puede empezar porque depende de una tarjeta anterior sin cerrar (estado derivado, lo calcula el CLI) |
-| Propuesta pendiente de revisión | amarillo | `"3"` | El agente propuso contenido y espera aprobación (loop 2) |
-| Solicitud cambio de dependencia | cian | `"5"` | El agente quiere modificar el grafo de dependencias y espera autorización (loop 1) |
-| Aprobada | verde | `"4"` | Cambio aceptado por el usuario y aplicado al contenido real |
+| Backlog | purple | `"6"` | Pending task, not started yet |
+| In progress | orange | `"2"` | The agent or the user is actively working on it |
+| Blocked | red | `"1"` | Can't start because it depends on a card that isn't closed yet (derived status, computed by the CLI) |
+| Proposal pending review | yellow | `"3"` | The agent proposed content and is waiting for approval (loop 2) |
+| Dependency change request | cyan | `"5"` | The agent wants to modify the dependency graph and is waiting for authorization (loop 1) |
+| Approved | green | `"4"` | Change accepted by the user and applied to the real content |
 
-## Metadatos
+## Metadata
 
-Lo que Obsidian/JSON Canvas no interpreta de forma nativa (duración estimada, duración real, a quién está asignada la tarea, notas de por qué está bloqueada) no se fuerza dentro del `.canvas` — se guarda como **frontmatter YAML** al principio de cada `.md`, formato que Obsidian ya soporta nativamente. Así el `.canvas` se mantiene 100% compatible con Obsidian estándar.
+Whatever Obsidian/JSON Canvas doesn't natively interpret (estimated duration, actual duration, who a task is assigned to, notes on why it's blocked) isn't forced into the `.canvas` — it's stored as **YAML frontmatter** at the top of each `.md`, a format Obsidian already supports natively. This keeps the `.canvas` 100% compatible with standard Obsidian.
 
-Campos: `estimated_duration_hours`, `actual_duration_hours`, `assigned_to`, `status_note`. El histórico estimado vs. real permitirá calibrar con el tiempo qué tan fiables son las estimaciones del agente para este tipo de tareas.
+Fields: `estimated_duration_hours`, `actual_duration_hours`, `assigned_to`, `status_note`. Tracking estimated vs. actual over time will make it possible to calibrate how reliable the agent's estimates are for this kind of task.
 
 ## CLI
 
-Comandos concretos y con nombre claro en vez de que el agente edite el JSON del canvas a mano, para evitar romper el formato y limitar al agente a un conjunto conocido de operaciones seguras (igual que una API). Agnóstico de agente: funciona con cualquier herramienta que ejecute comandos de shell y lea/escriba ficheros (Claude Code, Codex, Gemini CLI...).
+Concrete, clearly named commands instead of having the agent hand-edit the canvas JSON, to avoid breaking the format and to limit the agent to a known set of safe operations (like an API). Agent-agnostic: works with any tool that can run shell commands and read/write files (Claude Code, Codex, Gemini CLI...).
 
-Instalación (editable, para desarrollo):
+Installation (editable, for development):
 
 ```bash
 pip install -e .
 ```
 
-Cada comando opera sobre el directorio actual, que debe ser la raíz de un vault Histos (`histos init` la crea). Ningún comando bloquea en un prompt interactivo, así que una cola de tarjetas se puede procesar en modo AFK con un simple bucle en el agente que invoca el CLI — no hace falta ningún flag ni modo especial.
+Every command operates on the current directory, which must be the root of a Histos vault (`histos init` creates it). No command blocks on an interactive prompt, so a queue of cards can be processed in AFK mode with a simple loop in the agent that invokes the CLI — no special flag or mode needed.
 
 ```bash
-histos init                                            # crea project.canvas (con leyenda de colores) + content/
+histos init                                            # creates project.canvas (with color legend) + content/
 histos add-card cap1 --title "Intro" [--description "..."]
-                                                          # tarjeta suelta -> Backlog
+                                                          # standalone card -> Backlog
 histos add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
-                                                          # --authorized es obligatorio en cuanto se toca el grafo
-                                                          # de dependencias (Loop 1) -- sin prompt: una casilla que
-                                                          # el agente marca solo tras pedir permiso en la conversación
-histos link cap1 --depends-on cap0 --authorized         # añade dependencia a una tarjeta YA existente
-histos describe cap1 --text "..." [--sources f1 f2]     # descripción y/o fuentes externas (frontmatter, sin permiso)
-histos assign cap1 [--by agent|human]                   # -> En progreso
-histos context cap1                                     # junta descripción+dependencias aprobadas+sources+PROJECT.md
-histos propose cap1 --file borrador.md                  # -> Propuesta pendiente de revisión
-histos diff cap1                                        # diff entre content/cap1.md y la propuesta pendiente
-histos approve cap1                                     # aplica la propuesta al .md real -> Aprobada
-histos reject cap1 [--feedback "..."]                   # descarta la propuesta -> Backlog, feedback en status_note
-histos status                                           # tarjetas agrupadas por estado (recalcula Bloqueada/Backlog)
-histos validate                                         # valida project.canvas contra el schema formal
+                                                          # --authorized is required as soon as the dependency
+                                                          # graph is touched (Loop 1) -- no prompt: a flag the
+                                                          # agent only sets after asking for permission in chat
+histos link cap1 --depends-on cap0 --authorized         # adds a dependency to an ALREADY existing card
+histos describe cap1 --text "..." [--sources f1 f2]     # description and/or external sources (frontmatter, no permission needed)
+histos assign cap1 [--by agent|human]                    # -> In progress
+histos context cap1                                     # bundles description+approved dependencies+sources+PROJECT.md
+histos propose cap1 --file draft.md                     # -> Proposal pending review
+histos diff cap1                                        # diff between content/cap1.md and the pending proposal
+histos approve cap1                                     # applies the proposal to the real .md -> Approved
+histos reject cap1 [--feedback "..."]                   # discards the proposal -> Backlog, feedback in status_note
+histos status                                           # cards grouped by status (recalculates Blocked/Backlog)
+histos validate                                         # validates project.canvas against the formal schema
 ```
 
-### Abrir el vault en Obsidian
+### Opening the vault in Obsidian
 
-`histos init` crea `project.canvas` en el directorio actual — esa carpeta, **exactamente esa y ninguna por encima**, es la que tienes que abrir como vault en Obsidian (`Open folder as vault`). Canvas es una función nativa de Obsidian; no hace falta ningún plugin.
+`histos init` creates `project.canvas` in the current directory — that folder, **exactly that one and nothing above it**, is what you need to open as a vault in Obsidian (`Open folder as vault`). Canvas is a native Obsidian feature; no plugin needed.
 
-Por qué importa tanto: las tarjetas referencian sus `.md` con rutas relativas al vault (`content/cap1.md`). Si abres una carpeta por encima de la que contiene `project.canvas` (p. ej. el directorio padre en vez del propio vault), esas rutas ya no resuelven y Obsidian te muestra las tarjetas como "Create new note" / "Swap file..." en vez de con contenido — no está roto, es la carpeta equivocada. Si te pasa después de tener el vault bien abierto (p. ej. porque `histos` creó ficheros mientras Obsidian ya estaba abierto), recarga con `Ctrl+R` antes de sospechar de nada más.
+Why this matters so much: cards reference their `.md` files with paths relative to the vault (`content/cap1.md`). If you open a folder above the one containing `project.canvas` (e.g. the parent directory instead of the vault itself), those paths no longer resolve and Obsidian shows cards as "Create new note" / "Swap file..." instead of with content — it's not broken, it's the wrong folder. If this happens after you already had the vault open correctly (e.g. because `histos` created files while Obsidian was already open), reload with `Ctrl+R` before suspecting anything else.
 
-Código en [`src/histos/`](src/histos/), tests en [`tests/`](tests/) (`pytest`). Guía práctica de uso día a día (para humanos, no para agentes): [`docs/usage.md`](docs/usage.md).
+Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Practical day-to-day usage guide (for humans, not agents): [`docs/usage.md`](docs/usage.md).
 
-## Alcance del MVP (v1)
+## Roadmap
 
-**Dentro:**
-- Esquema formal del `.canvas` con la convención de colores y node types de arriba
-- Uso de frontmatter en los `.md` para metadatos que Obsidian no interpreta nativamente
-- CLI mínimo (Python, agnóstico de agente): `init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implementado y probado ([`src/histos/`](src/histos/), [`tests/`](tests/))
-- Modo no interactivo del CLI para trabajo AFK — resuelto: ningún comando usa prompts interactivos, no hace falta flag especial
-- Instrucciones para agentes documentando esquema, leyenda de colores y reglas de autorización de los dos loops — implementado como [`AGENTS.md`](src/histos/templates/AGENTS.md) (fuente única, agnóstico de agente) + `CLAUDE.md` (una línea, `@AGENTS.md`), que `histos init` copia a cada vault nuevo
-- Flujo de aprobación de escritura real vía diff antes de tocar un `.md` canónico
-- Dogfooding sobre un proyecto real de TFG
+### v1 — shipped
 
-**Fuera de v1:**
-- Plugin nativo de Obsidian (TypeScript, Obsidian Plugin API) — posible v2 para interactividad en vivo
-- Integración de git como backend de historial del contenido del usuario
-- Fechas / calendario real tipo Gantt clásico
-- Traer contexto externo (p. ej. el `.tex` principal en Overleaf vía su integración Git, que requiere plan de pago) para que `histos context` (ver preguntas abiertas) lo incluya automáticamente — posible v2
-- Sandboxing real y agnóstico de agente del `content/` del vault (ver [Modelo de confianza](#modelo-de-confianza)) — **parcialmente resuelto para Claude Code** vía `permissions.deny` en `.claude/settings.json`; falta cubrir `project.canvas`/`sources`, y falta una solución que no dependa de una herramienta concreta (contenedor con montaje de solo lectura) — próximo en la agenda
-- Soporte multi-agente: varios agentes trabajando en paralelo sobre el mismo vault — depende del sandboxing anterior para no pisarse entre sí
+- Formal `.canvas` schema with the color and node-type conventions above
+- Frontmatter in the `.md` files for metadata Obsidian doesn't natively interpret
+- Minimal CLI (Python, agent-agnostic): `init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate` — implemented and tested ([`src/histos/`](src/histos/), [`tests/`](tests/))
+- Non-interactive CLI mode for AFK work — solved: no command uses interactive prompts, no special flag needed
+- Agent instructions documenting the schema, color legend, and the two loops' authorization rules — implemented as [`AGENTS.md`](src/histos/templates/AGENTS.md) (single source, agent-agnostic) + `CLAUDE.md` (one line, `@AGENTS.md`), which `histos init` copies into every new vault
+- Real-write approval flow via diff before touching a canonical `.md`
+- Dogfooding on a real thesis project
 
-## Alcance de la distribución
+### v2 — scoped, not yet built
 
-Lo que se publica en este repo es la **herramienta** (CLI, esquema, prompt, documentación) como proyecto open source. Git/GitHub no es el backend de versionado del contenido de los proyectos de cada usuario — eso queda fuera del scope de v1 y es decisión de cada usuario.
+1. **Desktop app for non-technical use.** A thin Python wrapper around the existing CLI (likely `pywebview`, packaged into a single `.exe` with PyInstaller) — no terminal required. Obsidian stays the visual canvas, installed separately (not bundled). Planned screens: a project-init wizard, a status overview, and the core review loop (diff → approve/reject) that today requires the terminal, plus a button to open the vault in Obsidian. Out of scope: launching or managing agent sessions — the user still runs their agent of choice (Claude Code, Codex...) separately, so Histos stays agent-agnostic.
+2. **Broaden the sandboxing convention** (still tool-level, not OS-level — see [Trust model](#trust-model)): extend Claude Code's `permissions.deny` to also cover `project.canvas` (today only `content/**`), and have `describe --sources` auto-register each registered source path into the deny list too. Best-effort investigation into equivalent permission mechanisms for other agents (Codex, Gemini CLI...) where they exist.
+3. **Security hardening pass.** Audit for path traversal beyond the id check already in `add-card`, confirm YAML is loaded safely, run a dependency vulnerability scan. The new desktop-app surface (a local `pywebview`-backed process) gets its own audit once built, since v1's CLI-only design didn't have one.
+4. **Stable card layout.** Stop recomputing every card's position and size on every `add-card`/`link`/`describe` call. New cards get placed via collision-avoidance so they don't overlap anything; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian.
+
+### v3 — future, not scoped yet
+
+- **Multi-agent support** (several agents working the same vault in parallel). Blocked on real, OS-level sandboxing (a container with `content/` mounted read-only for the agent, or similar) — v2 only broadens the tool-level convention, it doesn't attempt this.
+
+### Unscheduled ideas (not committed to any version)
+
+- Native Obsidian plugin — superseded for now: v2 deliberately keeps using Obsidian's native Canvas view instead of building one (see v2 above).
+- Git as a version-history backend for user content
+- Real calendar/date-based Gantt scheduling
+- Automatically pulling in external context (e.g. Overleaf's `.tex` via its paid Git integration) for `histos context` — see [Open questions](#open-questions)
+- Additional `content/` subfolder conventions (e.g. `content/drafts/`)
+
+## Distribution scope
+
+What's published in this repo is the **tool** (CLI, schema, prompt, documentation) as an open-source project. Git/GitHub is not the version-history backend for each user's project content — that's outside v1's scope and is each user's own decision.
 
 ## Prior art
 
-- **Kanvas (XMihura)** — referencia directa de arquitectura. Mismo patrón pero orientado a código: prompt + CLI en Python que el agente usa para tocar el canvas + el `.canvas` en sí. Sin SaaS, sin build step, agnóstico de agente. Histos adapta ese patrón a proyectos de escritura en vez de código.
-- **claude-canvas (AgriciDaniel)** — referencia solo para el algoritmo de auto-layout (`dagre`) y la idea de zonas/grupos visuales. No es la arquitectura base.
-- **JSON Canvas spec (jsoncanvas.org)** — el formato `.canvas` es el estándar abierto JSON Canvas, no propietario de Obsidian. Node types disponibles: `text` (markdown embebido), `file` (ruta a un fichero real del vault), `link` (URL), `group` (contenedor puramente geométrico — un nodo "pertenece" a un grupo solo si sus coordenadas caen dentro del rectángulo del grupo; no hay `parent_id` en los datos).
+- **Kanvas (XMihura)** — direct architectural reference. Same pattern but code-oriented: a prompt + Python CLI the agent uses to touch the canvas, plus the `.canvas` itself. No SaaS, no build step, agent-agnostic. Histos adapts that pattern to writing projects instead of code.
+- **claude-canvas (AgriciDaniel)** — reference only for the auto-layout algorithm (`dagre`) and the idea of visual zones/groups. Not the base architecture.
+- **JSON Canvas spec (jsoncanvas.org)** — the `.canvas` format is the open JSON Canvas standard, not Obsidian-proprietary. Available node types: `text` (embedded markdown), `file` (path to a real vault file), `link` (URL), `group` (a purely geometric container — a node "belongs" to a group only if its coordinates fall inside the group's rectangle; there's no `parent_id` in the data).
 
-## Preguntas abiertas
+## Open questions
 
-- Formato exacto del brief general del proyecto — **resuelto en parte:** `histos context <id>` ya junta descripción + contenido aprobado de las dependencias + `sources` externas (`.txt`/`.md`/`.tex`/`.docx`, registradas con `describe --sources`) + `PROJECT.md` si existe. Lo que sigue abierto: `PROJECT.md` en sí no tiene formato definido todavía, simplemente se incluye tal cual si está presente
-- Estructura de carpetas — **resuelto en parte:** las tarjetas viven en `content/<slug>.md` (ver [`docs/canvas-schema.md`](docs/canvas-schema.md)); subcarpetas adicionales como `content/borradores/` siguen abiertas
+- Exact format of the general project brief — **partially resolved:** `histos context <id>` already bundles description + approved dependency content + external `sources` (`.txt`/`.md`/`.tex`/`.docx`, registered via `describe --sources`) + `PROJECT.md` if present. Still open: `PROJECT.md` itself has no defined format yet, it's simply included as-is if present
+- Folder structure — **partially resolved:** cards live in `content/<slug>.md` (see [`docs/canvas-schema.md`](docs/canvas-schema.md)); additional subfolders like `content/drafts/` remain open

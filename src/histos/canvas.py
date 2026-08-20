@@ -33,18 +33,18 @@ _CHARS_PER_LINE = 30
 _LINE_HEIGHT = 28
 
 LEGEND_ID = "legend"
-_LEGEND_TEXT = """## Leyenda de estados (Histos)
+_LEGEND_TEXT = """## Status legend (Histos)
 
-| Color | Estado |
+| Color | Status |
 |---|---|
-| \U0001F7E3 morado | Backlog |
-| \U0001F7E0 naranja | En progreso |
-| \U0001F534 rojo | Bloqueada (derivado, no se asigna a mano) |
-| \U0001F7E1 amarillo | Propuesta pendiente de revision |
-| \U0001F535 cian | Solicitud cambio de dependencia |
-| \U0001F7E2 verde | Aprobada |
+| \U0001F7E3 purple | Backlog |
+| \U0001F7E0 orange | In progress |
+| \U0001F534 red | Blocked (derived, don't assign by hand) |
+| \U0001F7E1 yellow | Proposal pending review |
+| \U0001F535 cyan | Dependency change request |
+| \U0001F7E2 green | Approved |
 
-Detalle: docs/canvas-schema.md en el repo de Histos.
+Detail: docs/canvas-schema.md in the Histos repo.
 """
 
 
@@ -60,7 +60,7 @@ def load(vault_root: Path) -> dict:
     path = vault_canvas_path(vault_root)
     if not path.exists():
         raise HistosError(
-            f"no encuentro {CANVAS_FILENAME} en {vault_root} -- ejecuta 'histos init' primero"
+            f"can't find {CANVAS_FILENAME} in {vault_root} -- run 'histos init' first"
         )
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)

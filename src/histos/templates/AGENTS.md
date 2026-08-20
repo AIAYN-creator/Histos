@@ -1,54 +1,54 @@
-# Instrucciones para agentes en este vault
+# Instructions for agents in this vault
 
-Este directorio es un vault gestionado por **Histos**: un tablero de tareas en `project.canvas` (Obsidian Canvas) donde el color de cada tarjeta es su estado, y el contenido real vive en `content/*.md`. El CLI `histos` es la unica forma soportada de tocar el canvas -- nunca edites `project.canvas` a mano.
+This directory is a vault managed by **Histos**: a task board in `project.canvas` (Obsidian Canvas) where each card's color is its status, and the real content lives in `content/*.md`. The `histos` CLI is the only supported way to touch the canvas -- never edit `project.canvas` by hand.
 
-## Reglas duras (no negociables)
+## Hard rules (non-negotiable)
 
-1. **Nunca escribas directamente en `content/*.md`, ni en ningun fichero registrado como `sources` de una tarjeta.** Ambos son de solo lectura para ti. El unico camino para que un cambio de contenido llegue al `.md` canonico es `histos propose <id> --file <borrador>` seguido de `histos approve <id>` por parte de un humano. Si necesitas redactar contenido, escribelo en un fichero aparte (el borrador) y pasalo a `propose` -- nunca edites `content/<id>.md` directamente. `propose` copia el borrador a `propuestas/<id>.md` (carpeta visible en Obsidian, no oculta) hasta que se apruebe o rechace; el humano puede leerla o incluso retocarla ahi antes de decidir -- eso es cosa suya, la regla de esta linea es solo para ti. Al aprobar, esa copia se archiva en `aprobados/<id>.md` (historico); al rechazar se descarta sin dejar rastro. Las `sources` (ver `describe --sources`) son material de referencia del humano -- un Word con bibliografia, un `.tex` en Overleaf -- nunca las edites ni las "arregles", ni siquiera algo que parezca un error obvio: si hace falta un cambio ahi, dilo en la conversacion, no lo toques tu. Si eres Claude Code: `content/**` esta ademas denegado en `.claude/settings.json` -- si un `Edit`/`Write`/`Bash` te sale rechazado por permisos ahi, es intencional, no lo intentes rodear.
-2. **Nunca pases `--authorized` sin que un humano te haya dado permiso explicito en la conversacion actual.** Aplica a `add-card --depends-on` y a `link` (para anadir una dependencia a una tarjeta ya existente). Pide permiso primero (di que dependencia quieres crear y por que), espera la respuesta, y solo entonces pasa `--authorized`.
-3. **No hace falta pedir permiso** para: crear tarjetas sueltas (sin `--depends-on`), asignar tarjetas (`assign`), actualizar descripcion/sources (`describe`), proponer contenido (`propose`), o consultar estado (`status`, `diff`, `context`, `validate`).
+1. **Never write directly to `content/*.md`, or to any file registered as a `sources` entry on a card.** Both are read-only for you. The only path for a content change to reach the canonical `.md` is `histos propose <id> --file <draft>` followed by `histos approve <id>` from a human. If you need to draft content, write it to a separate file (the draft) and pass it to `propose` -- never edit `content/<id>.md` directly. `propose` copies the draft to `propuestas/<id>.md` (a visible folder in Obsidian, not hidden) until it's approved or rejected; the human may read it or even tweak it there before deciding -- that's their call, this rule is only for you. On approval, that copy is archived to `aprobados/<id>.md` (history); on rejection it's discarded without a trace. `sources` (see `describe --sources`) are the human's reference material -- a Word doc with a bibliography, a `.tex` in Overleaf -- never edit or "fix" them, not even something that looks like an obvious error: if a change is needed there, say so in the conversation, don't touch it yourself. If you're Claude Code: `content/**` is also denied in `.claude/settings.json` -- if an `Edit`/`Write`/`Bash` gets rejected for permissions there, that's intentional, don't try to work around it.
+2. **Never pass `--authorized` without a human having given you explicit permission in the current conversation.** Applies to `add-card --depends-on` and to `link` (for adding a dependency to an already existing card). Ask for permission first (say which dependency you want to create and why), wait for the answer, and only then pass `--authorized`.
+3. **No permission needed** for: creating standalone cards (no `--depends-on`), assigning cards (`assign`), updating description/sources (`describe`), proposing content (`propose`), or checking status (`status`, `diff`, `context`, `validate`).
 
-## Estados (color de la tarjeta)
+## States (card color)
 
-| Color | Preset | Estado | Que significa |
+| Color | Preset | Status | What it means |
 |---|---|---|---|
-| morado | `"6"` | Backlog | lista para empezar |
-| naranja | `"2"` | En progreso | asignada, trabajandose |
-| rojo | `"1"` | Bloqueada | derivado del grafo -- no la asignes a mano, se recalcula sola |
-| amarillo | `"3"` | Propuesta pendiente de revision | esperando `approve`/`reject` de un humano |
-| cian | `"5"` | Solicitud cambio de dependencia | pendiente de autorizacion (regla 2) |
-| verde | `"4"` | Aprobada | terminada |
+| purple | `"6"` | Backlog | ready to start |
+| orange | `"2"` | In progress | assigned, being worked on |
+| red | `"1"` | Blocked | derived from the graph -- don't assign by hand, it recalculates itself |
+| yellow | `"3"` | Proposal pending review | waiting for a human's `approve`/`reject` |
+| cyan | `"5"` | Dependency change request | pending authorization (rule 2) |
+| green | `"4"` | Approved | done |
 
-## Arrancar un proyecto nuevo (vault sin tarjetas todavia)
+## Starting a new project (vault with no cards yet)
 
-Si `histos status` no muestra ninguna tarjeta, no te lances a crear el indice por tu cuenta. Antes de la primera `add-card`, pregunta al humano (es una conversacion normal, no hace falta CLI para esto):
+If `histos status` shows no cards, don't jump straight into creating the index on your own. Before the first `add-card`, ask the human (it's a normal conversation, no CLI needed for this):
 
-1. **De que trata el proyecto** -- una frase basta, pero sin eso las tarjetas salen genericas.
-2. **Que tipo de trabajo es**: experimental/investigacion, revision bibliografica, o mixto -- cambia bastante que va en cada tarjeta (sobre todo si hay una seccion tipo "Resultados"/"Metodologia").
-3. **Si hay una estructura obligatoria** (plantilla de universidad, revista, organizacion) que seguir al pie de la letra, o si partimos de una estructura estandar para ese tipo de proyecto y la ajustamos juntos.
-4. **Si tiene sentido anadir checkpoints** (revisiones periodicas con un tutor/editor/responsable) como tarjetas propias, no solo capitulos de contenido.
+1. **What the project is about** -- one sentence is enough, but without it cards come out generic.
+2. **What type of work it is**: experimental/research, literature review, or mixed -- this changes quite a bit of what goes in each card (especially if there's a "Results"/"Methodology"-type section).
+3. **Whether there's a mandatory structure** (university, journal, or organization template) to follow to the letter, or whether we start from a standard structure for that type of project and adjust it together.
+4. **Whether it makes sense to add checkpoints** (periodic reviews with an advisor/editor/lead) as their own cards, not just content chapters.
 
-Con las respuestas, propon una tabla de tarjetas + dependencias (id, titulo, de que depende) y pide confirmacion explicita antes de crear nada con dependencias -- tarjetas sueltas no necesitan autorizacion (regla 3), pero en cuanto la tabla tenga una dependencia, si (regla 2). Una vez confirmada, crea las tarjetas en orden topologico.
+With the answers, propose a table of cards + dependencies (id, title, what it depends on) and ask for explicit confirmation before creating anything with dependencies -- standalone cards don't need authorization (rule 3), but as soon as the table has a dependency, they do (rule 2). Once confirmed, create the cards in topological order.
 
-## Comandos
+## Commands
 
-Empieza siempre por `histos status` para saber que hay. Luego:
+Always start with `histos status` to see what's there. Then:
 
 ```
 histos add-card <id> --title "..." [--description "..."] [--depends-on ID...] [--authorized]
-histos link <id> --depends-on ID [ID...] --authorized   # anade dependencia a una tarjeta EXISTENTE
-histos describe <id> [--text "..."] [--sources PATH...]  # solo frontmatter, no requiere autorizacion
+histos link <id> --depends-on ID [ID...] --authorized   # adds a dependency to an EXISTING card
+histos describe <id> [--text "..."] [--sources PATH...]  # frontmatter only, no authorization needed
 histos assign <id> [id...] [--by agent|human]
-histos context <id>                                      # descripcion+dependencias aprobadas+sources+PROJECT.md
-histos propose <id> --file <borrador.md>
+histos context <id>                                      # description+approved dependencies+sources+PROJECT.md
+histos propose <id> --file <draft.md>
 histos diff <id>
 histos approve <id>
 histos reject <id> [--feedback "..."]
 histos validate
 ```
 
-`histos <comando> --help` para el detalle de cada flag. Antes de proponer contenido para una tarjeta con dependencias, corre `histos context <id>` en vez de ir a leer cada `content/<dep>.md` a mano -- te junta todo (incluye ficheros externos que el humano haya registrado con `describe --sources`, por ejemplo un Word con bibliografia).
+`histos <command> --help` for the details of each flag. Before proposing content for a card with dependencies, run `histos context <id>` instead of reading each `content/<dep>.md` by hand -- it bundles everything for you (including external files the human registered with `describe --sources`, e.g. a Word doc with a bibliography).
 
-## Modo sin supervision (AFK)
+## Unsupervised mode (AFK)
 
-Si un humano te asigna varias tarjetas y se va, puedes seguir trabajando la cola sin pedir permiso en cada paso: ningun comando de Histos bloquea en un prompt. El peor caso posible siguiendo las reglas de arriba es dejar tarjetas en amarillo esperando revision -- nunca contenido escrito sin permiso ni dependencias cambiadas sin autorizacion.
+If a human assigns you several cards and leaves, you can keep working the queue without asking for permission at each step: no Histos command blocks on a prompt. The worst case possible while following the rules above is leaving cards yellow, waiting for review -- never content written without permission, or dependencies changed without authorization.

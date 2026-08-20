@@ -1,81 +1,81 @@
-# Guía de uso
+# Usage guide
 
-Para el diseño completo ver el [README](../README.md); esto es una guía práctica de "cómo se usa esto en el día a día".
+For the full design see the [README](../README.md); this is a practical "how this actually gets used day to day" guide.
 
-## Instalar
+## Install
 
 ```bash
-pip install -e /ruta/a/Histos
+pip install -e /path/to/Histos
 ```
 
-(hasta que se publique en PyPI, instálalo apuntando a tu copia local del repo de Histos — funciona desde cualquier directorio, no hace falta estar dentro de `Histos/`.)
+(until it's published on PyPI, install it pointing at your local copy of the Histos repo — it works from any directory, you don't need to be inside `Histos/`.)
 
-## Arrancar un proyecto
+## Starting a project
 
-Probado de verdad (2026-08-07): una sesión de agente completamente nueva, sin nada de contexto previo sobre el proyecto ni sobre Histos, siguió estos pasos sin un solo problema.
+Actually tested (2026-08-07): a completely fresh agent session, with zero prior context about the project or about Histos, followed these steps without a single issue.
 
-1. **Crea una carpeta nueva** para el proyecto, distinta de cualquier vault existente — p. ej. `C:\Users\Usuario\Projects\MiProyecto`.
+1. **Create a new folder** for the project, separate from any existing vault — e.g. `C:\Users\Usuario\Projects\MyProject`.
 
-2. **Corre `histos init` tú mismo**, en una terminal normal, *antes* de abrir el agente:
+2. **Run `histos init` yourself**, in a normal terminal, *before* opening the agent:
 
    ```bash
-   cd /ruta/a/tu/proyecto-de-escritura
+   cd /path/to/your/writing-project
    histos init
    ```
 
-   Esto crea `project.canvas` (con la leyenda de colores ya puesta), `content/`, y las instrucciones para el agente (`AGENTS.md`, `CLAUDE.md`). El orden importa: hasta que estos ficheros existen, un agente nuevo no tiene forma de saber que esto es un proyecto Histos.
+   This creates `project.canvas` (with the color legend already in place), `content/`, and the agent instructions (`AGENTS.md`, `CLAUDE.md`). Order matters: until these files exist, a new agent has no way of knowing this is a Histos project.
 
-3. **Abre esa misma carpeta como vault en Obsidian** — Canvas es una función nativa, no hace falta ningún plugin — y verás el tablero con la leyenda arriba. **Importante:** la carpeta que abras tiene que ser exactamente la que contiene `project.canvas`, nunca una por encima — si no, Obsidian no encuentra los `.md` de las tarjetas y las verás como "Create new note" en vez de con contenido.
+3. **Open that same folder as a vault in Obsidian** — Canvas is a native feature, no plugin needed — and you'll see the board with the legend at the top. **Important:** the folder you open has to be exactly the one containing `project.canvas`, never one above it — otherwise Obsidian can't find the cards' `.md` files and you'll see them as "Create new note" instead of with content.
 
-4. **Abre una sesión de agente nueva** (ventana/conversación distinta) con esa carpeta como directorio de trabajo. Claude Code carga `CLAUDE.md` automáticamente al arrancar, que a su vez importa `AGENTS.md` entero — no hace falta que le expliques nada sobre Histos.
+4. **Open a new agent session** (a different window/conversation) with that folder as the working directory. Claude Code loads `CLAUDE.md` automatically on startup, which in turn imports all of `AGENTS.md` — you don't need to explain anything about Histos to it.
 
-5. **Dile de qué trata el proyecto**, sin más — algo natural tipo "quiero organizar mi TFG sobre X" o "ayúdame a montar este proyecto de escritura". Si `AGENTS.md` está haciendo su trabajo, el agente te pregunta de qué trata, si es experimental/revisión bibliográfica/mixto, si hay una plantilla obligatoria, y si conviene meter checkpoints de revisión — y con eso propone una tabla de tarjetas y dependencias, que puedes ajustar antes de confirmar. Si se lanza directo a crear tarjetas genéricas sin preguntar nada, pídeselo tú explícitamente (y avisa, porque significa que `AGENTS.md` necesita un repaso).
+5. **Tell it what the project is about**, nothing more — something natural like "I want to organize my thesis on X" or "help me set up this writing project." If `AGENTS.md` is doing its job, the agent asks what it's about, whether it's experimental/literature-review/mixed, whether there's a mandatory template, and whether review checkpoints make sense — and from that it proposes a card table with dependencies, which you can adjust before confirming. If it jumps straight into creating generic cards without asking anything, ask it explicitly (and flag it, because it means `AGENTS.md` needs a review).
 
-6. **Refresca Obsidian (`Ctrl+R`) después de que el agente cree las tarjetas.** Igual que con los ficheros de contenido, el canvas se edita por fuera de Obsidian (vía el CLI) y Obsidian no siempre se entera solo de que `project.canvas` cambió mientras lo tenías abierto.
+6. **Refresh Obsidian (`Ctrl+R`) after the agent creates the cards.** Just like with content files, the canvas gets edited from outside Obsidian (via the CLI), and Obsidian doesn't always notice on its own that `project.canvas` changed while you had it open.
 
-## Leer el tablero
+## Reading the board
 
-El color de cada tarjeta es su estado:
+Each card's color is its status:
 
-| Color | Estado |
+| Color | Status |
 |---|---|
-| morado | Backlog — pendiente |
-| naranja | En progreso |
-| rojo | Bloqueada (se recalcula sola, no la toques a mano) |
-| amarillo | Propuesta pendiente — **te toca revisarla** |
-| cian | El agente pide autorización para tocar una dependencia — **te toca decidir** |
-| verde | Aprobada |
+| purple | Backlog — pending |
+| orange | In progress |
+| red | Blocked (recalculates itself, don't touch it by hand) |
+| yellow | Proposal pending — **your turn to review** |
+| cyan | The agent is asking for authorization to touch a dependency — **your turn to decide** |
+| green | Approved |
 
-Cuando veas una tarjeta amarilla o cian, es tu turno.
+When you see a yellow or cyan card, it's your turn.
 
-## El ciclo del día a día
+## The day-to-day cycle
 
-1. Le pides al agente (Claude Code, Codex, lo que uses) que trabaje una o varias tarjetas. El agente hace `histos assign` y se pone a redactar.
-2. El agente sube su propuesta con `histos propose` — la tarjeta se pone amarilla. **No ha tocado el `.md` real todavía.**
-3. Cuando tengas un rato, `histos diff <id>` te enseña exactamente qué cambiaría — o simplemente abre `propuestas/<id>.md` en Obsidian como cualquier otra nota (es una carpeta visible, no oculta: puedes verla, leerla, e incluso retocarla a mano antes de aprobar).
-4. Si te convence: `histos approve <id>` — ahora sí se escribe el `.md` real, y una copia de lo aprobado se archiva en `aprobados/<id>.md` (por si luego quieres comparar o te arrepientes de una aprobación rápida). Si no: `histos reject <id> --feedback "lo que le falta"` — se descarta sin dejar rastro (lo rechazado no se archiva, no hace falta) y el agente verá tu feedback la próxima vez que mire esa tarjeta.
-5. `histos status` en cualquier momento para ver el panorama completo.
+1. You ask the agent (Claude Code, Codex, whatever you use) to work one or more cards. The agent runs `histos assign` and starts drafting.
+2. The agent uploads its proposal with `histos propose` — the card turns yellow. **It hasn't touched the real `.md` yet.**
+3. When you have a moment, `histos diff <id>` shows you exactly what would change — or just open `propuestas/<id>.md` in Obsidian like any other note (it's a visible folder, not hidden: you can see it, read it, even tweak it by hand before approving).
+4. If you're convinced: `histos approve <id>` — now the real `.md` gets written, and a copy of what was approved is archived in `aprobados/<id>.md` (in case you want to compare later, or regret a quick approval). If not: `histos reject <id> --feedback "what it's missing"` — it's discarded without a trace (rejected drafts aren't archived, no need) and the agent will see your feedback next time it looks at that card.
+5. `histos status` any time you want the full picture.
 
-## Por qué es seguro dejarlo trabajando solo
+## Why it's safe to leave it working unsupervised
 
-El agente **nunca** puede escribir en `content/*.md` sin pasar por los pasos 2-4 de arriba, y **nunca** puede tocar el grafo de dependencias sin pedírtelo primero en la conversación (regla que vive en `AGENTS.md`, y que el propio CLI hace cumplir con el flag `--authorized`). Puedes dejarlo procesando una cola de tarjetas sin estar presente: lo peor que te vas a encontrar al volver son varias tarjetas amarillas esperando revisión, con sus borradores completos ya visibles en `propuestas/` — nunca una sorpresa escrita sin tu permiso.
+The agent can **never** write to `content/*.md` without going through steps 2-4 above, and can **never** touch the dependency graph without asking you first in the conversation (a rule that lives in `AGENTS.md`, and that the CLI itself enforces with the `--authorized` flag). You can leave it processing a queue of cards without being present: the worst you'll find when you get back is a few yellow cards waiting for review, with their full drafts already visible in `propuestas/` — never a surprise written without your permission.
 
-## Otros comandos útiles
+## Other useful commands
 
-- `histos describe <id> [--text "..."] [--sources ruta1 ruta2 ...]` — pone o cambia la descripción y/o la lista de ficheros de referencia externos de una tarjeta (`.txt`, `.md`, `.tex`, `.docx` — por ejemplo el Word donde llevas la bibliografía, o el `.tex` que estás editando en VSCode/Overleaf). Las rutas pueden estar en cualquier sitio del disco, no tienen por qué vivir dentro del vault. `--sources` sustituye la lista entera, no añade. No toca el contenido, así que no hace falta aprobarlo.
-- `histos context <id>` — junta en un solo bloque de texto: la descripción y sources de la tarjeta, lo mismo de cada dependencia directa (más su contenido si ya está Aprobada), y `PROJECT.md` si existe. `AGENTS.md` le dice al agente que lo corra antes de ponerse a redactar una tarjeta asignada.
+- `histos describe <id> [--text "..."] [--sources path1 path2 ...]` — sets or changes a card's description and/or its list of external reference files (`.txt`, `.md`, `.tex`, `.docx` — e.g. the Word doc where you keep your bibliography, or the `.tex` you're editing in VSCode/Overleaf). Paths can be anywhere on disk, they don't have to live inside the vault. `--sources` replaces the whole list, it doesn't append. It doesn't touch content, so it doesn't need approval.
+- `histos context <id>` — bundles into a single block of text: the card's description and sources, the same for each direct dependency (plus its content if already Approved), and `PROJECT.md` if it exists. `AGENTS.md` tells the agent to run this before drafting an assigned card.
 
-**Importante — esto no es automático por ubicación.** Tener un Word o un `.tex` abierto en la misma carpeta del vault no hace que se use solo: hay que registrar la ruta explícitamente una vez con `describe --sources`. Es deliberado — sin ese registro no hay forma fiable de saber qué fichero suelto es relevante para qué tarjeta. Registro explícito una vez, uso automático (vía `context`) después.
-- `histos link <id> --depends-on ID [ID...] --authorized` — para cuando descubres una dependencia después de haber creado la tarjeta (si la sabías desde el principio, se pone directamente en `add-card --depends-on`).
+**Important — this isn't automatic by location.** Having a Word doc or a `.tex` file open in the same vault folder doesn't make it get used automatically: you have to register the path explicitly once with `describe --sources`. That's deliberate — without that registration there's no reliable way to know which loose file is relevant to which card. Register explicitly once, use it automatically (via `context`) afterward.
+- `histos link <id> --depends-on ID [ID...] --authorized` — for when you discover a dependency after already creating the card (if you knew it from the start, just set it directly in `add-card --depends-on`).
 
-## Si algo se ve raro
+## If something looks off
 
 ```bash
 histos validate
 ```
 
-Valida `project.canvas` contra el esquema formal y te dice exactamente qué está mal si algo se corrompió (referencias rotas, ciclos en las dependencias, tarjetas mal formadas).
+Validates `project.canvas` against the formal schema and tells you exactly what's wrong if something got corrupted (broken references, dependency cycles, malformed cards).
 
-## Referencia completa
+## Full reference
 
-Los 12 comandos con todos sus flags están en la sección [CLI del README](../README.md#cli). El esquema formal del `.canvas` está en [docs/canvas-schema.md](canvas-schema.md).
+All 12 commands with their flags are in the [README's CLI section](../README.md#cli). The formal `.canvas` schema is in [docs/canvas-schema.md](canvas-schema.md).

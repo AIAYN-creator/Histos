@@ -61,7 +61,7 @@ def test_rejects_dangling_edge_reference():
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "no-existe"}],
     }
     errors = validation.validate_all(data)
-    assert any("referencia" in e for e in errors)
+    assert any("reference" in e for e in errors)
 
 
 def test_rejects_cycle():
@@ -78,4 +78,4 @@ def test_rejects_cycle():
         ],
     }
     errors = validation.validate_all(data)
-    assert any("ciclo" in e for e in errors)
+    assert any("cycle" in e for e in errors)

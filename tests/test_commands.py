@@ -237,8 +237,8 @@ def test_link_blocks_already_assigned_card(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     run(monkeypatch, tmp_path, "status")
     output = capsys.readouterr().out
-    assert "Bloqueada (1)" in output
-    assert "En progreso (0)" in output
+    assert "Blocked (1)" in output
+    assert "In progress (0)" in output
 
 
 def test_link_blocked_card_returns_to_backlog_once_dependency_approved(tmp_path, monkeypatch):
