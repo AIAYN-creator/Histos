@@ -421,6 +421,86 @@ def test_context_includes_dependency_content_and_sources(tmp_path, monkeypatch, 
     assert "Autor (2024) -- paper relevante" in output
 
 
+def test_permission_path_is_absolute_posix_no_backslashes(tmp_path):
+    from histos.cli import _permission_path
+
+    rule = _permission_path(tmp_path / "biblio.docx")
+    assert rule.startswith("//")
+    assert "\\" not in rule
+    assert rule.endswith("/biblio.docx")
+
+
+def test_permission_path_escapes_glob_metacharacters(tmp_path):
+    from histos.cli import _permission_path
+
+    rule = _permission_path(tmp_path / "notes [draft].docx")
+    assert "\\[draft\\]" in rule
+
+
+def test_describe_sources_hardens_claude_settings_deny_list(tmp_path, monkeypatch):
+    from histos.cli import _permission_path
+
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+    source_file = tmp_path / "biblio.txt"
+    source_file.write_text("refs\n", encoding="utf-8")
+
+    assert run(monkeypatch, tmp_path, "describe", "cap1", "--sources", str(source_file)) == 0
+
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    deny = settings["permissions"]["deny"]
+    assert "Write(content/**)" in deny
+    assert "Write(project.canvas)" in deny
+    assert "Edit(project.canvas)" in deny
+    rule = _permission_path(source_file)
+    assert f"Write({rule})" in deny
+    assert f"Edit({rule})" in deny
+
+
+def test_describe_sources_does_not_remove_custom_deny_rules(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["permissions"]["deny"].append("Write(secrets/**)")
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    source_file = tmp_path / "notas.txt"
+    source_file.write_text("x\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "describe", "cap1", "--sources", str(source_file))
+
+    deny = json.loads(settings_path.read_text(encoding="utf-8"))["permissions"]["deny"]
+    assert "Write(secrets/**)" in deny
+
+
+def test_describe_sources_survives_unwritable_settings_json(tmp_path, monkeypatch):
+    import stat
+
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.chmod(stat.S_IREAD)
+    try:
+        source_file = tmp_path / "notas.txt"
+        source_file.write_text("x\n", encoding="utf-8")
+        assert run(monkeypatch, tmp_path, "describe", "cap1", "--sources", str(source_file)) == 0
+    finally:
+        settings_path.chmod(stat.S_IWRITE | stat.S_IREAD)
+
+
+def test_describe_sources_without_claude_settings_does_not_crash(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    (tmp_path / ".claude" / "settings.json").unlink()
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Intro")
+
+    source_file = tmp_path / "notas.txt"
+    source_file.write_text("x\n", encoding="utf-8")
+    assert run(monkeypatch, tmp_path, "describe", "cap1", "--sources", str(source_file)) == 0
+    assert not (tmp_path / ".claude" / "settings.json").exists()
+
+
 def test_context_includes_project_md(tmp_path, monkeypatch, capsys):
     run(monkeypatch, tmp_path, "init")
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")

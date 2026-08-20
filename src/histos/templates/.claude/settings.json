@@ -2,7 +2,9 @@
   "permissions": {
     "deny": [
       "Write(content/**)",
-      "Edit(content/**)"
+      "Edit(content/**)",
+      "Write(project.canvas)",
+      "Edit(project.canvas)"
     ]
   }
 }
