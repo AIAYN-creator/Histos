@@ -6,27 +6,9 @@ import difflib
 import json
 import re
 import sys
-from importlib import resources
 from pathlib import Path
 
-from . import canvas, frontmatter, validation
-
-STATE_NAMES = {
-    canvas.BLOQUEADA: "Blocked",
-    canvas.EN_PROGRESO: "In progress",
-    canvas.PROPUESTA_PENDIENTE: "Proposal pending review",
-    canvas.APROBADA: "Approved",
-    canvas.SOLICITUD_CAMBIO_DEPENDENCIA: "Dependency change request",
-    canvas.BACKLOG: "Backlog",
-}
-
-PROPOSALS_DIR = "proposals"
-APPROVED_DIR = "approved"
-# Vaults created before this English rename have these on disk instead. Never created anew --
-# only used to keep an existing vault working with the folder names it already has.
-_LEGACY_PROPOSALS_DIR = "propuestas"
-_LEGACY_APPROVED_DIR = "aprobados"
-AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
+from . import canvas, frontmatter, operations, validation
 
 _SETTINGS_PATH = ".claude/settings.json"
 # Kept in sync with templates/.claude/settings.json -- see _sync_permissions_deny.
@@ -36,17 +18,6 @@ _BASE_DENY_RULES = [
     "Write(project.canvas)",
     "Edit(project.canvas)",
 ]
-
-
-def _install_agent_templates(vault_root: Path) -> None:
-    for rel_path in AGENT_TEMPLATES:
-        target = vault_root / rel_path
-        if target.exists():
-            print(f"warning: {rel_path} already exists, leaving it alone -- copy the reference content by hand if you want it", file=sys.stderr)
-            continue
-        ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(ref.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def _permission_path(path: Path) -> str:
@@ -118,49 +89,16 @@ def _vault_root() -> Path:
     return Path.cwd()
 
 
-def _existing_dirname(vault_root: Path, current: str, legacy: str) -> str:
-    """A vault only has the legacy folder if it was created before the rename -- new vaults
-    never do, so this always resolves to `current` for them. Keeps old vaults on their
-    original folder instead of fragmenting into a second, differently-named one.
-    """
-    if (vault_root / legacy).is_dir() and not (vault_root / current).is_dir():
-        return legacy
-    return current
-
-
-def _proposal_path(vault_root: Path, card_id: str) -> Path:
-    dirname = _existing_dirname(vault_root, PROPOSALS_DIR, _LEGACY_PROPOSALS_DIR)
-    return vault_root / dirname / f"{card_id}.md"
-
-
-def _approved_path(vault_root: Path, card_id: str) -> Path:
-    dirname = _existing_dirname(vault_root, APPROVED_DIR, _LEGACY_APPROVED_DIR)
-    return vault_root / dirname / f"{card_id}.md"
-
-
-def _load_valid(vault_root: Path) -> dict:
-    data = canvas.load(vault_root)
-    errors = validation.validate_all(data)
-    if errors:
-        raise canvas.HistosError(
-            "the canvas is not valid -- fix it before continuing ('histos validate' for detail):\n"
-            + "\n".join(f"  - {e}" for e in errors)
-        )
-    return data
-
-
 def cmd_init(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
-    canvas_path = canvas.vault_canvas_path(vault_root)
-    if canvas_path.exists():
-        print(f"error: {canvas_path} already exists", file=sys.stderr)
+    try:
+        result = operations.init_vault(vault_root)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
         return 1
-    (vault_root / "content").mkdir(parents=True, exist_ok=True)
-    (vault_root / PROPOSALS_DIR).mkdir(parents=True, exist_ok=True)
-    (vault_root / APPROVED_DIR).mkdir(parents=True, exist_ok=True)
-    canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
-    _install_agent_templates(vault_root)
-    print(f"vault initialized at {vault_root}")
+    for warning in result.template_warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    print(f"vault initialized at {result.vault_root}")
     return 0
 
 
@@ -175,7 +113,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
 
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        data = operations._load_valid(vault_root)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -224,7 +162,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     canvas.place_new_card(data, node)
     canvas.save(vault_root, data)
 
-    print(f"card '{args.id}' created ({STATE_NAMES[initial_color]}) -> {node['file']}")
+    print(f"card '{args.id}' created ({operations.STATE_NAMES[initial_color]}) -> {node['file']}")
     return 0
 
 
@@ -234,7 +172,7 @@ def cmd_link(args: argparse.Namespace) -> int:
     """
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        data = operations._load_valid(vault_root)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -277,7 +215,7 @@ def cmd_link(args: argparse.Namespace) -> int:
 def cmd_assign(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        data = operations._load_valid(vault_root)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -316,7 +254,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        data = operations._load_valid(vault_root)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -355,7 +293,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
 def cmd_propose(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        data = operations._load_valid(vault_root)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -366,7 +304,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         return 1
     if card["color"] != canvas.EN_PROGRESO:
         print(
-            f"error: '{args.id}' isn't In progress (current state: {STATE_NAMES[card['color']]}) "
+            f"error: '{args.id}' isn't In progress (current state: {operations.STATE_NAMES[card['color']]}) "
             "-- use 'histos assign' first",
             file=sys.stderr,
         )
@@ -377,7 +315,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         print(f"error: can't find the draft '{draft_path}'", file=sys.stderr)
         return 1
 
-    proposal_path = _proposal_path(vault_root, args.id)
+    proposal_path = operations._proposal_path(vault_root, args.id)
     proposal_path.parent.mkdir(parents=True, exist_ok=True)
     proposal_path.write_text(draft_path.read_text(encoding="utf-8"), encoding="utf-8")
 
@@ -390,28 +328,14 @@ def cmd_propose(args: argparse.Namespace) -> int:
 def cmd_diff(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        result = operations.get_diff(vault_root, args.id)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    card = canvas.find_card(data, args.id)
-    if card is None:
-        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
-        return 1
-
-    proposal_path = _proposal_path(vault_root, args.id)
-    if not proposal_path.exists():
-        print(f"error: no pending proposal for '{args.id}'", file=sys.stderr)
-        return 1
-
-    md_path = canvas.card_file_path(vault_root, card)
-    _, current_body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
-    proposed_body = proposal_path.read_text(encoding="utf-8")
-
     diff = difflib.unified_diff(
-        current_body.splitlines(keepends=True),
-        proposed_body.splitlines(keepends=True),
+        result.current_body.splitlines(keepends=True),
+        result.proposed_body.splitlines(keepends=True),
         fromfile=f"content/{args.id}.md (current)",
         tofile=f"proposal/{args.id}.md (proposed)",
     )
@@ -440,7 +364,7 @@ def _render_card_context(vault_root: Path, card: dict, label: str) -> str:
     md_path = canvas.card_file_path(vault_root, card)
     meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
 
-    parts = [f"## {label}: {card['id']} ({STATE_NAMES[card['color']]})"]
+    parts = [f"## {label}: {card['id']} ({operations.STATE_NAMES[card['color']]})"]
     if meta.get("description"):
         parts.append(f"Description: {meta['description']}")
     if card["color"] == canvas.APROBADA and body.strip():
@@ -461,7 +385,7 @@ def cmd_context(args: argparse.Namespace) -> int:
     """
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        data = operations._load_valid(vault_root)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -490,111 +414,38 @@ def cmd_context(args: argparse.Namespace) -> int:
 def cmd_approve(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        result = operations.approve(vault_root, args.id)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-
-    card = canvas.find_card(data, args.id)
-    if card is None:
-        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
-        return 1
-    if card["color"] != canvas.PROPUESTA_PENDIENTE:
-        print(
-            f"error: '{args.id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})",
-            file=sys.stderr,
-        )
-        return 1
-
-    proposal_path = _proposal_path(vault_root, args.id)
-    if not proposal_path.exists():
-        print(f"error: can't find the proposal file for '{args.id}'", file=sys.stderr)
-        return 1
-
-    md_path = canvas.card_file_path(vault_root, card)
-    if md_path.exists():
-        meta, _ = frontmatter.read(md_path)
-    else:
-        meta = dict(frontmatter.DEFAULT_META)
-    frontmatter.write(md_path, meta, proposal_path.read_text(encoding="utf-8"))
-
-    approved_path = _approved_path(vault_root, args.id)
-    approved_path.parent.mkdir(parents=True, exist_ok=True)
-    proposal_path.replace(approved_path)
-
-    card["color"] = canvas.APROBADA
-    canvas.recompute_blocked(data)
-    canvas.save(vault_root, data)
-    print(f"'{args.id}' -> Approved")
+    print(f"'{result.card_id}' -> Approved")
     return 0
 
 
 def cmd_reject(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        result = operations.reject(vault_root, args.id, feedback=args.feedback)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-
-    card = canvas.find_card(data, args.id)
-    if card is None:
-        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
-        return 1
-    if card["color"] != canvas.PROPUESTA_PENDIENTE:
-        print(
-            f"error: '{args.id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})",
-            file=sys.stderr,
-        )
-        return 1
-
-    proposal_path = _proposal_path(vault_root, args.id)
-    if proposal_path.exists():
-        proposal_path.unlink()
-
-    card["color"] = canvas.BACKLOG
-    if args.feedback:
-        md_path = canvas.card_file_path(vault_root, card)
-        meta, body = frontmatter.read(md_path)
-        meta["status_note"] = args.feedback
-        frontmatter.write(md_path, meta, body)
-
-    canvas.recompute_blocked(data)
-    canvas.save(vault_root, data)
-    print(f"'{args.id}' -> Backlog (proposal discarded)")
+    print(f"'{result.card_id}' -> Backlog (proposal discarded)")
     return 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
-        data = _load_valid(vault_root)
+        result = operations.get_status(vault_root)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    if canvas.recompute_blocked(data):
-        canvas.save(vault_root, data)
-
-    by_state: dict[str, list[dict]] = {c: [] for c in STATE_NAMES}
-    for card in canvas.cards(data):
-        by_state.setdefault(card["color"], []).append(card)
-
-    order = [
-        canvas.BACKLOG, canvas.BLOQUEADA, canvas.EN_PROGRESO,
-        canvas.PROPUESTA_PENDIENTE, canvas.SOLICITUD_CAMBIO_DEPENDENCIA, canvas.APROBADA,
-    ]
-    for state in order:
-        entries = by_state.get(state, [])
-        print(f"{STATE_NAMES[state]} ({len(entries)})")
-        for card in entries:
-            desc = ""
-            md_path = canvas.card_file_path(vault_root, card)
-            if md_path.exists():
-                meta, _ = frontmatter.read(md_path)
-                if meta.get("description"):
-                    desc = f"  -- {meta['description']}"
-            print(f"  - {card['id']}  ({card['file']}){desc}")
+    for group in result.groups:
+        print(f"{group.label} ({len(group.cards)})")
+        for c in group.cards:
+            desc = f"  -- {c.description}" if c.description else ""
+            print(f"  - {c.id}  ({c.file}){desc}")
     return 0
 
 
