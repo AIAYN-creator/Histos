@@ -67,9 +67,30 @@ def test_add_card_rejects_backslash_id(tmp_path, monkeypatch):
     assert result != 0
 
 
-def test_propose_uses_visible_propuestas_folder(tmp_path, monkeypatch):
+def test_propose_uses_visible_proposals_folder(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
-    assert (tmp_path / "propuestas").is_dir()
+    assert (tmp_path / "proposals").is_dir()
+
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    run(monkeypatch, tmp_path, "assign", "cap1")
+    draft = tmp_path / "borrador.md"
+    draft.write_text("contenido\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "propose", "cap1", "--file", str(draft))
+    assert (tmp_path / "proposals" / "cap1.md").exists()
+
+    run(monkeypatch, tmp_path, "approve", "cap1")
+    assert not (tmp_path / "proposals" / "cap1.md").exists()
+
+
+def test_propose_uses_legacy_folder_names_when_vault_predates_rename(tmp_path, monkeypatch):
+    """A vault created before the English rename has propuestas/aprobados on disk instead
+    of proposals/approved -- histos must keep using those, not fragment into new ones.
+    """
+    run(monkeypatch, tmp_path, "init")
+    (tmp_path / "proposals").rmdir()
+    (tmp_path / "approved").rmdir()
+    (tmp_path / "propuestas").mkdir()
+    (tmp_path / "aprobados").mkdir()
 
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
     run(monkeypatch, tmp_path, "assign", "cap1")
@@ -77,9 +98,12 @@ def test_propose_uses_visible_propuestas_folder(tmp_path, monkeypatch):
     draft.write_text("contenido\n", encoding="utf-8")
     run(monkeypatch, tmp_path, "propose", "cap1", "--file", str(draft))
     assert (tmp_path / "propuestas" / "cap1.md").exists()
+    assert not (tmp_path / "proposals").exists()
 
     run(monkeypatch, tmp_path, "approve", "cap1")
-    assert not (tmp_path / "propuestas" / "cap1.md").exists()
+    assert (tmp_path / "aprobados" / "cap1.md").exists()
+    assert not (tmp_path / "proposals").exists()
+    assert not (tmp_path / "approved").exists()
 
 
 def test_approve_archives_proposal_instead_of_deleting(tmp_path, monkeypatch):
@@ -92,8 +116,8 @@ def test_approve_archives_proposal_instead_of_deleting(tmp_path, monkeypatch):
 
     run(monkeypatch, tmp_path, "approve", "cap1")
 
-    assert not (tmp_path / "propuestas" / "cap1.md").exists()
-    archived = tmp_path / "aprobados" / "cap1.md"
+    assert not (tmp_path / "proposals" / "cap1.md").exists()
+    archived = tmp_path / "approved" / "cap1.md"
     assert archived.exists()
     assert "contenido aprobado" in archived.read_text(encoding="utf-8")
 
@@ -108,8 +132,8 @@ def test_reject_does_not_archive(tmp_path, monkeypatch):
 
     run(monkeypatch, tmp_path, "reject", "cap1")
 
-    assert not (tmp_path / "propuestas" / "cap1.md").exists()
-    assert not (tmp_path / "aprobados" / "cap1.md").exists()
+    assert not (tmp_path / "proposals" / "cap1.md").exists()
+    assert not (tmp_path / "approved" / "cap1.md").exists()
 
 
 def test_reject_records_feedback_and_returns_to_backlog(tmp_path, monkeypatch):
@@ -125,7 +149,7 @@ def test_reject_records_feedback_and_returns_to_backlog(tmp_path, monkeypatch):
     assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.BACKLOG
     meta, _ = frontmatter.read(tmp_path / "content" / "cap1.md")
     assert meta["status_note"] == "falta contexto"
-    assert not (tmp_path / "propuestas" / "cap1.md").exists()
+    assert not (tmp_path / "proposals" / "cap1.md").exists()
 
 
 def test_validate_command_on_example_canvas(tmp_path, monkeypatch):

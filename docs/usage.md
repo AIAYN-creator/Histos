@@ -52,13 +52,15 @@ When you see a yellow or cyan card, it's your turn.
 
 1. You ask the agent (Claude Code, Codex, whatever you use) to work one or more cards. The agent runs `histos assign` and starts drafting.
 2. The agent uploads its proposal with `histos propose` — the card turns yellow. **It hasn't touched the real `.md` yet.**
-3. When you have a moment, `histos diff <id>` shows you exactly what would change — or just open `propuestas/<id>.md` in Obsidian like any other note (it's a visible folder, not hidden: you can see it, read it, even tweak it by hand before approving).
-4. If you're convinced: `histos approve <id>` — now the real `.md` gets written, and a copy of what was approved is archived in `aprobados/<id>.md` (in case you want to compare later, or regret a quick approval). If not: `histos reject <id> --feedback "what it's missing"` — it's discarded without a trace (rejected drafts aren't archived, no need) and the agent will see your feedback next time it looks at that card.
+3. When you have a moment, `histos diff <id>` shows you exactly what would change — or just open `proposals/<id>.md` in Obsidian like any other note (it's a visible folder, not hidden: you can see it, read it, even tweak it by hand before approving).
+4. If you're convinced: `histos approve <id>` — now the real `.md` gets written, and a copy of what was approved is archived in `approved/<id>.md` (in case you want to compare later, or regret a quick approval). If not: `histos reject <id> --feedback "what it's missing"` — it's discarded without a trace (rejected drafts aren't archived, no need) and the agent will see your feedback next time it looks at that card.
 5. `histos status` any time you want the full picture.
+
+(Vaults created before Histos's English rename use `propuestas/`/`aprobados/` instead of `proposals/`/`approved/` — same folders, same behavior, just the old names. `histos` detects whichever one your vault already has and keeps using it, so existing vaults are never migrated automatically.)
 
 ## Why it's safe to leave it working unsupervised
 
-The agent can **never** write to `content/*.md` without going through steps 2-4 above, and can **never** touch the dependency graph without asking you first in the conversation (a rule that lives in `AGENTS.md`, and that the CLI itself enforces with the `--authorized` flag). You can leave it processing a queue of cards without being present: the worst you'll find when you get back is a few yellow cards waiting for review, with their full drafts already visible in `propuestas/` — never a surprise written without your permission.
+The agent can **never** write to `content/*.md` without going through steps 2-4 above, and can **never** touch the dependency graph without asking you first in the conversation (a rule that lives in `AGENTS.md`, and that the CLI itself enforces with the `--authorized` flag). You can leave it processing a queue of cards without being present: the worst you'll find when you get back is a few yellow cards waiting for review, with their full drafts already visible in `proposals/` — never a surprise written without your permission.
 
 ## Other useful commands
 

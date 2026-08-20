@@ -1,83 +1,85 @@
-# Esquema del `.canvas`
+# `.canvas` schema
 
-Este documento formaliza las convenciones de Histos sobre el formato [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/). El validador machine-checkable vive en [`src/histos/schema/histos-canvas.schema.json`](../src/histos/schema/histos-canvas.schema.json) (empaquetado junto al CLI); aquí está el porqué.
+This document formalizes Histos's conventions on top of the [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/) format. The machine-checkable validator lives in [`src/histos/schema/histos-canvas.schema.json`](../src/histos/schema/histos-canvas.schema.json) (packaged alongside the CLI); here's the why.
 
-Lo que el JSON Schema **no** puede comprobar por sí solo — que `fromNode`/`toNode` de cada edge apunten a un `id` que existe, y que el grafo de dependencias sea acíclico — es responsabilidad del CLI (`histos status` / `histos validate`), no de este esquema.
+What the JSON Schema **can't** check on its own — that each edge's `fromNode`/`toNode` point to an `id` that exists, and that the dependency graph is acyclic — is the CLI's responsibility (`histos status` / `histos validate`), not this schema's.
 
-## Estructura de carpetas
+## Folder structure
 
 ```
 <vault>/
 ├── project.canvas
 ├── content/
-│   └── <slug>.md        # una tarjeta = un fichero (version canonica actual)
-├── propuestas/
-│   └── <slug>.md        # borrador pendiente de aprobar/rechazar
-└── aprobados/
-    └── <slug>.md        # copia del borrador tal cual se aprobo (historico; rechazados NO se guardan)
+│   └── <slug>.md        # one card = one file (current canonical version)
+├── proposals/
+│   └── <slug>.md        # draft pending approval/rejection
+└── approved/
+    └── <slug>.md        # copy of the draft exactly as it was approved (history; rejected drafts are NOT kept)
 ```
 
-Subcarpetas adicionales dentro de `content/` (p. ej. `borradores/`) quedan abiertas — no forman parte de esta convención todavía.
+Vaults created before Histos's English rename use `propuestas/`/`aprobados/` instead of `proposals/`/`approved/` — same folders, same behavior, just the old names; the CLI detects whichever one a given vault already has and keeps using it, so existing vaults are never migrated automatically.
 
-## Tipos de nodo
+Additional subfolders inside `content/` (e.g. `drafts/`) remain open — not part of this convention yet.
 
-Histos usa tres de los cuatro node types de JSON Canvas:
+## Node types
 
-- **`file`** — una tarjeta de tarea. Apunta a un `.md` real en `content/`; nunca contiene texto embebido. `link` suelto no está permitido.
-- **`group`** — agrupación puramente geométrica (p. ej. "capítulo 3"). Un nodo "pertenece" a un grupo solo si sus coordenadas caen dentro del rectángulo del grupo — no hay `parent_id` en los datos. No lleva estado.
-- **`text`** — únicamente para contenido decorativo/documentación (la leyenda de colores que `histos init` coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo — toda la lógica de estado/dependencias filtra explícitamente por `type == "file"`. Nada impide añadir más notas de texto a mano en Obsidian; Histos simplemente no las toca.
+Histos uses three of JSON Canvas's four node types:
 
-## Convención de id
+- **`file`** — a task card. Points to a real `.md` in `content/`; never contains embedded text. A loose `link` node is not allowed.
+- **`group`** — a purely geometric grouping (e.g. "chapter 3"). A node "belongs" to a group only if its coordinates fall inside the group's rectangle — there's no `parent_id` in the data. Carries no status.
+- **`text`** — only for decorative/documentation content (the color legend that `histos init` places on every new canvas). Not a card: the CLI ignores it entirely — all status/dependency logic explicitly filters by `type == "file"`. Nothing stops you from adding more text notes by hand in Obsidian; Histos simply doesn't touch them.
 
-El `id` de una tarjeta es el mismo slug que el nombre de su fichero: id `cap3` → `content/cap3.md`. Así los ejemplos del CLI (`histos assign cap3`, `--depends-on cap2`) son legibles directamente. Los `group` solo necesitan ser únicos, sin convención adicional.
+## Id convention
 
-## Color → estado
+A card's `id` is the same slug as its file name: id `cap3` → `content/cap3.md`. This keeps the CLI's own examples (`histos assign cap3`, `--depends-on cap2`) directly readable. `group` nodes only need to be unique, no further convention.
 
-El color de una tarjeta (campo `color`, preset `"1"`–`"6"`) **es** su estado — no se duplica en ningún otro sitio:
+## Color → status
 
-| Preset | Color | Estado |
+A card's color (the `color` field, preset `"1"`–`"6"`) **is** its status — never duplicated anywhere else:
+
+| Preset | Color | Status |
 |---|---|---|
-| `"1"` | rojo | Bloqueada |
-| `"2"` | naranja | En progreso |
-| `"3"` | amarillo | Propuesta pendiente de revisión |
-| `"4"` | verde | Aprobada |
-| `"5"` | cian | Solicitud cambio de dependencia |
-| `"6"` | morado | Backlog |
+| `"1"` | red | Blocked |
+| `"2"` | orange | In progress |
+| `"3"` | yellow | Proposal pending review |
+| `"4"` | green | Approved |
+| `"5"` | cyan | Dependency change request |
+| `"6"` | purple | Backlog |
 
-Una tarjeta `file` sin `color` no está gestionada por Histos (añadida a mano en Obsidian, o dato corrupto) — el schema la rechaza porque `color` es obligatorio en `cardNode`, y eso es intencional: la propia validación del schema es el mecanismo de detección.
+A `file` card without `color` isn't managed by Histos (added by hand in Obsidian, or corrupted data) — the schema rejects it because `color` is required on `cardNode`, and that's intentional: the schema validation itself is the detection mechanism.
 
-**Bloqueada es un estado derivado**, no algo que el agente o el humano asignen a mano: el CLI lo calcula viendo si *todas* las edges entrantes de una tarjeta apuntan a nodos ya en Aprobada (color `"4"`). Nada te impide poner color `"1"` manualmente, pero el CLI debería tratarlo como una señal a recalcular, no como fuente de verdad.
+**Blocked is a derived status**, not something the agent or the human assigns by hand: the CLI computes it by checking whether *all* of a card's incoming edges point to nodes already Approved (color `"4"`). Nothing stops you from setting color `"1"` manually, but the CLI should treat that as a signal to recompute, not as a source of truth.
 
-## Edges — semántica de dependencia
+## Edges — dependency semantics
 
-`fromNode → toNode` significa **"toNode depende de fromNode"**: fromNode debe llegar a Aprobada antes de que toNode pueda salir de Bloqueada. Coincide con el layout izquierda→derecha tipo Gantt del canvas y con el default del spec (`toEnd` = `"arrow"` apunta hacia toNode, es decir, hacia lo que se desbloquea).
+`fromNode → toNode` means **"toNode depends on fromNode"**: fromNode must reach Approved before toNode can leave Blocked. This matches the canvas's left-to-right, Gantt-style layout and the spec's default (`toEnd` = `"arrow"` points at toNode, i.e. at whatever gets unblocked).
 
-## Frontmatter del `.md`
+## `.md` frontmatter
 
-Lo que Obsidian/JSON Canvas no interpreta nativamente vive como YAML frontmatter en cada tarjeta — nunca en el `.canvas`:
+Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatter on each card — never in the `.canvas`:
 
-| Campo | Tipo | Notas |
+| Field | Type | Notes |
 |---|---|---|
-| `description` | string | una línea, resume la tarjeta; se pone en `add-card --description` o se actualiza después con `histos describe` — nunca toca el cuerpo, así que no pasa por `propose`/`approve` |
-| `sources` | lista de strings | rutas a ficheros externos (`.txt`, `.md`, `.tex`, `.docx`) con material de referencia para esta tarjeta — `describe --sources` la sustituye entera, no la añade. `histos context <id>` los lee e incluye su texto |
-| `estimated_duration_hours` | number | lo rellena el agente al aceptar/empezar la tarea |
-| `actual_duration_hours` | number | se rellena al completarse, para comparar con la estimación |
+| `description` | string | one line, summarizes the card; set via `add-card --description` or updated later with `histos describe` — never touches the body, so it doesn't go through `propose`/`approve` |
+| `sources` | list of strings | paths to external files (`.txt`, `.md`, `.tex`, `.docx`) with reference material for this card — `describe --sources` replaces the whole list, it doesn't append. `histos context <id>` reads them and includes their text |
+| `estimated_duration_hours` | number | filled in by the agent when accepting/starting the task |
+| `actual_duration_hours` | number | filled in on completion, to compare against the estimate |
 | `assigned_to` | `"agent"` \| `"human"` | |
-| `status_note` | string | texto libre, p. ej. motivo de bloqueo |
+| `status_note` | string | free text, e.g. the reason it's blocked |
 
-`status` deliberadamente no está aquí: vive como `color` en el canvas para no tener dos fuentes de verdad del mismo dato.
+`status` is deliberately not here: it lives as `color` on the canvas so the same data doesn't have two sources of truth.
 
-## Ejemplo mínimo
+## Minimal example
 
 ```jsonc
 {
   "nodes": [
     { "id": "cap1", "type": "file", "x": 0,    "y": 0, "width": 250, "height": 100,
-      "file": "content/cap1.md", "color": "4" },        // Aprobada
+      "file": "content/cap1.md", "color": "4" },        // Approved
     { "id": "cap2", "type": "file", "x": 320,  "y": 0, "width": 250, "height": 100,
-      "file": "content/cap2.md", "color": "3" },        // Propuesta pendiente de revision
+      "file": "content/cap2.md", "color": "3" },        // Proposal pending review
     { "id": "cap3", "type": "file", "x": 640,  "y": 0, "width": 250, "height": 100,
-      "file": "content/cap3.md", "color": "1" }         // Bloqueada (depende de cap2)
+      "file": "content/cap3.md", "color": "1" }         // Blocked (depends on cap2)
   ],
   "edges": [
     { "id": "e1", "fromNode": "cap1", "toNode": "cap2" },
@@ -86,4 +88,4 @@ Lo que Obsidian/JSON Canvas no interpreta nativamente vive como YAML frontmatter
 }
 ```
 
-Ver [`examples/example.canvas`](../examples/example.canvas) para uno completo, con un `group`.
+See [`examples/example.canvas`](../examples/example.canvas) for a complete one, with a `group`.

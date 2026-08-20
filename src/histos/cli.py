@@ -18,8 +18,12 @@ STATE_NAMES = {
     canvas.BACKLOG: "Backlog",
 }
 
-PROPOSALS_DIR = "propuestas"
-APPROVED_DIR = "aprobados"
+PROPOSALS_DIR = "proposals"
+APPROVED_DIR = "approved"
+# Vaults created before this English rename have these on disk instead. Never created anew --
+# only used to keep an existing vault working with the folder names it already has.
+_LEGACY_PROPOSALS_DIR = "propuestas"
+_LEGACY_APPROVED_DIR = "aprobados"
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
@@ -38,12 +42,24 @@ def _vault_root() -> Path:
     return Path.cwd()
 
 
+def _existing_dirname(vault_root: Path, current: str, legacy: str) -> str:
+    """A vault only has the legacy folder if it was created before the rename -- new vaults
+    never do, so this always resolves to `current` for them. Keeps old vaults on their
+    original folder instead of fragmenting into a second, differently-named one.
+    """
+    if (vault_root / legacy).is_dir() and not (vault_root / current).is_dir():
+        return legacy
+    return current
+
+
 def _proposal_path(vault_root: Path, card_id: str) -> Path:
-    return vault_root / PROPOSALS_DIR / f"{card_id}.md"
+    dirname = _existing_dirname(vault_root, PROPOSALS_DIR, _LEGACY_PROPOSALS_DIR)
+    return vault_root / dirname / f"{card_id}.md"
 
 
 def _approved_path(vault_root: Path, card_id: str) -> Path:
-    return vault_root / APPROVED_DIR / f"{card_id}.md"
+    dirname = _existing_dirname(vault_root, APPROVED_DIR, _LEGACY_APPROVED_DIR)
+    return vault_root / dirname / f"{card_id}.md"
 
 
 def _load_valid(vault_root: Path) -> dict:
