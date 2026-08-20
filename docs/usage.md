@@ -4,7 +4,7 @@ For the full design see the [README](../README.md); this is a practical "how thi
 
 ## Install
 
-See [../INSTALL.md](../INSTALL.md) — covers the terminal tool, the desktop app, or both.
+See [install.md](install.md) — covers the terminal tool, the desktop app, or both.
 
 ## Terminal or desktop app — your choice
 
