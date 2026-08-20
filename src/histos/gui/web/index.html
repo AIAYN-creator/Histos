@@ -18,15 +18,29 @@
   <main>
     <section id="view-picker">
       <h2>Choose your project folder</h2>
-      <p>Pick the folder for the project you want to review.</p>
+      <p>Pick the folder for your project &mdash; new or existing.</p>
       <button id="pick-btn" class="primary-btn">Choose folder&hellip;</button>
       <p id="picker-error" class="error"></p>
     </section>
 
     <section id="view-overview" hidden>
-      <h2>Your project</h2>
-      <p id="overview-error" class="error"></p>
-      <div id="overview-groups"></div>
+      <p id="overview-path" class="hint"></p>
+
+      <div id="overview-new-project" hidden>
+        <h2>Set up this folder</h2>
+        <p>This folder isn't a Histos project yet.</p>
+        <button id="init-vault-btn" class="primary-btn">Start project here</button>
+        <p id="init-error" class="error"></p>
+      </div>
+
+      <div id="overview-content" hidden>
+        <h2>Your project</h2>
+        <p id="overview-error" class="error"></p>
+        <div id="getting-started-hint" class="hint-box" hidden>
+          <p><strong>Next steps:</strong> open this folder in Obsidian to see your board. Then start your AI assistant (like Claude Code) in this same folder and tell it what you're working on.</p>
+        </div>
+        <div id="overview-groups"></div>
+      </div>
     </section>
 
     <section id="view-detail" hidden>

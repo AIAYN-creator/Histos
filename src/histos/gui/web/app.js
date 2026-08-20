@@ -122,31 +122,54 @@ ready(function () {
   }
 
   function loadOverview() {
-    api.get_status(vaultPath).then(function (res) {
-      var groupsEl = document.getElementById("overview-groups");
-      var errorEl = document.getElementById("overview-error");
-      groupsEl.innerHTML = "";
+    document.getElementById("overview-path").textContent = vaultPath;
 
-      if (!res.ok) {
-        errorEl.textContent = res.error;
+    api.is_vault(vaultPath).then(function (checkRes) {
+      var newProjectEl = document.getElementById("overview-new-project");
+      var contentEl = document.getElementById("overview-content");
+
+      if (checkRes.ok && !checkRes.is_vault) {
+        newProjectEl.hidden = false;
+        contentEl.hidden = true;
+        document.getElementById("init-error").textContent = "";
         showView("overview");
         return;
       }
-      errorEl.textContent = "";
 
-      // The pending-review group always shows first and always renders, even empty --
-      // it's the one section that needs the user's decision, everything else is FYI.
-      var pending = res.data.groups.filter(function (g) { return g.color === PENDING_COLOR; })[0];
-      var rest = res.data.groups.filter(function (g) { return g.color !== PENDING_COLOR; });
+      newProjectEl.hidden = true;
+      contentEl.hidden = false;
 
-      groupsEl.appendChild(renderPendingGroup(pending));
-      rest.forEach(function (group) {
-        if (group.cards.length > 0) {
-          groupsEl.appendChild(renderReadOnlyGroup(group));
+      api.get_status(vaultPath).then(function (res) {
+        var groupsEl = document.getElementById("overview-groups");
+        var errorEl = document.getElementById("overview-error");
+        var hintEl = document.getElementById("getting-started-hint");
+        groupsEl.innerHTML = "";
+
+        if (!res.ok) {
+          errorEl.textContent = res.error;
+          hintEl.hidden = true;
+          showView("overview");
+          return;
         }
-      });
+        errorEl.textContent = "";
 
-      showView("overview");
+        // The pending-review group always shows first and always renders, even empty --
+        // it's the one section that needs the user's decision, everything else is FYI.
+        var pending = res.data.groups.filter(function (g) { return g.color === PENDING_COLOR; })[0];
+        var rest = res.data.groups.filter(function (g) { return g.color !== PENDING_COLOR; });
+
+        var totalCards = res.data.groups.reduce(function (sum, g) { return sum + g.cards.length; }, 0);
+        hintEl.hidden = totalCards > 0;
+
+        groupsEl.appendChild(renderPendingGroup(pending));
+        rest.forEach(function (group) {
+          if (group.cards.length > 0) {
+            groupsEl.appendChild(renderReadOnlyGroup(group));
+          }
+        });
+
+        showView("overview");
+      });
     });
   }
 
@@ -184,6 +207,16 @@ ready(function () {
 
   document.getElementById("change-folder-btn").addEventListener("click", function () {
     showView("picker");
+  });
+
+  document.getElementById("init-vault-btn").addEventListener("click", function () {
+    api.init_vault(vaultPath).then(function (res) {
+      if (!res.ok) {
+        document.getElementById("init-error").textContent = res.error;
+        return;
+      }
+      loadOverview();
+    });
   });
 
   document.getElementById("open-obsidian-btn").addEventListener("click", function () {

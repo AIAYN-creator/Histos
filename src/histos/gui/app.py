@@ -1,11 +1,13 @@
 """Histos desktop app -- a pywebview shell over operations.py.
 
-Stage 4 (see the "Histos desktop app" plan) adds the full status dashboard (all 6 states,
-not just what's pending review -- Stage 3's get_pending_reviews is superseded by the
-fuller get_status here, since the overview now shows the pending group inline alongside
-everything else) plus a way to jump into Obsidian or the plain file explorer. Every Api
-method catches HistosError itself and returns a single, uniform shape -- {"ok": bool,
-...} -- so the JS side never has to guess how a Python exception crossed the bridge.
+Stage 5 (see the "Histos desktop app" plan), the last piece: detect when a picked folder
+isn't a Histos project yet (is_vault) and offer to start one (init_vault) instead of just
+surfacing "can't find project.canvas -- run 'histos init' first", which is exactly the
+terminal-shaped failure this whole app exists to avoid. The actual project interview
+stays the agent's job (AGENTS.md) -- this wizard is deliberately thin, a no-terminal
+equivalent of `histos init` and nothing more. Every Api method catches HistosError itself
+and returns a single, uniform shape -- {"ok": bool, ...} -- so the JS side never has to
+guess how a Python exception crossed the bridge.
 """
 from __future__ import annotations
 
@@ -66,6 +68,24 @@ class Api:
         config["last_vault"] = path
         _save_config(config)
         return {"ok": True, "path": path}
+
+    def is_vault(self, vault_path: str) -> dict:
+        """Cheap, structural check (does project.canvas exist) instead of trying
+        get_status and pattern-matching its error string -- the same discipline as the
+        rest of this Api: never make the JS side parse prose meant for a human.
+        """
+        exists = canvas.vault_canvas_path(Path(vault_path)).exists()
+        return {"ok": True, "is_vault": exists}
+
+    def init_vault(self, vault_path: str) -> dict:
+        try:
+            result = operations.init_vault(Path(vault_path))
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {
+            "ok": True,
+            "data": {"vault_root": str(result.vault_root), "template_warnings": result.template_warnings},
+        }
 
     def get_status(self, vault_path: str) -> dict:
         try:

@@ -64,6 +64,18 @@ h2 {
   margin-top: 0;
 }
 
+.hint-box {
+  background: #eef6ff;
+  border: 1px solid #b8dcff;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.hint-box p {
+  margin: 0;
+}
+
 .hint-inline {
   color: var(--muted);
   font-weight: normal;

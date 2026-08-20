@@ -73,6 +73,31 @@ def test_pick_vault_folder_handles_no_selection(monkeypatch):
     assert app.Api().pick_vault_folder() == {"ok": False, "error": "No folder selected"}
 
 
+def test_is_vault_false_for_a_plain_folder(tmp_path):
+    assert app.Api().is_vault(str(tmp_path)) == {"ok": True, "is_vault": False}
+
+
+def test_is_vault_true_once_initialized(tmp_path):
+    operations.init_vault(tmp_path)
+    assert app.Api().is_vault(str(tmp_path)) == {"ok": True, "is_vault": True}
+
+
+def test_init_vault_success_shape(tmp_path):
+    result = app.Api().init_vault(str(tmp_path))
+    assert result == {
+        "ok": True,
+        "data": {"vault_root": str(tmp_path), "template_warnings": []},
+    }
+    assert (tmp_path / "AGENTS.md").exists()
+
+
+def test_init_vault_error_shape_when_already_initialized(tmp_path):
+    operations.init_vault(tmp_path)
+    result = app.Api().init_vault(str(tmp_path))
+    assert result["ok"] is False
+    assert "error" in result
+
+
 def test_get_status_returns_all_groups_in_order(tmp_path):
     operations.init_vault(tmp_path)
     _add_pending_card(tmp_path, "cap1", description="a thing to review")
