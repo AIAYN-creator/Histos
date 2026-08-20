@@ -1,7 +1,7 @@
 [project]
 name = "histos-cli"
 version = "0.1.0"
-description = "CLI que gestiona un canvas de Obsidian como tablero de tareas compartido humano-IA"
+description = "CLI that manages an Obsidian canvas as a shared human-AI task board"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -12,9 +12,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+gui = ["pywebview>=5.0"]
+packaging = ["pyinstaller>=6.0"]
 
 [project.scripts]
 histos = "histos.cli:main"
+histos-gui = "histos.gui.app:main"
 
 [build-system]
 requires = ["hatchling"]
