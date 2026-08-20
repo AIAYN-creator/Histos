@@ -2,16 +2,62 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Histos (spike)</title>
+  <title>Histos</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Histos -- packaging spike</h1>
-  <p>Not the real app yet. Proves the bundled schema/templates and a native folder dialog work inside a packaged build.</p>
+  <header>
+    <h1>Histos</h1>
+    <button id="change-folder-btn" class="link-btn" hidden>Change folder</button>
+  </header>
 
-  <button id="pick-btn">Pick vault folder&hellip;</button>
-  <p id="path" class="path"></p>
-  <pre id="output">(nothing yet)</pre>
+  <main>
+    <section id="view-picker">
+      <h2>Choose your project folder</h2>
+      <p>Pick the folder for the project you want to review.</p>
+      <button id="pick-btn" class="primary-btn">Choose folder&hellip;</button>
+      <p id="picker-error" class="error"></p>
+    </section>
+
+    <section id="view-list" hidden>
+      <h2>Waiting for your review</h2>
+      <p id="list-empty" class="empty" hidden>Nothing to review right now.</p>
+      <ul id="list-items"></ul>
+    </section>
+
+    <section id="view-detail" hidden>
+      <button id="back-btn" class="link-btn">&larr; Back to list</button>
+      <h2 id="detail-title"></h2>
+      <p class="hint">Approving replaces what's saved in your project with what's suggested below. You'll see the result in your notes right after.</p>
+
+      <div class="compare">
+        <div class="compare-col">
+          <h3>Current <span class="hint-inline">(what's saved now)</span></h3>
+          <pre id="detail-current" class="text-block"></pre>
+        </div>
+        <div class="compare-col">
+          <h3>Suggested <span class="hint-inline">(not saved yet)</span></h3>
+          <pre id="detail-proposed" class="text-block"></pre>
+        </div>
+      </div>
+
+      <div id="detail-actions" class="actions">
+        <button id="approve-btn" class="approve-btn">Approve</button>
+        <button id="reject-btn" class="reject-btn">Reject</button>
+      </div>
+
+      <div id="reject-form" hidden>
+        <label for="reject-feedback">What's missing? (optional)</label>
+        <textarea id="reject-feedback" rows="3"></textarea>
+        <div class="actions">
+          <button id="reject-confirm-btn" class="reject-btn">Confirm reject</button>
+          <button id="reject-cancel-btn" class="link-btn">Cancel</button>
+        </div>
+      </div>
+
+      <p id="detail-status" class="error"></p>
+    </section>
+  </main>
 
   <script src="app.js"></script>
 </body>

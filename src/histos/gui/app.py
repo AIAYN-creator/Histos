@@ -1,44 +1,97 @@
 """Histos desktop app -- a pywebview shell over operations.py.
 
-Stage 2 spike (see the "Histos desktop app" plan): prove that pywebview + PyInstaller
-actually produce a working .exe on this machine, and specifically that the schema and
-agent templates (loaded via importlib.resources -- see operations.py / canvas.py) resolve
-correctly inside a *frozen* build, not just when running from source. The UI here is
-deliberately minimal: pick a vault folder, call operations.get_status() on it, show the
-result. Stage 3 replaces this with the real review-loop screen.
+Stage 3 (see the "Histos desktop app" plan): the actual review-loop screen -- the
+biggest remaining terminal dependency in the human side of the workflow. A user picks a
+vault folder once (remembered afterward), sees the cards waiting for review, and can
+approve or reject each one with a real before/after comparison instead of a unified diff
+dump. Every Api method catches HistosError itself and returns a single, uniform shape --
+{"ok": bool, ...} -- so the JS side never has to guess how a Python exception crossed the
+bridge.
 """
 from __future__ import annotations
 
 import dataclasses
+import json
 import os
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 import webview
 
 from .. import canvas, operations
+
+_CONFIG_PATH = Path.home() / ".histos" / "gui_config.json"
 
 
 def _web_dir() -> Path:
     return Path(__file__).resolve().parent / "web"
 
 
+def _load_config() -> dict:
+    if not _CONFIG_PATH.exists():
+        return {}
+    try:
+        return json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_config(config: dict) -> None:
+    try:
+        _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    except OSError:
+        pass  # remembering the last vault is a convenience, never worth failing an action over
+
+
 class Api:
-    """Exposed to the page as window.pywebview.api.<method>(...). Every method catches
-    HistosError itself and returns a single, uniform shape -- {"ok": bool, ...} -- so the
-    JS side never has to guess how a Python exception crossed the bridge.
-    """
+    def get_last_vault(self) -> dict:
+        """Used on startup to skip the folder picker if we already know where the user's
+        vault is. Re-checks the folder still exists -- a saved path can go stale (moved,
+        deleted, on an unplugged drive) and there's no point handing back a dead path.
+        """
+        path = _load_config().get("last_vault")
+        if path and Path(path).is_dir():
+            return {"ok": True, "path": path}
+        return {"ok": True, "path": None}
 
     def pick_vault_folder(self) -> dict:
         window = webview.windows[0]
         selection = window.create_file_dialog(webview.FileDialog.FOLDER)
         if not selection:
             return {"ok": False, "error": "No folder selected"}
-        return {"ok": True, "path": selection[0]}
+        path = selection[0]
+        config = _load_config()
+        config["last_vault"] = path
+        _save_config(config)
+        return {"ok": True, "path": path}
 
-    def get_status(self, vault_path: str) -> dict:
+    def get_pending_reviews(self, vault_path: str) -> dict:
         try:
             result = operations.get_status(Path(vault_path))
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        pending = next(g for g in result.groups if g.color == canvas.PROPUESTA_PENDIENTE)
+        return {"ok": True, "data": dataclasses.asdict(pending)}
+
+    def get_diff(self, vault_path: str, card_id: str) -> dict:
+        try:
+            result = operations.get_diff(Path(vault_path), card_id)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": dataclasses.asdict(result)}
+
+    def approve(self, vault_path: str, card_id: str) -> dict:
+        try:
+            result = operations.approve(Path(vault_path), card_id)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": dataclasses.asdict(result)}
+
+    def reject(self, vault_path: str, card_id: str, feedback: Optional[str] = None) -> dict:
+        try:
+            result = operations.reject(Path(vault_path), card_id, feedback=feedback or None)
         except canvas.HistosError as e:
             return {"ok": False, "error": str(e)}
         return {"ok": True, "data": dataclasses.asdict(result)}
@@ -72,11 +125,12 @@ def main() -> int:
         return _selftest()
 
     webview.create_window(
-        "Histos (spike)",
+        "Histos",
         str(_web_dir() / "index.html"),
         js_api=Api(),
-        width=900,
-        height=650,
+        width=1000,
+        height=700,
+        min_size=(700, 500),
     )
     webview.start()
     return 0
