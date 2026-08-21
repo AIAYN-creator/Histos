@@ -142,6 +142,10 @@ Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Pr
 3. **Security hardening pass — done.** Dependency vulnerability scan (`pip-audit`, scoped to Histos's actual dependency tree, not the whole environment): clean, no known vulnerabilities. Path traversal reviewed beyond the id check in `add-card`: the JSON Schema itself constrains `cardNode.file` to `^content/[^/]+\.md$`, so even a hand-edited `project.canvas` can't point a card outside `content/` — `histos validate`/`_load_valid` rejects it before any command touches a file. Confirmed no `subprocess`/`shell=True`/`eval`/`pickle`/unsafe YAML loading anywhere in the codebase. One risk found and *deliberately left open*, not silently fixed: see limit (3) in [Trust model](#trust-model). The desktop-app surface got its own follow-up pass once built: `pip-audit` re-run scoped to the full dependency tree including `pywebview`/`pyinstaller` and their transitive deps (`pythonnet`, `clr_loader`...) — clean. The `js_api` bridge (`src/histos/gui/app.py`) never constructs a file path from JS input itself; every `Api` method delegates straight to `operations.py`, which already validates card ids against the schema before touching a file, so no new path-traversal surface was introduced by adding a GUI on top.
 4. **Stable card layout — done.** `add-card`, `link`, and `describe` no longer recompute every card's position and size on every call. A new card is placed via collision-avoidance so it doesn't overlap anything already on the board; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian.
 
+### v2.1 - Future release (not yet shipped)
+
+- Addressing GUI bugs and implementing minor features identified during beta testing.
+
 ### v3 — future, not scoped yet
 
 - **Multi-agent support** (several agents working the same vault in parallel). Blocked on real, OS-level sandboxing (a container with `content/` mounted read-only for the agent, or similar) — v2 only broadens the tool-level convention, it doesn't attempt this.
