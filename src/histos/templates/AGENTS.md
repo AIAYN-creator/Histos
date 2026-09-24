@@ -49,7 +49,7 @@ histos validate
 histos arrange                                           # ONLY when the human asks (rule 4)
 ```
 
-`histos <command> --help` for the details of each flag. Before proposing content for a card with dependencies, run `histos context <id>` instead of reading each `content/<dep>.md` by hand -- it bundles everything for you (including external files the human registered with `describe --sources`, e.g. a Word doc with a bibliography). Sections labeled "Dependency (implied -- arrow not drawn)" are real dependencies too: `histos arrange` removed their arrow from the board because a longer path already implies it, and keeps them in the card's `implied_dependencies` frontmatter so you still see them -- treat them exactly like the others.
+`histos <command> --help` for the details of each flag. Before proposing content for a card with dependencies, run `histos context <id>` instead of reading each `content/<dep>.md` by hand -- it bundles everything for you (including external files the human registered with `describe --sources`, e.g. a Word doc with a bibliography). Sections labeled "Dependency (implied -- arrow not drawn)" are real dependencies too: `histos arrange` removed their arrow from the board because a longer path already implies it, and keeps them in the card's `implied_dependencies` frontmatter so you still see them -- treat them exactly like the others. If a line "Feedback on a rejected proposal" shows up under the card itself, the human rejected an earlier draft for this card with that feedback: address it in your next one.
 
 ## Unsupervised mode (AFK)
 

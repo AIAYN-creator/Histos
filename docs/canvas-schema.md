@@ -71,7 +71,7 @@ Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatt
 | `estimated_duration_hours` | number | reserved for the agent's estimate when it starts the task — no command sets it yet |
 | `actual_duration_hours` | number | reserved for the real duration on completion, to compare against the estimate — no command sets it yet |
 | `assigned_to` | `"agent"` \| `"human"` | set by `histos assign --by` |
-| `status_note` | string | free text; `histos reject --feedback` writes the reviewer's feedback here |
+| `status_note` | string | free text; `histos reject --feedback` writes the reviewer's feedback here, and `histos context` shows it when run on that same card |
 | `implied_dependencies` | list of card ids | written by `histos arrange`: dependencies whose edge it removed because a longer path already implies them. Not drawn on the board and not needed to compute Blocked (the path covers it), but `histos context` still includes them, labeled "implied" |
 
 `status` is deliberately not here: it lives as `color` on the canvas so the same data doesn't have two sources of truth.

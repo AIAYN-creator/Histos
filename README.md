@@ -36,12 +36,12 @@ In a freshly initialized vault (no cards yet), Loop 1 starts with a short interv
 ### Loop 2 — Execution (the agent works, the human decides)
 
 1. The user tells the agent which card(s) to work on (by id); the agent marks them In progress (`histos assign`)
-2. The agent gathers its context with `histos context <id>`: the card's description and reference sources, the approved content of the cards it depends on (including dependencies whose arrow `histos arrange` stopped drawing), and the project brief (`PROJECT.md`)
+2. The agent gathers its context with `histos context <id>`: the card's description and reference sources, the approved content of the cards it depends on (including dependencies whose arrow `histos arrange` stopped drawing), the project brief (`PROJECT.md`), and the human's feedback if a previous proposal for this card was rejected
 3. The agent drafts a content proposal
 4. The agent **never** writes directly to the canonical `.md` — it can only propose
 5. The card moves to "proposal pending review"
 6. The user reviews when they can (no need to be present while the agent works) and sees a before/after diff
-7. The user approves (the real change gets applied, card → "approved") or rejects (the `.md` isn't touched; the card goes back to Backlog, with the optional feedback saved in its `status_note` for the agent's next attempt)
+7. The user approves (the real change gets applied, card → "approved") or rejects (the `.md` isn't touched; the card goes back to Backlog, with the optional feedback saved in its `status_note`, which `histos context` hands the agent on its next attempt)
 
 **Key property — AFK-mode safety:** since the agent can only propose and never write directly, it's safe to leave it processing a queue of cards unsupervised *as long as the agent follows the rules in `AGENTS.md`*. The worst case with an agent that follows them is finding several yellow cards waiting for review when you get back — never real content written without authorization. Careful: this is a convention the agent complies with, not a technical barrier that enforces it — see [Trust model](#trust-model).
 
@@ -83,7 +83,7 @@ A real, agent-agnostic guarantee (not just for Claude Code) would require separa
 
 Whatever Obsidian/JSON Canvas doesn't natively interpret (estimated duration, actual duration, who a task is assigned to, notes on why it's blocked) isn't forced into the `.canvas` — it's stored as **YAML frontmatter** at the top of each `.md`, a format Obsidian already supports natively. This keeps the `.canvas` 100% compatible with standard Obsidian.
 
-Fields: `description` and `sources` (set with `add-card`/`describe`), `assigned_to` (set by `assign`), `status_note` (the feedback from `reject`), and `estimated_duration_hours` / `actual_duration_hours` — reserved for calibrating, over time, how reliable the agent's estimates are for this kind of task, but no command fills those two yet. `histos arrange` adds one more, `implied_dependencies`: dependencies whose arrow it removed from the board because a longer path already implies them, kept so `histos context` still hands them to the agent.
+Fields: `description` and `sources` (set with `add-card`/`describe`), `assigned_to` (set by `assign`), `status_note` (the feedback from `reject`, which `context` passes on to the agent), and `estimated_duration_hours` / `actual_duration_hours` — reserved for calibrating, over time, how reliable the agent's estimates are for this kind of task, but no command fills those two yet. `histos arrange` adds one more, `implied_dependencies`: dependencies whose arrow it removed from the board because a longer path already implies them, kept so `histos context` still hands them to the agent.
 
 ## CLI
 
@@ -110,6 +110,7 @@ histos link cap1 --depends-on cap0 --authorized         # adds a dependency to a
 histos describe cap1 --text "..." [--sources f1 f2]     # description and/or external sources (frontmatter, no permission needed)
 histos assign cap1 [--by agent|human]                    # -> In progress
 histos context cap1                                     # bundles description+approved dependencies+sources+PROJECT.md
+                                                          # (+ the feedback, if a proposal for cap1 was rejected)
 histos propose cap1 --file draft.md                     # -> Proposal pending review
 histos diff cap1                                        # diff between content/cap1.md and the pending proposal
 histos approve cap1                                     # applies the proposal to the real .md -> Approved

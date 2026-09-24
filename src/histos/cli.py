@@ -360,13 +360,15 @@ def _read_source_text(path: Path) -> str:
         return f"[couldn't read {path}: {e}]"
 
 
-def _render_card_context(vault_root: Path, card: dict, label: str) -> str:
+def _render_card_context(vault_root: Path, card: dict, label: str, with_feedback: bool = False) -> str:
     md_path = canvas.card_file_path(vault_root, card)
     meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
 
     parts = [f"## {label}: {card['id']} ({operations.STATE_NAMES[card['color']]})"]
     if meta.get("description"):
         parts.append(f"Description: {meta['description']}")
+    if with_feedback and meta.get("status_note"):
+        parts.append(f"Feedback on a rejected proposal: {meta['status_note']}")
     if card["color"] == canvas.APROBADA and body.strip():
         parts.append(f"Approved content:\n{body.strip()}")
     for src in meta.get("sources") or []:
@@ -379,9 +381,9 @@ def _render_card_context(vault_root: Path, card: dict, label: str) -> str:
 
 
 def cmd_context(args: argparse.Namespace) -> int:
-    """Bundles description+approved content+sources for the card and its direct
-    dependencies, plus PROJECT.md if it exists -- everything an agent needs to start
-    working the card without having to gather it by hand.
+    """Bundles description+approved content+sources for the card and its dependencies,
+    the feedback from a rejected proposal of the card itself, and PROJECT.md if it
+    exists -- everything an agent needs to start working the card without gathering it by hand.
     """
     vault_root = _vault_root()
     try:
@@ -395,7 +397,7 @@ def cmd_context(args: argparse.Namespace) -> int:
         print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
 
-    sections = [_render_card_context(vault_root, card, "Card")]
+    sections = [_render_card_context(vault_root, card, "Card", with_feedback=True)]
 
     by_id = {c["id"]: c for c in canvas.cards(data)}
     direct = [e["fromNode"] for e in canvas.incoming_edges(data, args.id)]

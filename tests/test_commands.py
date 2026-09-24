@@ -515,6 +515,37 @@ def test_context_includes_project_md(tmp_path, monkeypatch, capsys):
     assert "Brief: un TFG sobre pruebas." in output
 
 
+def _reject_with_feedback(monkeypatch, tmp_path, card_id, feedback):
+    run(monkeypatch, tmp_path, "assign", card_id)
+    draft = tmp_path / f"{card_id}-draft.md"
+    draft.write_text("Primer intento.\n", encoding="utf-8")
+    run(monkeypatch, tmp_path, "propose", card_id, "--file", str(draft))
+    run(monkeypatch, tmp_path, "reject", card_id, "--feedback", feedback)
+
+
+def test_context_shows_the_feedback_from_a_rejected_proposal(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    _reject_with_feedback(monkeypatch, tmp_path, "cap1", "Faltan referencias")
+    capsys.readouterr()
+
+    assert run(monkeypatch, tmp_path, "context", "cap1") == 0
+
+    assert "Feedback on a rejected proposal: Faltan referencias" in capsys.readouterr().out
+
+
+def test_context_does_not_show_a_dependencys_feedback(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "biblio", "--title", "Biblio")
+    run(monkeypatch, tmp_path, "add-card", "intro", "--title", "Intro", "--depends-on", "biblio", "--authorized")
+    _reject_with_feedback(monkeypatch, tmp_path, "biblio", "Solo va con biblio")
+    capsys.readouterr()
+
+    assert run(monkeypatch, tmp_path, "context", "intro") == 0
+
+    assert "Solo va con biblio" not in capsys.readouterr().out
+
+
 def _arrow_pairs(data):
     return {(e["fromNode"], e["toNode"]) for e in data["edges"]}
 
