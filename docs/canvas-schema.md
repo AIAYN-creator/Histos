@@ -50,6 +50,8 @@ A `file` card without `color` isn't managed by Histos (added by hand in Obsidian
 
 **Blocked is a derived status**, not something the agent or the human assigns by hand: the CLI computes it by checking whether *all* of a card's incoming edges point to nodes already Approved (color `"4"`). Nothing stops you from setting color `"1"` manually, but the CLI should treat that as a signal to recompute, not as a source of truth.
 
+**Dependency change request (`"5"`) is reserved:** it's part of the legend, but no command sets it yet — in practice the agent asks for authorization in the conversation (`AGENTS.md` rule 2) and then passes `--authorized`. A card only turns cyan if someone sets that color by hand; `histos status` and the desktop app still list it under its own heading, and the CLI never recomputes it.
+
 ## Edges — dependency semantics
 
 `fromNode → toNode` means **"toNode depends on fromNode"**: fromNode must reach Approved before toNode can leave Blocked. This matches the canvas's left-to-right, Gantt-style layout and the spec's default (`toEnd` = `"arrow"` points at toNode, i.e. at whatever gets unblocked).
@@ -66,10 +68,10 @@ Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatt
 |---|---|---|
 | `description` | string | one line, summarizes the card; set via `add-card --description` or updated later with `histos describe` — never touches the body, so it doesn't go through `propose`/`approve` |
 | `sources` | list of strings | paths to external files (`.txt`, `.md`, `.tex`, `.docx`) with reference material for this card — `describe --sources` replaces the whole list, it doesn't append. `histos context <id>` reads them and includes their text |
-| `estimated_duration_hours` | number | filled in by the agent when accepting/starting the task |
-| `actual_duration_hours` | number | filled in on completion, to compare against the estimate |
-| `assigned_to` | `"agent"` \| `"human"` | |
-| `status_note` | string | free text, e.g. the reason it's blocked |
+| `estimated_duration_hours` | number | reserved for the agent's estimate when it starts the task — no command sets it yet |
+| `actual_duration_hours` | number | reserved for the real duration on completion, to compare against the estimate — no command sets it yet |
+| `assigned_to` | `"agent"` \| `"human"` | set by `histos assign --by` |
+| `status_note` | string | free text; `histos reject --feedback` writes the reviewer's feedback here |
 | `implied_dependencies` | list of card ids | written by `histos arrange`: dependencies whose edge it removed because a longer path already implies them. Not drawn on the board and not needed to compute Blocked (the path covers it), but `histos context` still includes them, labeled "implied" |
 
 `status` is deliberately not here: it lives as `color` on the canvas so the same data doesn't have two sources of truth.
