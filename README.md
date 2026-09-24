@@ -10,50 +10,48 @@ The agent proposes the workflow and drafts the tasks; the human approves real ch
 
 Installing: [docs/install.md](docs/install.md). Day-to-day use (terminal and desktop app, side by side): [docs/usage.md](docs/usage.md).
 
-> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 13 commands, `pytest` green), actively dogfooded on a real thesis. v2 is done: stable card layout, broadened sandboxing, a security hardening pass, and a desktop app (`src/histos/gui/`, packaged with PyInstaller) alongside the terminal, not instead of it. v2.1 adds `histos arrange`, which tidies up the whole board when you ask for it — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 didn't build one either (see below).
+> **State:** latest release **[v2.1.0](https://github.com/AIAYN-creator/Histos/releases/tag/v2.1.0)**. A CLI with 13 commands ([`src/histos/`](src/histos/), `pytest` green) over a formal canvas schema ([`src/histos/schema/`](src/histos/schema/)), actively dogfooded on several real projects, plus a desktop app for the human side ([`src/histos/gui/`](src/histos/gui/), downloadable as an `.exe`) — alongside the terminal, not instead of it. v2.1 added `histos arrange`, which tidies up the whole board when you ask for it. What each version brought: [Roadmap](#roadmap). There is no Obsidian plugin — Histos writes to Obsidian's native Canvas (see below).
 
 ## Core idea
 
-Strict separation between the **project map** (`canvas.json`) and the **actual content** (`.md` files). The canvas never contains prose — only file references, status metadata, and the dependency graph.
+Strict separation between the **project map** (`project.canvas`) and the **actual content** (`.md` files). The canvas never contains prose — only file references, status metadata, and the dependency graph.
 
-Everything lives locally, in a normal Obsidian vault (a folder with an `.obsidian/` subfolder). There's no server or remote backend of its own — the only step that leaves local is the call to the agent/LLM.
+Everything lives locally, in a normal folder that you open as an Obsidian vault. There's no server or remote backend of its own — the only step that leaves local is the call to the agent/LLM.
 
 ## The two loops
 
-### Loop 1 — Planning (the agent has near-total freedom)
+### Loop 1 — Planning (the agent proposes the plan, the human authorizes the dependencies)
 
-The agent can freely:
-- Create, edit, and move cards
-- Change a card's status/color
-- Edit a card's text/description
-- Visually group cards (geometric groups; no rigid hierarchy in the data)
+Through the CLI, the agent can on its own:
+- Create standalone cards and give them a description and reference sources (`add-card`, `describe`)
+- Pick up cards to work on (`assign`)
 
 Requires explicit user authorization:
-- Creating, deleting, or redirecting a **dependency edge** — because it redefines what unblocks and in what order, it's not a purely cosmetic change
+- Adding a **dependency** (`add-card --depends-on`, `link`) — because it redefines what unblocks what, and in what order, it's not a purely cosmetic change. The agent asks in the conversation first and only then passes `--authorized`.
 
-The agent decides whether to group cards based on the project's scale (a blog post probably doesn't need groups; a thesis probably does). No hierarchy is forced in v1.
+The agent never edits `project.canvas` by hand and never moves cards: a card's position is set once, when it's created, and after that only the human moves cards — by hand in Obsidian, or with `histos arrange` (see [Canvas conventions](#canvas-conventions)).
 
 In a freshly initialized vault (no cards yet), Loop 1 starts with a short interview — what the project is about, what type of work it is, whether there's a mandatory structure, whether review checkpoints should be modeled as cards — before proposing the initial card index. Full protocol in [`AGENTS.md`](src/histos/templates/AGENTS.md).
 
 ### Loop 2 — Execution (the agent works, the human decides)
 
-1. The user assigns one or more cards to the agent (by id)
-2. The agent receives as context: that card's `.md`, the content of upstream (dependency) cards, and the general project brief
+1. The user tells the agent which card(s) to work on (by id); the agent marks them In progress (`histos assign`)
+2. The agent gathers its context with `histos context <id>`: the card's description and reference sources, the approved content of the cards it depends on (including dependencies whose arrow `histos arrange` stopped drawing), and the project brief (`PROJECT.md`)
 3. The agent drafts a content proposal
 4. The agent **never** writes directly to the canonical `.md` — it can only propose
 5. The card moves to "proposal pending review"
 6. The user reviews when they can (no need to be present while the agent works) and sees a before/after diff
-7. The user approves (the real change gets applied, card → "approved") or rejects (the `.md` isn't touched, the card goes back to backlog or is flagged for retry with feedback)
+7. The user approves (the real change gets applied, card → "approved") or rejects (the `.md` isn't touched; the card goes back to Backlog, with the optional feedback saved in its `status_note` for the agent's next attempt)
 
 **Key property — AFK-mode safety:** since the agent can only propose and never write directly, it's safe to leave it processing a queue of cards unsupervised *as long as the agent follows the rules in `AGENTS.md`*. The worst case with an agent that follows them is finding several yellow cards waiting for review when you get back — never real content written without authorization. Careful: this is a convention the agent complies with, not a technical barrier that enforces it — see [Trust model](#trust-model).
 
 ### Dependency graph
 
-Represented via the canvas edges as a DAG (directed acyclic graph). The agent respects topological order when choosing which card to work on next. If an action would break or ignore an existing dependency, the agent must flag it and ask for authorization **before** proceeding, never after.
+Represented via the canvas edges as a DAG (directed acyclic graph). The agent respects topological order when choosing which card to work on next. If an action would break or ignore an existing dependency, the agent must flag it and ask for authorization **before** proceeding, never after. An arrow that a longer path already implies (A → B → C makes a direct A → C redundant) may be removed by `histos arrange` — the dependency itself isn't lost, it's kept in the card's `implied_dependencies` (see [Metadata](#metadata)).
 
 ## Trust model
 
-The rule "the agent never writes directly to `content/*.md`" lives in [`AGENTS.md`](src/histos/templates/AGENTS.md) as a **prose convention** — it depends on the agent choosing to follow it. There's no filesystem permission, intermediate process, or OS-level git hook enforcing it on its own for tools other than Claude Code.
+The rule "the agent never writes directly to `content/*.md`" lives in [`AGENTS.md`](src/histos/templates/AGENTS.md) as a **prose convention** — it depends on the agent choosing to follow it. There's no filesystem permission, intermediate process, or OS-level git hook enforcing it on its own for tools other than Claude Code. The same goes for the other rules there — e.g. rule 4, never run `histos arrange` unless asked: nothing technically stops an agent from running it, although the worst case there is a re-laid-out board, undoable from `project.canvas.bak`.
 
 **Claude-Code-specific enforcement:** `histos init` also installs [`.claude/settings.json`](src/histos/templates/.claude/settings.json) with `permissions.deny` covering `content/**` and `project.canvas` (`Write` and `Edit`, both). Verified live: it blocks `Edit`, `Write`, and even `Bash` when the command references a denied path ("File is in a directory that is denied by your permission settings"). `describe --sources` extends this further: every time a source file is registered, `histos` also adds `Write`/`Edit` deny rules for that exact file's absolute path, so registered reference material (a Word doc, a `.tex` in Overleaf) gets the same protection as `content/`. The sync is add-only — it only ever adds rules, never removes one, so it can't silently undo something you added to `.claude/settings.json` by hand. Vaults created before this existed pick up the `project.canvas` rule the next time any `describe` runs there; a source registered before this existed gets covered the next time its card's `describe --sources` runs again — neither is retroactive on its own.
 
@@ -67,7 +65,7 @@ A real, agent-agnostic guarantee (not just for Claude Code) would require separa
 
 > Formal, machine-checkable schema: [`src/histos/schema/histos-canvas.schema.json`](src/histos/schema/histos-canvas.schema.json) — full detail in [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
-- **Node type:** `file` — each card points to a real `.md` in the vault, it never contains embedded text. (`text` is used only for the decorative color legend that `histos init` generates; the CLI ignores it entirely.)
+- **Node types:** `file` — each card points to a real `.md` in the vault, it never contains embedded text. `text` is used only for the decorative color legend that `histos init` generates (the CLI ignores it entirely). `group` shows up in two ways: the ones `histos arrange` creates and owns ("Not connected" and "Done", ids starting with `histos:`), and any you draw yourself in Obsidian, which Histos never touches.
 - **Layout:** reads like a Gantt chart but without calendar dates — dependencies flow left to right, and every arrow leaves a card's right side and enters the next card's left side. A new card lands one column to the right of its dependencies, at their average height, in the nearest spot that doesn't overlap another node or sit on an existing arrow. Nothing else moves when that happens: `add-card` only places the card it creates, `describe` may resize a card to fit a new description but never repositions it, and `link` never touches position or size at all. The one command that moves existing cards is [`histos arrange`](#cli), which a human runs on purpose to re-lay out the whole board: dependency columns ordered to minimize crossings, a free corridor wherever an arrow skips over a column (so no arrow is ever drawn across a card), and two groups it owns — "Not connected" and "Done" (see [`docs/canvas-schema.md`](docs/canvas-schema.md)).
 
 ### Color legend
@@ -78,14 +76,14 @@ A real, agent-agnostic guarantee (not just for Claude Code) would require separa
 | In progress | orange | `"2"` | The agent or the user is actively working on it |
 | Blocked | red | `"1"` | Can't start because it depends on a card that isn't closed yet (derived status, computed by the CLI) |
 | Proposal pending review | yellow | `"3"` | The agent proposed content and is waiting for approval (loop 2) |
-| Dependency change request | cyan | `"5"` | The agent wants to modify the dependency graph and is waiting for authorization (loop 1) |
+| Dependency change request | cyan | `"5"` | Reserved for an agent waiting for authorization to change the dependency graph (loop 1). No command sets it yet: in practice the agent asks in the conversation ([`AGENTS.md`](src/histos/templates/AGENTS.md) rule 2) before passing `--authorized` |
 | Approved | green | `"4"` | Change accepted by the user and applied to the real content |
 
 ## Metadata
 
 Whatever Obsidian/JSON Canvas doesn't natively interpret (estimated duration, actual duration, who a task is assigned to, notes on why it's blocked) isn't forced into the `.canvas` — it's stored as **YAML frontmatter** at the top of each `.md`, a format Obsidian already supports natively. This keeps the `.canvas` 100% compatible with standard Obsidian.
 
-Fields: `estimated_duration_hours`, `actual_duration_hours`, `assigned_to`, `status_note`. Tracking estimated vs. actual over time will make it possible to calibrate how reliable the agent's estimates are for this kind of task. `histos arrange` adds one more, `implied_dependencies`: dependencies whose arrow it removed from the board because a longer path already implies them, kept so `histos context` still hands them to the agent.
+Fields: `description` and `sources` (set with `add-card`/`describe`), `assigned_to` (set by `assign`), `status_note` (the feedback from `reject`), and `estimated_duration_hours` / `actual_duration_hours` — reserved for calibrating, over time, how reliable the agent's estimates are for this kind of task, but no command fills those two yet. `histos arrange` adds one more, `implied_dependencies`: dependencies whose arrow it removed from the board because a longer path already implies them, kept so `histos context` still hands them to the agent.
 
 ## CLI
 
@@ -100,7 +98,8 @@ pip install -e .
 Every command operates on the current directory, which must be the root of a Histos vault (`histos init` creates it). No command blocks on an interactive prompt, so a queue of cards can be processed in AFK mode with a simple loop in the agent that invokes the CLI — no special flag or mode needed.
 
 ```bash
-histos init                                            # creates project.canvas (with color legend) + content/
+histos init                                            # creates project.canvas (with color legend), content/,
+                                                          # proposals/, approved/ and the agent instructions
 histos add-card cap1 --title "Intro" [--description "..."]
                                                           # standalone card -> Backlog
 histos add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
@@ -144,14 +143,14 @@ Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Pr
 - Real-write approval flow via diff before touching a canonical `.md`
 - Dogfooding on a real thesis project
 
-### v2 — done
+### v2 — shipped ([v2.0.0](https://github.com/AIAYN-creator/Histos/releases/tag/v2.0.0))
 
 1. **Desktop app for non-technical use — done.** A `pywebview` window over `src/histos/operations.py` (a structured, non-printing extraction of the 5 human-facing commands: `init`, `status`, `diff`, `approve`, `reject`), packaged with PyInstaller (`packaging/histos-gui.spec`). The terminal isn't going anywhere — `histos` keeps working exactly as before, for everyone (including the agent, for the other 7 commands); the desktop app is a second, additional front end onto the same `operations.py`, not a replacement. Obsidian stays the visual canvas, installed separately, not bundled. Screens: pick a project folder (remembered for next time) → if it isn't a Histos project yet, offer to start one, with a hint to open it in Obsidian and start an agent there once it is → a status overview (all 6 states, with the cards waiting for review front and center) → approve/reject with a plain-language before/after comparison, not a unified diff. Buttons to open the vault in Obsidian (best-effort — Obsidian's own `open?path=` URI handling has [longstanding](https://forum.obsidian.md/t/starting-obsidian-from-command-line-with-uri-open-path-is-not-working-under-windows/107025) [reliability](https://forum.obsidian.md/t/obsidian-uri-doesnt-work-with-absolute-path-when-running-from-chrome-or-windows-10/73480) issues on Windows) or in the file explorer (always reliable). Does not launch or manage agent sessions — the user still runs their agent of choice (Claude Code, Codex...) separately, so Histos stays agent-agnostic. GUI text is in English, matching the rest of the project — translating it is a real, deliberately deferred idea for a later release, not v2.
 2. **Broaden the sandboxing convention — done** (still tool-level, not OS-level — see [Trust model](#trust-model)). Claude Code's `permissions.deny` now also covers `project.canvas`, and `describe --sources` auto-registers each source's absolute path into the deny list too, add-only so it can't clobber a rule you added by hand. Best-effort look at Codex CLI and Gemini CLI's own permission systems, documented in [Trust model](#trust-model) — neither is wired up by Histos, since both use a fundamentally different mechanism from Claude Code's `settings.json`.
 3. **Security hardening pass — done.** Dependency vulnerability scan (`pip-audit`, scoped to Histos's actual dependency tree, not the whole environment): clean, no known vulnerabilities. Path traversal reviewed beyond the id check in `add-card`: the JSON Schema itself constrains `cardNode.file` to `^content/[^/]+\.md$`, so even a hand-edited `project.canvas` can't point a card outside `content/` — `histos validate`/`_load_valid` rejects it before any command touches a file. Confirmed no `subprocess`/`shell=True`/`eval`/`pickle`/unsafe YAML loading anywhere in the codebase. One risk found and *deliberately left open*, not silently fixed: see limit (3) in [Trust model](#trust-model). The desktop-app surface got its own follow-up pass once built: `pip-audit` re-run scoped to the full dependency tree including `pywebview`/`pyinstaller` and their transitive deps (`pythonnet`, `clr_loader`...) — clean. The `js_api` bridge (`src/histos/gui/app.py`) never constructs a file path from JS input itself; every `Api` method delegates straight to `operations.py`, which already validates card ids against the schema before touching a file, so no new path-traversal surface was introduced by adding a GUI on top.
 4. **Stable card layout — done.** `add-card`, `link`, and `describe` no longer recompute every card's position and size on every call. A new card is placed via collision-avoidance so it doesn't overlap anything already on the board; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian. (v2.1 adds exactly one deliberate exception, `histos arrange`, which only runs when a human asks for it.)
 
-### v2.1 — done
+### v2.1 — shipped ([v2.1.0](https://github.com/AIAYN-creator/Histos/releases/tag/v2.1.0))
 
 - **`histos arrange` — done.** Born from a real 110-card board that had become unreadable: cards piled up in the first column, arrows frozen pointing up and down, and 643 cases of an arrow drawn across a card. `histos arrange` re-lays out the whole board on request:
   - columns by dependency, ordered to minimize crossings (Sugiyama-style);
@@ -179,12 +178,12 @@ Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Pr
 
 ## Distribution scope
 
-What's published in this repo is the **tool** (CLI, schema, prompt, documentation) as an open-source project. Git/GitHub is not the version-history backend for each user's project content — that's outside v1's scope and is each user's own decision.
+What's published in this repo is the **tool** (CLI, desktop app, schema, agent instructions, documentation) as an open-source project, with a ready-to-run `.exe` of the desktop app on the [Releases](https://github.com/AIAYN-creator/Histos/releases) page. Git/GitHub is not the version-history backend for each user's project content — that's outside Histos's scope and is each user's own decision.
 
 ## Prior art
 
 - **Kanvas (XMihura)** — direct architectural reference. Same pattern but code-oriented: a prompt + Python CLI the agent uses to touch the canvas, plus the `.canvas` itself. No SaaS, no build step, agent-agnostic. Histos adapts that pattern to writing projects instead of code.
-- **claude-canvas (AgriciDaniel)** — reference only for the auto-layout algorithm (`dagre`) and the idea of visual zones/groups. Not the base architecture.
+- **claude-canvas (AgriciDaniel)** — reference only for the auto-layout algorithm (`dagre`) and the idea of visual zones/groups. Not the base architecture. Histos's own `histos arrange` ended up in that same family (a Sugiyama-style layered layout), written from scratch in plain Python so it adds no dependency.
 - **JSON Canvas spec (jsoncanvas.org)** — the `.canvas` format is the open JSON Canvas standard, not Obsidian-proprietary. Available node types: `text` (embedded markdown), `file` (path to a real vault file), `link` (URL), `group` (a purely geometric container — a node "belongs" to a group only if its coordinates fall inside the group's rectangle; there's no `parent_id` in the data).
 
 ## Open questions
