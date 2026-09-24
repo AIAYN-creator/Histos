@@ -251,7 +251,7 @@ class ArrangeResult:
     backup_path: Path
 
 
-def arrange(vault_root: Path, set_aside_done: bool = False, prune_redundant: bool = False) -> ArrangeResult:
+def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) -> ArrangeResult:
     data = _load_valid(vault_root)
     canvas_path = canvas.vault_canvas_path(vault_root)
     backup_path = canvas_path.with_name(canvas_path.name + ".bak")

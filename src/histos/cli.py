@@ -471,7 +471,7 @@ def cmd_arrange(args: argparse.Namespace) -> int:
     if args.set_aside_done:
         details.append(f"{result.set_aside_done} set aside as done")
     if args.prune_redundant:
-        details.append(f"{result.pruned} redundant arrows removed")
+        details.append(f"{result.pruned} redundant {'arrow' if result.pruned == 1 else 'arrows'} removed")
     print(f"board rearranged: {result.cards} cards in {result.columns} columns ({', '.join(details)})")
     print(f"previous layout saved to {result.backup_path.name} -- reload the canvas in Obsidian (Ctrl+R) to see it")
     return 0
@@ -568,12 +568,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="re-lays out the whole board, moving every card -- only when the human asks for it",
     )
     p.add_argument(
-        "--set-aside-done", action="store_true",
-        help="moves approved cards with nothing pending depending on them into a separate 'Done' group",
+        "--set-aside-done", action=argparse.BooleanOptionalAction, default=True,
+        help="moves approved cards with nothing pending depending on them into a separate 'Done' group (default: on)",
     )
     p.add_argument(
-        "--prune-redundant", action="store_true",
-        help="removes arrows already implied by a longer path (kept in the card's implied_dependencies for 'context')",
+        "--prune-redundant", action=argparse.BooleanOptionalAction, default=True,
+        help="removes arrows already implied by a longer path, keeping them in the card's "
+             "implied_dependencies so 'context' still sees them (default: on)",
     )
     p.set_defaults(func=cmd_arrange)
 

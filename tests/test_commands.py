@@ -511,3 +511,41 @@ def test_context_includes_project_md(tmp_path, monkeypatch, capsys):
     output = capsys.readouterr().out
 
     assert "Brief: un TFG sobre pruebas." in output
+
+
+def _arrow_pairs(data):
+    return {(e["fromNode"], e["toNode"]) for e in data["edges"]}
+
+
+def _chapter_project(monkeypatch, tmp_path):
+    """chapter depends on biblio twice over: directly, and through intro -- so biblio -> chapter is redundant."""
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "biblio", "--title", "Biblio")
+    run(monkeypatch, tmp_path, "add-card", "intro", "--title", "Intro", "--depends-on", "biblio", "--authorized")
+    run(
+        monkeypatch, tmp_path, "add-card", "chapter", "--title", "Chapter",
+        "--depends-on", "biblio", "intro", "--authorized",
+    )
+
+
+def test_arrange_sets_aside_done_and_prunes_by_default(tmp_path, monkeypatch, capsys):
+    _chapter_project(monkeypatch, tmp_path)
+    capsys.readouterr()
+
+    assert run(monkeypatch, tmp_path, "arrange") == 0
+
+    output = capsys.readouterr().out
+    assert "1 redundant arrow removed" in output
+    assert "set aside as done" in output
+    assert ("biblio", "chapter") not in _arrow_pairs(canvas.load(tmp_path))
+    assert (tmp_path / "project.canvas.bak").exists()
+
+
+def test_arrange_options_can_be_switched_off(tmp_path, monkeypatch):
+    _chapter_project(monkeypatch, tmp_path)
+
+    assert run(monkeypatch, tmp_path, "arrange", "--no-prune-redundant", "--no-set-aside-done") == 0
+
+    data = canvas.load(tmp_path)
+    assert ("biblio", "chapter") in _arrow_pairs(data)
+    assert all(n["id"] != canvas.DONE_GROUP_ID for n in data["nodes"])
