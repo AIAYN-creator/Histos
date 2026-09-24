@@ -4,6 +4,10 @@ Open-source, agent-agnostic tool that uses **Obsidian Canvas** as a shared human
 
 The agent proposes the workflow and drafts the tasks; the human approves real changes before they're applied to the content.
 
+![A sample Histos board before and after running histos arrange](docs/assets/histos-arrange.gif)
+
+<sub>A sample project's board before and after `histos arrange`, rendered to match Obsidian's canvas (same colors, same arrow curves) — regenerate it with [`scripts/make_readme_gif.py`](scripts/make_readme_gif.py).</sub>
+
 Installing: [docs/install.md](docs/install.md). Day-to-day use (terminal and desktop app, side by side): [docs/usage.md](docs/usage.md).
 
 > **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 13 commands, `pytest` green), actively dogfooded on a real thesis. v2 is done: stable card layout, broadened sandboxing, a security hardening pass, and a desktop app (`src/histos/gui/`, packaged with PyInstaller) alongside the terminal, not instead of it. On `main` since, not released yet: `histos arrange`, which tidies up the whole board when you ask for it — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 didn't build one either (see below).
