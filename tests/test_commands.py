@@ -1,9 +1,11 @@
+import io
 import json
 import shutil
+import sys
 from pathlib import Path
 
 from histos import canvas, frontmatter
-from histos.cli import build_parser
+from histos.cli import build_parser, main
 
 
 def run(monkeypatch, tmp_path, *argv):
@@ -549,3 +551,29 @@ def test_arrange_options_can_be_switched_off(tmp_path, monkeypatch):
     data = canvas.load(tmp_path)
     assert ("biblio", "chapter") in _arrow_pairs(data)
     assert all(n["id"] != canvas.DONE_GROUP_ID for n in data["nodes"])
+
+
+def test_context_still_includes_a_dependency_whose_arrow_was_pruned(tmp_path, monkeypatch, capsys):
+    _chapter_project(monkeypatch, tmp_path)
+    run(monkeypatch, tmp_path, "arrange")
+    capsys.readouterr()
+
+    assert run(monkeypatch, tmp_path, "context", "chapter") == 0
+
+    output = capsys.readouterr().out
+    assert "## Dependency: intro" in output
+    assert "## Dependency (implied -- arrow not drawn): biblio" in output
+    assert output.count(": biblio (") == 1
+
+
+def test_main_prints_utf8_even_when_stdout_is_cp1252(tmp_path, monkeypatch):
+    # cp1252 is what Windows uses for piped output -- i.e. how an agent reads 'histos context'
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "a", "--title", "A", "--description", "x ← y")
+    buffer = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(buffer, encoding="cp1252"))
+
+    assert main(["context", "a"]) == 0
+
+    sys.stdout.flush()
+    assert "x ← y" in buffer.getvalue().decode("utf-8")

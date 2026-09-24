@@ -148,3 +148,36 @@ def test_reject_raises_when_no_pending_proposal(initialized_vault):
     _add_card(initialized_vault, "cap1")
     with pytest.raises(canvas.HistosError):
         operations.reject(initialized_vault, "cap1")
+
+
+def test_arrange_backs_up_the_previous_layout(initialized_vault):
+    _add_card(initialized_vault, "a")
+    _add_card(initialized_vault, "b", depends_on=["a"])
+    before = canvas.vault_canvas_path(initialized_vault).read_text(encoding="utf-8")
+
+    result = operations.arrange(initialized_vault, set_aside_done=True, prune_redundant=True)
+
+    assert result.backup_path == initialized_vault / "project.canvas.bak"
+    assert result.backup_path.read_text(encoding="utf-8") == before
+    assert result.cards == 2
+
+
+def test_arrange_remembers_pruned_dependencies_for_context(initialized_vault):
+    _add_card(initialized_vault, "a")
+    _add_card(initialized_vault, "b", depends_on=["a"])
+    _add_card(initialized_vault, "c", depends_on=["a", "b"])
+
+    result = operations.arrange(initialized_vault, set_aside_done=False, prune_redundant=True)
+
+    assert result.pruned == 1
+    data = canvas.load(initialized_vault)
+    assert [e["fromNode"] for e in canvas.incoming_edges(data, "c")] == ["b"]
+    meta, _ = frontmatter.read(initialized_vault / "content" / "c.md")
+    assert meta[operations.IMPLIED_DEPENDENCIES_KEY] == ["a"]
+
+    # the same arrow re-added later and pruned again is remembered once, not twice
+    canvas.add_edge(data, "a", "c")
+    canvas.save(initialized_vault, data)
+    operations.arrange(initialized_vault, set_aside_done=False, prune_redundant=True)
+    meta, _ = frontmatter.read(initialized_vault / "content" / "c.md")
+    assert meta[operations.IMPLIED_DEPENDENCIES_KEY] == ["a"]
