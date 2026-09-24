@@ -581,6 +581,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Card content is arbitrary UTF-8, but Windows encodes piped output (how agents read it) as cp1252.
+    if (sys.stdout.encoding or "").lower().replace("-", "") != "utf8" and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
