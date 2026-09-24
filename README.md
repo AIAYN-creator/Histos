@@ -10,7 +10,7 @@ The agent proposes the workflow and drafts the tasks; the human approves real ch
 
 Installing: [docs/install.md](docs/install.md). Day-to-day use (terminal and desktop app, side by side): [docs/usage.md](docs/usage.md).
 
-> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 13 commands, `pytest` green), actively dogfooded on a real thesis. v2 is done: stable card layout, broadened sandboxing, a security hardening pass, and a desktop app (`src/histos/gui/`, packaged with PyInstaller) alongside the terminal, not instead of it. On `main` since, not released yet: `histos arrange`, which tidies up the whole board when you ask for it — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 didn't build one either (see below).
+> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 13 commands, `pytest` green), actively dogfooded on a real thesis. v2 is done: stable card layout, broadened sandboxing, a security hardening pass, and a desktop app (`src/histos/gui/`, packaged with PyInstaller) alongside the terminal, not instead of it. v2.1 adds `histos arrange`, which tidies up the whole board when you ask for it — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 didn't build one either (see below).
 
 ## Core idea
 
@@ -151,16 +151,19 @@ Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Pr
 3. **Security hardening pass — done.** Dependency vulnerability scan (`pip-audit`, scoped to Histos's actual dependency tree, not the whole environment): clean, no known vulnerabilities. Path traversal reviewed beyond the id check in `add-card`: the JSON Schema itself constrains `cardNode.file` to `^content/[^/]+\.md$`, so even a hand-edited `project.canvas` can't point a card outside `content/` — `histos validate`/`_load_valid` rejects it before any command touches a file. Confirmed no `subprocess`/`shell=True`/`eval`/`pickle`/unsafe YAML loading anywhere in the codebase. One risk found and *deliberately left open*, not silently fixed: see limit (3) in [Trust model](#trust-model). The desktop-app surface got its own follow-up pass once built: `pip-audit` re-run scoped to the full dependency tree including `pywebview`/`pyinstaller` and their transitive deps (`pythonnet`, `clr_loader`...) — clean. The `js_api` bridge (`src/histos/gui/app.py`) never constructs a file path from JS input itself; every `Api` method delegates straight to `operations.py`, which already validates card ids against the schema before touching a file, so no new path-traversal surface was introduced by adding a GUI on top.
 4. **Stable card layout — done.** `add-card`, `link`, and `describe` no longer recompute every card's position and size on every call. A new card is placed via collision-avoidance so it doesn't overlap anything already on the board; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian. (v2.1 adds exactly one deliberate exception, `histos arrange`, which only runs when a human asks for it.)
 
-### v2.1 - Future release (not yet shipped)
+### v2.1 — done
 
-- Addressing GUI bugs and implementing minor features identified during beta testing.
-- **`histos arrange` — on `main`.** Born from a real 110-card board that had become unreadable: cards piled up in the first column, arrows frozen pointing up and down, and 643 cases of an arrow drawn across a card. `histos arrange` re-lays out the whole board on request:
+- **`histos arrange` — done.** Born from a real 110-card board that had become unreadable: cards piled up in the first column, arrows frozen pointing up and down, and 643 cases of an arrow drawn across a card. `histos arrange` re-lays out the whole board on request:
   - columns by dependency, ordered to minimize crossings (Sugiyama-style);
   - free corridors wherever an arrow skips over a column, computed from the exact curve Obsidian draws, so no arrow crosses a card (643 → 0 on that board, and 0 on every other real vault it was tried on);
   - cards with no arrows at all go into a "Not connected" group, and finished work (approved, with everything that depends on it approved too) into a "Done" group;
   - arrows already implied by a longer path are removed, while `histos context` keeps passing those dependencies to the agent.
 
   Around it: arrows now always leave a card's right side and enter the next card's left side (Obsidian used to freeze whatever side it guessed first), and new cards land next to their dependencies instead of in the first free slot. Terminal only — the desktop app has no button for it.
+
+### v2.2 - Future release (not yet shipped)
+
+- Addressing GUI bugs and implementing minor features identified during beta testing.
 
 ### v3 — future, not scoped yet
 
