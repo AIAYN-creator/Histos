@@ -17,7 +17,7 @@ This directory is a vault managed by **Histos**: a task board in `project.canvas
 | orange | `"2"` | In progress | assigned, being worked on |
 | red | `"1"` | Blocked | derived from the graph -- don't assign by hand, it recalculates itself |
 | yellow | `"3"` | Proposal pending review | waiting for a human's `approve`/`reject` |
-| cyan | `"5"` | Dependency change request | pending authorization (rule 2) |
+| cyan | `"5"` | Dependency change request | reserved -- no command sets it; to change a dependency, ask in the conversation (rule 2) |
 | green | `"4"` | Approved | done |
 
 ## Starting a new project (vault with no cards yet)
