@@ -57,10 +57,10 @@ Each card's color is its status — the same colors and meaning whether you're l
 | orange | In progress |
 | red | Blocked (recalculates itself, don't touch it by hand) |
 | yellow | Proposal pending — **your turn to review** |
-| cyan | The agent is asking for authorization to touch a dependency — **your turn to decide** |
+| cyan | Dependency change request — reserved: no command sets it yet |
 | green | Approved |
 
-When you see a yellow or cyan card, it's your turn.
+When you see a yellow card, it's your turn. When the agent needs a new dependency between cards, it doesn't color anything: it asks you in the conversation, and only adds it once you say yes.
 
 ## The day-to-day cycle
 
