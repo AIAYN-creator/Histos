@@ -46,6 +46,7 @@ DONE_GROUP_ID = "histos:done"
 UNCONNECTED_GROUP_LABEL = "Not connected: no dependencies either way"
 DONE_GROUP_LABEL = "Done: approved, and everything that depends on them too"
 _GROUP_PADDING = 60
+_GRID_GAP = 60
 _BLOCK_GAP = 200
 _ORDERING_SWEEPS = 24
 _ALIGN_ITERATIONS = 30
@@ -283,8 +284,8 @@ def arrange(data: dict, set_aside_done: bool = False, prune_redundant: bool = Fa
     if loose_open:
         gx = legend["x"] + legend["width"] + _BLOCK_GAP if legend else 0
         gy = legend["y"] if legend else top
-        per_row = max(3, (board_right - gx + COLUMN_GAP) // CARD_X_STEP)
-        _place_grid(_by_status(loose_open), gx + _GROUP_PADDING, gy + _GROUP_PADDING, per_row)
+        _place_grid(_by_status(loose_open), gx + _GROUP_PADDING, gy + _GROUP_PADDING,
+                    board_right - gx - 2 * _GROUP_PADDING)
         group = _group_around(UNCONNECTED_GROUP_ID, UNCONNECTED_GROUP_LABEL, loose_open)
         groups.append(group)
         top = max(top, group["y"] + group["height"] + _BLOCK_GAP)
@@ -318,7 +319,7 @@ def arrange(data: dict, set_aside_done: bool = False, prune_redundant: bool = Fa
     _clear_arrow_paths(lanes, edges, column, by_id, stack)
     below_done_lane = stack()
     if loose_done:
-        _place_grid(_by_status(loose_done), 0, below_done_lane, max(board_columns, 3))
+        _place_grid(_by_status(loose_done), 0, below_done_lane, board_right)
     if done_lane or loose_done:
         groups.append(_group_around(DONE_GROUP_ID, DONE_GROUP_LABEL, [by_id[c] for c in done_lane] + loose_done))
 
@@ -659,12 +660,15 @@ def _pack_in_order(
     return [shift + offset for shift, offset in zip(shifts, offsets)]
 
 
-def _place_grid(members: list[dict], x0: int, y0: int, per_row: int) -> None:
+def _place_grid(members: list[dict], x0: int, y0: int, available_width: int) -> None:
+    # No arrows run between these cards, so the grid can be much tighter than the dependency columns.
+    step = max(c["width"] for c in members) + _GRID_GAP
+    per_row = max(3, (available_width + _GRID_GAP) // step)
     y = y0
     for start in range(0, len(members), per_row):
         row = members[start:start + per_row]
         for i, card in enumerate(row):
-            card["x"] = x0 + i * CARD_X_STEP
+            card["x"] = x0 + i * step
             card["y"] = y
         y += max(c["height"] for c in row) + CARD_Y_GAP
 
