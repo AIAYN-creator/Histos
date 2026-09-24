@@ -7,6 +7,7 @@ This directory is a vault managed by **Histos**: a task board in `project.canvas
 1. **Never write directly to `content/*.md`, or to any file registered as a `sources` entry on a card.** Both are read-only for you. The only path for a content change to reach the canonical `.md` is `histos propose <id> --file <draft>` followed by `histos approve <id>` from a human. If you need to draft content, write it to a separate file (the draft) and pass it to `propose` -- never edit `content/<id>.md` directly. `propose` copies the draft to `proposals/<id>.md` (a visible folder in Obsidian, not hidden) until it's approved or rejected; the human may read it or even tweak it there before deciding -- that's their call, this rule is only for you. On approval, that copy is archived to `approved/<id>.md` (history); on rejection it's discarded without a trace. `sources` (see `describe --sources`) are the human's reference material -- a Word doc with a bibliography, a `.tex` in Overleaf -- never edit or "fix" them, not even something that looks like an obvious error: if a change is needed there, say so in the conversation, don't touch it yourself. If you're Claude Code: `content/**` is also denied in `.claude/settings.json` -- if an `Edit`/`Write`/`Bash` gets rejected for permissions there, that's intentional, don't try to work around it.
 2. **Never pass `--authorized` without a human having given you explicit permission in the current conversation.** Applies to `add-card --depends-on` and to `link` (for adding a dependency to an already existing card). Ask for permission first (say which dependency you want to create and why), wait for the answer, and only then pass `--authorized`.
 3. **No permission needed** for: creating standalone cards (no `--depends-on`), assigning cards (`assign`), updating description/sources (`describe`), proposing content (`propose`), or checking status (`status`, `diff`, `context`, `validate`).
+4. **Never run `histos arrange` unless the human asks for it in the current conversation.** It re-lays out the whole board and moves every card -- including the ones they placed by hand in Obsidian. Creating cards never moves anything else, so you never need to tidy up after yourself; if you think the board could use it, suggest it and let them decide.
 
 ## States (card color)
 
@@ -45,9 +46,10 @@ histos diff <id>
 histos approve <id>
 histos reject <id> [--feedback "..."]
 histos validate
+histos arrange                                           # ONLY when the human asks (rule 4)
 ```
 
-`histos <command> --help` for the details of each flag. Before proposing content for a card with dependencies, run `histos context <id>` instead of reading each `content/<dep>.md` by hand -- it bundles everything for you (including external files the human registered with `describe --sources`, e.g. a Word doc with a bibliography).
+`histos <command> --help` for the details of each flag. Before proposing content for a card with dependencies, run `histos context <id>` instead of reading each `content/<dep>.md` by hand -- it bundles everything for you (including external files the human registered with `describe --sources`, e.g. a Word doc with a bibliography). Sections labeled "Dependency (implied -- arrow not drawn)" are real dependencies too: `histos arrange` removed their arrow from the board because a longer path already implies it, and keeps them in the card's `implied_dependencies` frontmatter so you still see them -- treat them exactly like the others.
 
 ## Unsupervised mode (AFK)
 
