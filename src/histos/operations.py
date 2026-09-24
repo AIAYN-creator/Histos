@@ -8,6 +8,7 @@ implementation of what each action does. See the "Histos desktop app" plan for w
 """
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -236,3 +237,51 @@ def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> Re
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
     return RejectResult(card_id=card_id)
+
+
+IMPLIED_DEPENDENCIES_KEY = "implied_dependencies"
+
+
+@dataclass
+class ArrangeResult:
+    cards: int
+    columns: int
+    unconnected: int
+    set_aside_done: int
+    pruned: int
+    backup_path: Path
+
+
+def arrange(vault_root: Path, set_aside_done: bool = False, prune_redundant: bool = False) -> ArrangeResult:
+    data = _load_valid(vault_root)
+    canvas_path = canvas.vault_canvas_path(vault_root)
+    backup_path = canvas_path.with_name(canvas_path.name + ".bak")
+    shutil.copyfile(canvas_path, backup_path)
+
+    summary = canvas.arrange(data, set_aside_done=set_aside_done, prune_redundant=prune_redundant)
+    _remember_pruned_dependencies(vault_root, data, summary.pruned)
+    canvas.save(vault_root, data)
+    return ArrangeResult(
+        cards=len(canvas.cards(data)),
+        columns=summary.columns,
+        unconnected=summary.unconnected,
+        set_aside_done=summary.set_aside_done,
+        pruned=len(summary.pruned),
+        backup_path=backup_path,
+    )
+
+
+def _remember_pruned_dependencies(vault_root: Path, data: dict, pruned: list[tuple[str, str]]) -> None:
+    """A pruned arrow is still a dependency the card declared -- kept in its frontmatter for 'histos context'."""
+    by_dependent: dict[str, list[str]] = {}
+    for dependency, dependent in pruned:
+        by_dependent.setdefault(dependent, []).append(dependency)
+    for dependent, dependencies in by_dependent.items():
+        md_path = canvas.card_file_path(vault_root, canvas.find_card(data, dependent))
+        if not md_path.exists():
+            continue
+        meta, body = frontmatter.read(md_path)
+        implied = list(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
+        implied += [d for d in dependencies if d not in implied]
+        meta[IMPLIED_DEPENDENCIES_KEY] = implied
+        frontmatter.write(md_path, meta, body)

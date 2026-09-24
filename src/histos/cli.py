@@ -398,10 +398,18 @@ def cmd_context(args: argparse.Namespace) -> int:
     sections = [_render_card_context(vault_root, card, "Card")]
 
     by_id = {c["id"]: c for c in canvas.cards(data)}
-    for e in canvas.incoming_edges(data, args.id):
-        dep_card = by_id.get(e["fromNode"])
+    direct = [e["fromNode"] for e in canvas.incoming_edges(data, args.id)]
+    for dep_id in direct:
+        dep_card = by_id.get(dep_id)
         if dep_card:
             sections.append(_render_card_context(vault_root, dep_card, "Dependency"))
+
+    md_path = canvas.card_file_path(vault_root, card)
+    meta, _ = frontmatter.read(md_path) if md_path.exists() else ({}, "")
+    for dep_id in meta.get(operations.IMPLIED_DEPENDENCIES_KEY) or []:
+        dep_card = by_id.get(dep_id)
+        if dep_card and dep_id not in direct:
+            sections.append(_render_card_context(vault_root, dep_card, "Dependency (implied -- arrow not drawn)"))
 
     project_md = vault_root / "PROJECT.md"
     if project_md.exists():
@@ -446,6 +454,26 @@ def cmd_status(args: argparse.Namespace) -> int:
         for c in group.cards:
             desc = f"  -- {c.description}" if c.description else ""
             print(f"  - {c.id}  ({c.file}){desc}")
+    return 0
+
+
+def cmd_arrange(args: argparse.Namespace) -> int:
+    vault_root = _vault_root()
+    try:
+        result = operations.arrange(
+            vault_root, set_aside_done=args.set_aside_done, prune_redundant=args.prune_redundant,
+        )
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    details = [f"{result.unconnected} not connected"]
+    if args.set_aside_done:
+        details.append(f"{result.set_aside_done} set aside as done")
+    if args.prune_redundant:
+        details.append(f"{result.pruned} redundant arrows removed")
+    print(f"board rearranged: {result.cards} cards in {result.columns} columns ({', '.join(details)})")
+    print(f"previous layout saved to {result.backup_path.name} -- reload the canvas in Obsidian (Ctrl+R) to see it")
     return 0
 
 
@@ -534,6 +562,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("validate", help="validates project.canvas against the formal schema")
     p.set_defaults(func=cmd_validate)
+
+    p = sub.add_parser(
+        "arrange",
+        help="re-lays out the whole board, moving every card -- only when the human asks for it",
+    )
+    p.add_argument(
+        "--set-aside-done", action="store_true",
+        help="moves approved cards with nothing pending depending on them into a separate 'Done' group",
+    )
+    p.add_argument(
+        "--prune-redundant", action="store_true",
+        help="removes arrows already implied by a longer path (kept in the card's implied_dependencies for 'context')",
+    )
+    p.set_defaults(func=cmd_arrange)
 
     return parser
 
