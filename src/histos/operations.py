@@ -1,10 +1,9 @@
-"""Structured, non-printing core for the 5 human-facing commands (init, status, diff,
-approve, reject). Each function takes an explicit vault_root, returns a small dataclass on
+"""Structured, non-printing core for the human-facing commands (init, status, diff, approve,
+reject, arrange). Each function takes an explicit vault_root, returns a small dataclass on
 success, and raises canvas.HistosError on failure -- no print(), no argparse, no Path.cwd().
 
-This is what both the CLI (src/histos/cli.py, which wraps these in try/except and prints
-the same text it always has) and the future desktop app call, so there is exactly one
-implementation of what each action does. See the "Histos desktop app" plan for why.
+This is what both the CLI (src/histos/cli.py, which wraps these in try/except and prints)
+and the desktop app call, so there is exactly one implementation of what each action does.
 """
 from __future__ import annotations
 

@@ -8,6 +8,13 @@ def _card(id_, color):
     }
 
 
+def _overlap(a, b):
+    return (
+        a["x"] < b["x"] + b["width"] and b["x"] < a["x"] + a["width"]
+        and a["y"] < b["y"] + b["height"] and b["y"] < a["y"] + a["height"]
+    )
+
+
 def test_is_valid_card_id_accepts_slug():
     assert canvas.is_valid_card_id("cap1") is True
     assert canvas.is_valid_card_id("cap-1_intro") is True
@@ -135,28 +142,15 @@ def test_estimate_card_size_no_description_is_minimum():
     assert height == canvas.CARD_HEIGHT
 
 
-def test_compute_ranks_linear_chain():
-    data = {
-        "nodes": [_card(n, canvas.BACKLOG) for n in ("a", "b", "c")],
-        "edges": [
-            {"id": "e1", "fromNode": "a", "toNode": "b"},
-            {"id": "e2", "fromNode": "b", "toNode": "c"},
-        ],
-    }
-    assert canvas.compute_ranks(data) == {"a": 0, "b": 1, "c": 2}
+def test_assign_columns_linear_chain():
+    columns = canvas._assign_columns({"a", "b", "c"}, [("a", "b"), ("b", "c")])
+    assert columns == {"a": 0, "b": 1, "c": 2}
 
 
-def test_compute_ranks_takes_longest_incoming_path():
-    # d depende de b (rank 1) y de c (rank 0) -> rank(d) = max(1, 0) + 1 = 2
-    data = {
-        "nodes": [_card(n, canvas.BACKLOG) for n in ("a", "b", "c", "d")],
-        "edges": [
-            {"id": "e1", "fromNode": "a", "toNode": "b"},
-            {"id": "e2", "fromNode": "b", "toNode": "d"},
-            {"id": "e3", "fromNode": "c", "toNode": "d"},
-        ],
-    }
-    assert canvas.compute_ranks(data)["d"] == 2
+def test_assign_columns_slides_a_lone_dependency_up_to_its_dependent():
+    # c only feeds d, so it sits right before d instead of far left at column 0
+    columns = canvas._assign_columns({"a", "b", "c", "d"}, [("a", "b"), ("b", "d"), ("c", "d")])
+    assert columns == {"a": 0, "b": 1, "c": 1, "d": 2}
 
 
 def test_place_new_card_stacks_same_rank_vertically():
@@ -171,10 +165,7 @@ def test_place_new_card_stacks_same_rank_vertically():
 
     assert a["x"] == b["x"]
     assert a["y"] != b["y"]
-    assert not canvas._rects_overlap(
-        (a["x"], a["y"], a["width"], a["height"]),
-        (b["x"], b["y"], b["width"], b["height"]),
-    )
+    assert not _overlap(a, b)
 
 
 def test_place_new_card_separates_columns_by_rank():
@@ -217,7 +208,4 @@ def test_place_new_card_avoids_overlap_even_off_grid():
     data["nodes"].append(b)
     canvas.place_new_card(data, b)
 
-    assert not canvas._rects_overlap(
-        (a["x"], a["y"], a["width"], a["height"]),
-        (b["x"], b["y"], b["width"], b["height"]),
-    )
+    assert not _overlap(a, b)

@@ -7,7 +7,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 CANVAS_FILENAME = "project.canvas"
 
@@ -137,12 +137,12 @@ def is_valid_card_id(card_id: str) -> bool:
 
 
 def add_card_node(data: dict, card_id: str, color: str, width: int = CARD_WIDTH, height: int = CARD_HEIGHT) -> dict:
-    n = len(cards(data))
+    """Appends the card unpositioned -- place_new_card() gives it its real x/y once its edges exist."""
     node = {
         "id": card_id,
         "type": "file",
-        "x": CARD_X_STEP * n,
-        "y": CARD_ROW_Y,
+        "x": 0,
+        "y": 0,
         "width": width,
         "height": height,
         "file": f"content/{card_id}.md",
@@ -162,36 +162,6 @@ def estimate_card_size(description: Optional[str]) -> tuple[int, int]:
     total_lines = 1 + desc_lines  # +1 por el titulo (heading)
     height = max(CARD_HEIGHT, 40 + total_lines * _LINE_HEIGHT + 20)
     return CARD_WIDTH, height
-
-
-def compute_ranks(data: dict) -> dict[str, int]:
-    """Rango de cada tarjeta = camino mas largo desde una raiz (tarjeta sin dependencias).
-    Asume el grafo aciclico -- ya se comprueba en cada mutacion de edges antes de llegar aqui.
-    """
-    by_id = {c["id"]: c for c in cards(data)}
-    incoming: dict[str, list[str]] = {cid: [] for cid in by_id}
-    for e in data.get("edges", []):
-        if e["fromNode"] in by_id and e["toNode"] in by_id:
-            incoming[e["toNode"]].append(e["fromNode"])
-
-    rank: dict[str, int] = {}
-
-    def resolve(cid: str) -> int:
-        if cid in rank:
-            return rank[cid]
-        deps = incoming[cid]
-        rank[cid] = 0 if not deps else 1 + max(resolve(d) for d in deps)
-        return rank[cid]
-
-    for cid in by_id:
-        resolve(cid)
-    return rank
-
-
-def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
-    ax, ay, aw, ah = a
-    bx, by, bw, bh = b
-    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
 
 
 def place_new_card(data: dict, card: dict) -> None:
@@ -429,7 +399,7 @@ def _put_lane(lane: tuple[set[str], dict[str, float]], by_id: dict[str, dict], t
 
 def _clear_arrow_paths(
     lanes: list[tuple[set[str], dict[str, float]]], edges: list[tuple[str, str]], column: dict[str, int],
-    by_id: dict[str, dict], stack,
+    by_id: dict[str, dict], stack: Callable[[], int],
 ) -> None:
     """An arrow drawn across a card reads as if it connected to it, so push cards off such arrows' paths."""
     lane_of = {cid: i for i, (ids, _) in enumerate(lanes) for cid in ids}
