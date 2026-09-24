@@ -26,7 +26,7 @@ Additional subfolders inside `content/` (e.g. `drafts/`) remain open — not par
 Histos uses three of JSON Canvas's four node types:
 
 - **`file`** — a task card. Points to a real `.md` in `content/`; never contains embedded text. A loose `link` node is not allowed.
-- **`group`** — a purely geometric grouping (e.g. "chapter 3"). A node "belongs" to a group only if its coordinates fall inside the group's rectangle — there's no `parent_id` in the data. Carries no status.
+- **`group`** — a purely geometric grouping (e.g. "chapter 3"). A node "belongs" to a group only if its coordinates fall inside the group's rectangle — there's no `parent_id` in the data. Carries no status. Groups whose `id` starts with `histos:` — `histos:unconnected` ("Not connected") and `histos:done` ("Done") — belong to `histos arrange`, which deletes and recreates them every time it runs (`:` can't appear in a card id, so they never collide with one). Any other group is yours and Histos never touches it — but `arrange` moves cards without looking at your groups, so a card can end up outside a group it used to sit in.
 - **`text`** — only for decorative/documentation content (the color legend that `histos init` places on every new canvas). Not a card: the CLI ignores it entirely — all status/dependency logic explicitly filters by `type == "file"`. Nothing stops you from adding more text notes by hand in Obsidian; Histos simply doesn't touch them.
 
 ## Id convention
@@ -54,6 +54,10 @@ A `file` card without `color` isn't managed by Histos (added by hand in Obsidian
 
 `fromNode → toNode` means **"toNode depends on fromNode"**: fromNode must reach Approved before toNode can leave Blocked. This matches the canvas's left-to-right, Gantt-style layout and the spec's default (`toEnd` = `"arrow"` points at toNode, i.e. at whatever gets unblocked).
 
+**Sides:** Histos always writes `"fromSide": "right"` and `"toSide": "left"` on dependency edges, and rewrites them on every save. Both are optional in JSON Canvas, but when they're missing Obsidian picks a side the first time it saves the file, based on where the cards happen to be at that moment — top/bottom on a tall board — and then keeps it forever, even after the cards move. Edges between anything other than two cards (e.g. an arrow you drew to a text note) are left as they are.
+
+**Redundant edges:** when a longer path already implies an edge (A → B → C makes a direct A → C redundant), `histos arrange` removes it from the canvas and records A in C's `implied_dependencies` frontmatter (see below). That changes nothing about what's blocked — C can't leave Blocked before B is approved, and B can't before A — it just stops drawing the same dependency twice.
+
 ## `.md` frontmatter
 
 Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatter on each card — never in the `.canvas`:
@@ -66,6 +70,7 @@ Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatt
 | `actual_duration_hours` | number | filled in on completion, to compare against the estimate |
 | `assigned_to` | `"agent"` \| `"human"` | |
 | `status_note` | string | free text, e.g. the reason it's blocked |
+| `implied_dependencies` | list of card ids | written by `histos arrange`: dependencies whose edge it removed because a longer path already implies them. Not drawn on the board and not needed to compute Blocked (the path covers it), but `histos context` still includes them, labeled "implied" |
 
 `status` is deliberately not here: it lives as `color` on the canvas so the same data doesn't have two sources of truth.
 
@@ -82,8 +87,8 @@ Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatt
       "file": "content/cap3.md", "color": "1" }         // Blocked (depends on cap2)
   ],
   "edges": [
-    { "id": "e1", "fromNode": "cap1", "toNode": "cap2" },
-    { "id": "e2", "fromNode": "cap2", "toNode": "cap3" }
+    { "id": "e1", "fromNode": "cap1", "toNode": "cap2", "fromSide": "right", "toSide": "left" },
+    { "id": "e2", "fromNode": "cap2", "toNode": "cap3", "fromSide": "right", "toSide": "left" }
   ]
 }
 ```

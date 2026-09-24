@@ -18,8 +18,9 @@ Histos has two front ends for the parts you do yourself, and they're genuinely i
 | Accept it | `histos approve <id>` | **Approve** |
 | Send it back | `histos reject <id> --feedback "..."` | **Reject** (same optional feedback) |
 | Open the board in Obsidian | (open Obsidian yourself) | **Open in Obsidian**, or **Show folder** if that doesn't work — see the README's Trust model for why it might not |
+| Tidy up the whole board | `histos arrange` | — (terminal only, see [Keeping the board tidy](#keeping-the-board-tidy)) |
 
-The desktop app only covers these 5 commands — the ones a human does. The rest (`add-card`, `link`, `describe`, `assign`, `propose`, `context`, `validate`) are what the agent runs on your behalf; there's no reason for a human to run those by hand day to day, so they stay terminal/agent-only and only show up below as terminal commands.
+The desktop app covers the first 5 commands above. `histos arrange` is yours too — the agent never runs it on its own — but it's terminal-only. The rest (`add-card`, `link`, `describe`, `assign`, `propose`, `context`, `validate`) are what the agent runs on your behalf; there's no reason for a human to run those by hand day to day, so they stay terminal/agent-only and only show up below as terminal commands.
 
 ## Starting a project
 
@@ -71,6 +72,30 @@ When you see a yellow or cyan card, it's your turn.
 
 (Vaults created before Histos's English rename use `propuestas/`/`aprobados/` instead of `proposals/`/`approved/` — same folders, same behavior, just the old names. `histos` detects whichever one your vault already has and keeps using it, so existing vaults are never migrated automatically.)
 
+## Keeping the board tidy
+
+**Nothing on the board moves on its own.** Approving a card only changes its color (and turns the cards that were waiting on it from red to purple). A new card lands one column to the right of its dependencies, at their height, without pushing anything else. Cards you dragged somewhere by hand stay exactly there. So as weeks go by, the board slowly drifts out of shape: finished cards stay wherever they were, and a dependency added later can leave a card in an odd spot.
+
+When that happens — or simply after a batch of approvals — tidy it up from the vault folder:
+
+```bash
+histos arrange
+```
+
+Then reload the canvas in Obsidian (`Ctrl+R`). What it does:
+
+- **Columns by dependency**, left to right, with related cards next to each other so arrows cross as little as possible.
+- **No arrow across a card:** wherever an arrow skips over a column, the cards in that column make room for it.
+- **"Not connected" group:** cards with no arrows at all, in or out — often ideas for later, or a dependency nobody linked yet (worth a look).
+- **"Done" group:** approved cards where everything that depends on them is approved too — finished history, out of the way of the active work.
+- **Redundant arrows removed:** if a card depends on A both directly and through B, the direct arrow to A adds nothing the path through B doesn't already say, so it goes. Nothing is lost: the card keeps A in its `implied_dependencies`, and `histos context` still hands A to the agent.
+
+Two switches, both on by default: `--no-set-aside-done` keeps finished cards among the rest, `--no-prune-redundant` keeps every arrow.
+
+It's the only command that moves cards that already exist, including the ones you placed by hand — that's why it only ever runs when you ask. The previous layout is saved as `project.canvas.bak` next to `project.canvas`: to undo, close the canvas in Obsidian and put the `.bak` back in place of `project.canvas`. It only keeps the layout from just before the *last* `arrange`.
+
+The agent is told never to run it on its own (rule 4 in `AGENTS.md`). A vault created before that rule existed has an older copy of `AGENTS.md`, since `init` never overwrites it — copy the rule over by hand if you want it there too.
+
 ## Why it's safe to leave it working unsupervised
 
 The agent can **never** write to `content/*.md` without going through steps 2-4 above, and can **never** touch the dependency graph without asking you first in the conversation (a rule that lives in `AGENTS.md`, and that the CLI itself enforces with the `--authorized` flag). You can leave it processing a queue of cards without being present: the worst you'll find when you get back is a few yellow cards waiting for review, with their full drafts already visible in `proposals/` — never a surprise written without your permission. Reviewing those later from the terminal or from the desktop app makes no difference to any of this.
@@ -80,7 +105,7 @@ The agent can **never** write to `content/*.md` without going through steps 2-4 
 These are what the agent runs for itself — terminal/agent-only, no desktop app screen for them, since a human doesn't normally run these by hand:
 
 - `histos describe <id> [--text "..."] [--sources path1 path2 ...]` — sets or changes a card's description and/or its list of external reference files (`.txt`, `.md`, `.tex`, `.docx` — e.g. the Word doc where you keep your bibliography, or the `.tex` you're editing in VSCode/Overleaf). Paths can be anywhere on disk, they don't have to live inside the vault. `--sources` replaces the whole list, it doesn't append. It doesn't touch content, so it doesn't need approval.
-- `histos context <id>` — bundles into a single block of text: the card's description and sources, the same for each direct dependency (plus its content if already Approved), and `PROJECT.md` if it exists. `AGENTS.md` tells the agent to run this before drafting an assigned card.
+- `histos context <id>` — bundles into a single block of text: the card's description and sources, the same for each direct dependency (plus its content if already Approved) — including the ones `histos arrange` stopped drawing as redundant (its `implied_dependencies`) — and `PROJECT.md` if it exists. `AGENTS.md` tells the agent to run this before drafting an assigned card.
 
 **Important — this isn't automatic by location.** Having a Word doc or a `.tex` file open in the same vault folder doesn't make it get used automatically: you have to register the path explicitly once with `describe --sources`. That's deliberate — without that registration there's no reliable way to know which loose file is relevant to which card. Register explicitly once, use it automatically (via `context`) afterward.
 - `histos link <id> --depends-on ID [ID...] --authorized` — for when you discover a dependency after already creating the card (if you knew it from the start, just set it directly in `add-card --depends-on`).
@@ -95,4 +120,4 @@ Validates `project.canvas` against the formal schema and tells you exactly what'
 
 ## Full reference
 
-All 12 commands with their flags are in the [README's CLI section](../README.md#cli). The formal `.canvas` schema is in [docs/canvas-schema.md](canvas-schema.md). The desktop app doesn't need a separate reference — every screen is just the 5 actions from the table above, and the buttons are labeled for what they do.
+All 13 commands with their flags are in the [README's CLI section](../README.md#cli). The formal `.canvas` schema is in [docs/canvas-schema.md](canvas-schema.md). The desktop app doesn't need a separate reference — every screen is just the 5 actions from the table above, and the buttons are labeled for what they do.

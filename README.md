@@ -6,7 +6,7 @@ The agent proposes the workflow and drafts the tasks; the human approves real ch
 
 Installing: [docs/install.md](docs/install.md). Day-to-day use (terminal and desktop app, side by side): [docs/usage.md](docs/usage.md).
 
-> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 12 commands, `pytest` green), actively dogfooded on a real thesis. v2 is done: stable card layout, broadened sandboxing, a security hardening pass, and a desktop app (`src/histos/gui/`, packaged with PyInstaller) alongside the terminal, not instead of it — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 didn't build one either (see below).
+> **State:** v1 MVP shipped — formal schema ([`src/histos/schema/`](src/histos/schema/)) and CLI ([`src/histos/`](src/histos/), 13 commands, `pytest` green), actively dogfooded on a real thesis. v2 is done: stable card layout, broadened sandboxing, a security hardening pass, and a desktop app (`src/histos/gui/`, packaged with PyInstaller) alongside the terminal, not instead of it. On `main` since, not released yet: `histos arrange`, which tidies up the whole board when you ask for it — see [Roadmap](#roadmap). There is no Obsidian plugin, and v2 didn't build one either (see below).
 
 ## Core idea
 
@@ -64,7 +64,7 @@ A real, agent-agnostic guarantee (not just for Claude Code) would require separa
 > Formal, machine-checkable schema: [`src/histos/schema/histos-canvas.schema.json`](src/histos/schema/histos-canvas.schema.json) — full detail in [`docs/canvas-schema.md`](docs/canvas-schema.md).
 
 - **Node type:** `file` — each card points to a real `.md` in the vault, it never contains embedded text. (`text` is used only for the decorative color legend that `histos init` generates; the CLI ignores it entirely.)
-- **Layout:** reads like a Gantt chart but without calendar dates — a new card's column (x) is the dependency rank (longest path from a root); its row (y) is the first spot, scanning down, that doesn't overlap any other node already on the board. `add-card` places only the card it creates this way; `describe` may resize a card to fit a new description but never repositions it; `link` never touches position or size at all. Once a card has a position, only the user (by hand, in Obsidian) moves it again — see [Roadmap](#roadmap) v2. Not a full dagre implementation (no edge-crossing minimization), but it covers the real use case.
+- **Layout:** reads like a Gantt chart but without calendar dates — dependencies flow left to right, and every arrow leaves a card's right side and enters the next card's left side. A new card lands one column to the right of its dependencies, at their average height, in the nearest spot that doesn't overlap another node or sit on an existing arrow. Nothing else moves when that happens: `add-card` only places the card it creates, `describe` may resize a card to fit a new description but never repositions it, and `link` never touches position or size at all. The one command that moves existing cards is [`histos arrange`](#cli), which a human runs on purpose to re-lay out the whole board: dependency columns ordered to minimize crossings, a free corridor wherever an arrow skips over a column (so no arrow is ever drawn across a card), and two groups it owns — "Not connected" and "Done" (see [`docs/canvas-schema.md`](docs/canvas-schema.md)).
 
 ### Color legend
 
@@ -81,7 +81,7 @@ A real, agent-agnostic guarantee (not just for Claude Code) would require separa
 
 Whatever Obsidian/JSON Canvas doesn't natively interpret (estimated duration, actual duration, who a task is assigned to, notes on why it's blocked) isn't forced into the `.canvas` — it's stored as **YAML frontmatter** at the top of each `.md`, a format Obsidian already supports natively. This keeps the `.canvas` 100% compatible with standard Obsidian.
 
-Fields: `estimated_duration_hours`, `actual_duration_hours`, `assigned_to`, `status_note`. Tracking estimated vs. actual over time will make it possible to calibrate how reliable the agent's estimates are for this kind of task.
+Fields: `estimated_duration_hours`, `actual_duration_hours`, `assigned_to`, `status_note`. Tracking estimated vs. actual over time will make it possible to calibrate how reliable the agent's estimates are for this kind of task. `histos arrange` adds one more, `implied_dependencies`: dependencies whose arrow it removed from the board because a longer path already implies them, kept so `histos context` still hands them to the agent.
 
 ## CLI
 
@@ -113,6 +113,11 @@ histos approve cap1                                     # applies the proposal t
 histos reject cap1 [--feedback "..."]                   # discards the proposal -> Backlog, feedback in status_note
 histos status                                           # cards grouped by status (recalculates Blocked/Backlog)
 histos validate                                         # validates project.canvas against the formal schema
+histos arrange [--no-set-aside-done] [--no-prune-redundant]
+                                                          # re-lays out the WHOLE board -- a human decision, never
+                                                          # the agent's: dependency columns, no arrow across a card,
+                                                          # "Not connected" and "Done" groups, redundant arrows
+                                                          # removed; the previous layout goes to project.canvas.bak
 ```
 
 ### Opening the vault in Obsidian
@@ -140,11 +145,18 @@ Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Pr
 1. **Desktop app for non-technical use — done.** A `pywebview` window over `src/histos/operations.py` (a structured, non-printing extraction of the 5 human-facing commands: `init`, `status`, `diff`, `approve`, `reject`), packaged with PyInstaller (`packaging/histos-gui.spec`). The terminal isn't going anywhere — `histos` keeps working exactly as before, for everyone (including the agent, for the other 7 commands); the desktop app is a second, additional front end onto the same `operations.py`, not a replacement. Obsidian stays the visual canvas, installed separately, not bundled. Screens: pick a project folder (remembered for next time) → if it isn't a Histos project yet, offer to start one, with a hint to open it in Obsidian and start an agent there once it is → a status overview (all 6 states, with the cards waiting for review front and center) → approve/reject with a plain-language before/after comparison, not a unified diff. Buttons to open the vault in Obsidian (best-effort — Obsidian's own `open?path=` URI handling has [longstanding](https://forum.obsidian.md/t/starting-obsidian-from-command-line-with-uri-open-path-is-not-working-under-windows/107025) [reliability](https://forum.obsidian.md/t/obsidian-uri-doesnt-work-with-absolute-path-when-running-from-chrome-or-windows-10/73480) issues on Windows) or in the file explorer (always reliable). Does not launch or manage agent sessions — the user still runs their agent of choice (Claude Code, Codex...) separately, so Histos stays agent-agnostic. GUI text is in English, matching the rest of the project — translating it is a real, deliberately deferred idea for a later release, not v2.
 2. **Broaden the sandboxing convention — done** (still tool-level, not OS-level — see [Trust model](#trust-model)). Claude Code's `permissions.deny` now also covers `project.canvas`, and `describe --sources` auto-registers each source's absolute path into the deny list too, add-only so it can't clobber a rule you added by hand. Best-effort look at Codex CLI and Gemini CLI's own permission systems, documented in [Trust model](#trust-model) — neither is wired up by Histos, since both use a fundamentally different mechanism from Claude Code's `settings.json`.
 3. **Security hardening pass — done.** Dependency vulnerability scan (`pip-audit`, scoped to Histos's actual dependency tree, not the whole environment): clean, no known vulnerabilities. Path traversal reviewed beyond the id check in `add-card`: the JSON Schema itself constrains `cardNode.file` to `^content/[^/]+\.md$`, so even a hand-edited `project.canvas` can't point a card outside `content/` — `histos validate`/`_load_valid` rejects it before any command touches a file. Confirmed no `subprocess`/`shell=True`/`eval`/`pickle`/unsafe YAML loading anywhere in the codebase. One risk found and *deliberately left open*, not silently fixed: see limit (3) in [Trust model](#trust-model). The desktop-app surface got its own follow-up pass once built: `pip-audit` re-run scoped to the full dependency tree including `pywebview`/`pyinstaller` and their transitive deps (`pythonnet`, `clr_loader`...) — clean. The `js_api` bridge (`src/histos/gui/app.py`) never constructs a file path from JS input itself; every `Api` method delegates straight to `operations.py`, which already validates card ids against the schema before touching a file, so no new path-traversal surface was introduced by adding a GUI on top.
-4. **Stable card layout — done.** `add-card`, `link`, and `describe` no longer recompute every card's position and size on every call. A new card is placed via collision-avoidance so it doesn't overlap anything already on the board; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian.
+4. **Stable card layout — done.** `add-card`, `link`, and `describe` no longer recompute every card's position and size on every call. A new card is placed via collision-avoidance so it doesn't overlap anything already on the board; once a card exists, the CLI never moves or resizes it again — regardless of whether the user repositioned it by hand in Obsidian. (v2.1 adds exactly one deliberate exception, `histos arrange`, which only runs when a human asks for it.)
 
 ### v2.1 - Future release (not yet shipped)
 
 - Addressing GUI bugs and implementing minor features identified during beta testing.
+- **`histos arrange` — on `main`.** Born from a real 110-card board that had become unreadable: cards piled up in the first column, arrows frozen pointing up and down, and 643 cases of an arrow drawn across a card. `histos arrange` re-lays out the whole board on request:
+  - columns by dependency, ordered to minimize crossings (Sugiyama-style);
+  - free corridors wherever an arrow skips over a column, computed from the exact curve Obsidian draws, so no arrow crosses a card (643 → 0 on that board, and 0 on every other real vault it was tried on);
+  - cards with no arrows at all go into a "Not connected" group, and finished work (approved, with everything that depends on it approved too) into a "Done" group;
+  - arrows already implied by a longer path are removed, while `histos context` keeps passing those dependencies to the agent.
+
+  Around it: arrows now always leave a card's right side and enter the next card's left side (Obsidian used to freeze whatever side it guessed first), and new cards land next to their dependencies instead of in the first free slot. Terminal only — the desktop app has no button for it.
 
 ### v3 — future, not scoped yet
 
