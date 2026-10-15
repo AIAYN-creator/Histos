@@ -497,6 +497,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return 1
 
     errors = validation.validate_all(data)
+    if not errors:  # card paths are only trustworthy once the canvas itself is valid
+        errors += validation.validate_frontmatter(vault_root, data)
     errors += [f"config: {e}" for e in config.validate(vault_root)]
     if errors:
         for e in errors:

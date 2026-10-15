@@ -5,20 +5,25 @@ from __future__ import annotations
 
 import json
 from importlib import resources
+from pathlib import Path
 
+import yaml
 from jsonschema import Draft202012Validator
 
-from . import canvas
+from . import canvas, frontmatter
 
-_SCHEMA_CACHE: dict | None = None
+_SCHEMA_CACHE: dict[str, dict] = {}
+
+
+def _load_named_schema(filename: str) -> dict:
+    if filename not in _SCHEMA_CACHE:
+        ref = resources.files("histos").joinpath("schema", filename)
+        _SCHEMA_CACHE[filename] = json.loads(ref.read_text(encoding="utf-8"))
+    return _SCHEMA_CACHE[filename]
 
 
 def load_schema() -> dict:
-    global _SCHEMA_CACHE
-    if _SCHEMA_CACHE is None:
-        ref = resources.files("histos").joinpath("schema", "histos-canvas.schema.json")
-        _SCHEMA_CACHE = json.loads(ref.read_text(encoding="utf-8"))
-    return _SCHEMA_CACHE
+    return _load_named_schema("histos-canvas.schema.json")
 
 
 def validate_schema(data: dict) -> list[str]:
@@ -47,6 +52,26 @@ def validate_acyclic(data: dict) -> list[str]:
     if cycle:
         return [f"cycle: circular dependency between {' -> '.join(cycle)}"]
     return []
+
+
+def validate_frontmatter(vault_root: Path, data: dict) -> list[str]:
+    """Field types in each card's frontmatter. Reported by `histos validate` only -- unlike a
+    broken canvas, one odd card never stops the other commands."""
+    validator = Draft202012Validator(_load_named_schema("histos-frontmatter.schema.json"))
+    errors = []
+    for card in canvas.cards(data):
+        md_path = canvas.card_file_path(vault_root, card)
+        if not md_path.exists():
+            continue
+        try:
+            meta, _ = frontmatter.read(md_path)
+        except yaml.YAMLError as e:
+            errors.append(f"frontmatter: {card['id']}: can't parse it as YAML: {e}")
+            continue
+        for e in validator.iter_errors(meta):
+            where = "/".join(str(p) for p in e.path) or "(root)"
+            errors.append(f"frontmatter: {card['id']}: {where}: {e.message}")
+    return errors
 
 
 def validate_all(data: dict) -> list[str]:
