@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from .fsutil import write_text_atomic
+
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
 
 DEFAULT_META = {
@@ -29,4 +31,4 @@ def read(path: Path) -> tuple[dict, str]:
 
 def write(path: Path, meta: dict, body: str) -> None:
     yaml_block = yaml.safe_dump(meta, sort_keys=False, allow_unicode=True)
-    path.write_text(f"---\n{yaml_block}---\n{body}", encoding="utf-8")
+    write_text_atomic(path, f"---\n{yaml_block}---\n{body}")

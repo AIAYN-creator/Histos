@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from . import canvas, frontmatter, operations, validation
+from .fsutil import write_text_atomic
 
 _SETTINGS_PATH = ".claude/settings.json"
 # Kept in sync with templates/.claude/settings.json -- see _sync_permissions_deny.
@@ -78,10 +79,8 @@ def _sync_permissions_deny(vault_root: Path, source_paths: list[Path]) -> None:
 
     if changed:
         try:
-            settings_path.write_text(
-                json.dumps(settings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-            )
-        except OSError:
+            write_text_atomic(settings_path, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
+        except (OSError, canvas.HistosError):
             pass  # best-effort -- must never fail the describe command that triggered this
 
 
@@ -317,7 +316,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
 
     proposal_path = operations._proposal_path(vault_root, args.id)
     proposal_path.parent.mkdir(parents=True, exist_ok=True)
-    proposal_path.write_text(draft_path.read_text(encoding="utf-8"), encoding="utf-8")
+    write_text_atomic(proposal_path, draft_path.read_text(encoding="utf-8"))
 
     card["color"] = canvas.PROPUESTA_PENDIENTE
     canvas.save(vault_root, data)

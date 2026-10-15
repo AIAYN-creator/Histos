@@ -7,13 +7,13 @@ and the desktop app call, so there is exactly one implementation of what each ac
 """
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Optional
 
 from . import canvas, frontmatter, validation
+from .fsutil import copy_file_atomic, write_text_atomic
 
 STATE_NAMES = {
     canvas.BLOQUEADA: "Blocked",
@@ -84,7 +84,7 @@ def _install_agent_templates(vault_root: Path) -> list[str]:
             continue
         ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(ref.read_text(encoding="utf-8"), encoding="utf-8")
+        write_text_atomic(target, ref.read_text(encoding="utf-8"))
     return warnings
 
 
@@ -255,7 +255,7 @@ def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) ->
     data = _load_valid(vault_root)
     canvas_path = canvas.vault_canvas_path(vault_root)
     backup_path = canvas_path.with_name(canvas_path.name + ".bak")
-    shutil.copyfile(canvas_path, backup_path)
+    copy_file_atomic(canvas_path, backup_path)
 
     summary = canvas.arrange(data, set_aside_done=set_aside_done, prune_redundant=prune_redundant)
     _remember_pruned_dependencies(vault_root, data, summary.pruned)

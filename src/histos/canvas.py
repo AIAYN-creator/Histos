@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 from .errors import HistosError
+from .fsutil import write_text_atomic
 
 CANVAS_FILENAME = "project.canvas"
 
@@ -100,10 +101,7 @@ def load(vault_root: Path) -> dict:
 def save(vault_root: Path, data: dict) -> None:
     # Obsidian freezes whatever side it guesses for a side-less edge (often top/bottom) on its next save.
     normalize_edge_sides(data)
-    path = vault_canvas_path(vault_root)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        f.write("\n")
+    write_text_atomic(vault_canvas_path(vault_root), json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
 def cards(data: dict) -> list[dict]:
