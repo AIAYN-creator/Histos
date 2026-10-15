@@ -18,6 +18,15 @@ _BASE_DENY_RULES = [
     "Edit(content/**)",
     "Write(project.canvas)",
     "Edit(project.canvas)",
+    "Write(PROJECT.md)",
+    "Edit(PROJECT.md)",
+    "Write(ARCHITECTURE.md)",
+    "Edit(ARCHITECTURE.md)",
+]
+# Vault-wide guidance files, in the order `context` appends them after the cards.
+_GUIDANCE_FILES = [
+    ("PROJECT.md", "Project brief"),
+    ("ARCHITECTURE.md", "Architecture"),
 ]
 
 
@@ -381,8 +390,8 @@ def _render_card_context(vault_root: Path, card: dict, label: str, with_feedback
 
 def cmd_context(args: argparse.Namespace) -> int:
     """Bundles description+approved content+sources for the card and its dependencies,
-    the feedback from a rejected proposal of the card itself, and PROJECT.md if it
-    exists -- everything an agent needs to start working the card without gathering it by hand.
+    the feedback from a rejected proposal of the card itself, and PROJECT.md/ARCHITECTURE.md
+    if they exist -- everything an agent needs to start working the card without gathering it by hand.
     """
     vault_root = _vault_root()
     try:
@@ -412,9 +421,10 @@ def cmd_context(args: argparse.Namespace) -> int:
         if dep_card and dep_id not in direct:
             sections.append(_render_card_context(vault_root, dep_card, "Dependency (implied -- arrow not drawn)"))
 
-    project_md = vault_root / "PROJECT.md"
-    if project_md.exists():
-        sections.append("## Project brief (PROJECT.md)\n\n" + project_md.read_text(encoding="utf-8").strip())
+    for filename, label in _GUIDANCE_FILES:
+        path = vault_root / filename
+        if path.exists():
+            sections.append(f"## {label} ({filename})\n\n" + path.read_text(encoding="utf-8").strip())
 
     print("\n\n---\n\n".join(sections))
     return 0
@@ -545,7 +555,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.set_defaults(func=cmd_diff)
 
-    p = sub.add_parser("context", help="bundles description+approved dependencies+sources+PROJECT.md to work the card")
+    p = sub.add_parser("context", help="bundles description+approved dependencies+sources+PROJECT.md+ARCHITECTURE.md to work the card")
     p.add_argument("id")
     p.set_defaults(func=cmd_context)
 

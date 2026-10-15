@@ -515,6 +515,55 @@ def test_context_includes_project_md(tmp_path, monkeypatch, capsys):
     assert "Brief: un TFG sobre pruebas." in output
 
 
+def test_context_includes_architecture_md_after_project_md(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    (tmp_path / "PROJECT.md").write_text("Brief del proyecto.\n", encoding="utf-8")
+    (tmp_path / "ARCHITECTURE.md").write_text("Citas en formato APA.\n", encoding="utf-8")
+
+    capsys.readouterr()
+    assert run(monkeypatch, tmp_path, "context", "cap1") == 0
+    output = capsys.readouterr().out
+
+    assert "## Architecture (ARCHITECTURE.md)\n\nCitas en formato APA." in output
+    assert output.index("Brief del proyecto.") < output.index("Citas en formato APA.")
+
+
+def test_context_includes_architecture_md_without_project_md(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    (tmp_path / "ARCHITECTURE.md").write_text("Stack: Python 3.12.\n", encoding="utf-8")
+
+    capsys.readouterr()
+    assert run(monkeypatch, tmp_path, "context", "cap1") == 0
+    output = capsys.readouterr().out
+
+    assert "Stack: Python 3.12." in output
+    assert "PROJECT.md" not in output
+
+
+def test_guidance_files_are_denied_to_the_agent(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    deny = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
+    for name in ("PROJECT.md", "ARCHITECTURE.md"):
+        assert f"Write({name})" in deny
+        assert f"Edit({name})" in deny
+
+
+def test_describe_adds_guidance_deny_rules_to_an_older_vault(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    settings_path = tmp_path / ".claude" / "settings.json"
+    old = {"permissions": {"deny": ["Write(content/**)", "Edit(content/**)", "Write(mine/**)"]}}
+    settings_path.write_text(json.dumps(old), encoding="utf-8")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+
+    assert run(monkeypatch, tmp_path, "describe", "cap1", "--text", "x") == 0
+    deny = json.loads(settings_path.read_text(encoding="utf-8"))["permissions"]["deny"]
+    assert "Write(ARCHITECTURE.md)" in deny
+    assert "Edit(PROJECT.md)" in deny
+    assert "Write(mine/**)" in deny
+
+
 def _reject_with_feedback(monkeypatch, tmp_path, card_id, feedback):
     run(monkeypatch, tmp_path, "assign", card_id)
     draft = tmp_path / f"{card_id}-draft.md"
