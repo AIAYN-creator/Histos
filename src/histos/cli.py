@@ -8,7 +8,7 @@ import re
 import sys
 from pathlib import Path
 
-from . import canvas, frontmatter, operations, validation
+from . import canvas, config, frontmatter, operations, validation
 from .fsutil import write_text_atomic
 
 _SETTINGS_PATH = ".claude/settings.json"
@@ -497,6 +497,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return 1
 
     errors = validation.validate_all(data)
+    errors += [f"config: {e}" for e in config.validate(vault_root)]
     if errors:
         for e in errors:
             print(f"  - {e}")

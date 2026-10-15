@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AIAYN-creator/Histos/schema/histos-config.schema.json",
+  "title": "histos.config.yaml",
+  "description": "Per-vault Histos configuration: the heuristic rules that classify a card into one of the three fixed tiers, and the evals run on propose. See docs/canvas-schema.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tiers"],
+  "properties": {
+    "tiers": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/tier" }
+    },
+    "evals": { "$ref": "#/$defs/evals" }
+  },
+  "$defs": {
+    "tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "heuristics"],
+      "properties": {
+        "name": { "enum": ["fast", "exec", "reasoning"] },
+        "match": { "enum": ["all", "any"] },
+        "heuristics": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "evals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "run_on": { "enum": ["propose"] }
+      }
+    }
+  }
+}
