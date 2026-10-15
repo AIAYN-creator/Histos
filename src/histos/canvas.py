@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
+from .errors import HistosError
+
 CANVAS_FILENAME = "project.canvas"
 
 # Leyenda de estado (docs/canvas-schema.md)
@@ -79,10 +81,6 @@ _LEGEND_TEXT = """## Status legend (Histos)
 
 Detail: docs/canvas-schema.md in the Histos repo.
 """
-
-
-class HistosError(Exception):
-    """Errores esperables (vault no encontrado, id duplicado, etc.) -- mensaje ya listo para el usuario."""
 
 
 def vault_canvas_path(vault_root: Path) -> Path:
