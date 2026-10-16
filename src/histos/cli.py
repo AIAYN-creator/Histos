@@ -7,6 +7,7 @@ import functools
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from . import canvas, config, context, evals, frontmatter, guides, heuristics, lock, operations, tiers, validation
@@ -337,6 +338,49 @@ def cmd_describe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _gate_on_evals(vault_root: Path, data: dict, card: dict, draft: str) -> bool:
+    """Runs the vault's evals on the draft and records eval_results. True if the proposal may
+    go ahead. Without a config or with evals off, does nothing (v2 behaviour). Raises
+    HistosError on a broken config or evals/ folder, before counting an attempt."""
+    cfg = config.load(vault_root)
+    if cfg is None or not cfg.evals.enabled:
+        return True
+
+    md_path = canvas.card_file_path(vault_root, card)
+    meta, body = frontmatter.read(md_path)
+    last = meta.get(operations.EVAL_RESULTS_KEY) or {}
+    failed_before = last.get("passed") is False
+    used = last.get("attempt", 0) if failed_before else 0
+    if used >= context.MAX_ATTEMPTS:
+        print(
+            f"error: '{card['id']}' used its {context.MAX_ATTEMPTS} attempts -- it stays In progress for the human\n"
+            f"(last failures in its eval_results; 'histos retry {card['id']}' gives it {context.MAX_ATTEMPTS} more)",
+            file=sys.stderr,
+        )
+        return False
+
+    result = evals.run_all(vault_root, cfg, data, card, draft)
+    attempt = used + 1
+    meta[operations.EVAL_RESULTS_KEY] = {
+        "passed": result.passed,
+        "attempt": attempt,
+        "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "checks": result.checks,
+    }
+    frontmatter.write(md_path, meta, body)
+
+    lines = result.render(card["id"]).split("\n")
+    lines[0] += f"  (attempt {attempt} of {context.MAX_ATTEMPTS})"
+    print("\n".join(lines))
+    if result.passed:
+        return True
+    left = context.MAX_ATTEMPTS - attempt
+    hint = f"fix the draft and propose again ({left} attempt{'s' if left != 1 else ''} left)" if left \
+        else "no attempts left -- it stays In progress for the human"
+    print(f"error: '{card['id']}' not proposed -- {hint}", file=sys.stderr)
+    return False
+
+
 @_with_vault_lock
 def cmd_propose(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
@@ -362,10 +406,19 @@ def cmd_propose(args: argparse.Namespace) -> int:
     if not draft_path.exists():
         print(f"error: can't find the draft '{draft_path}'", file=sys.stderr)
         return 1
+    draft = draft_path.read_text(encoding="utf-8")
+
+    try:
+        passed = _gate_on_evals(vault_root, data, card, draft)
+    except canvas.HistosError as e:  # broken config/evals: not the draft's fault, no attempt spent
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    if not passed:
+        return 1
 
     proposal_path = operations._proposal_path(vault_root, args.id)
     proposal_path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(proposal_path, draft_path.read_text(encoding="utf-8"))
+    write_text_atomic(proposal_path, draft)
 
     card["color"] = canvas.PROPUESTA_PENDIENTE
     canvas.save(vault_root, data)
@@ -582,6 +635,17 @@ def cmd_accept_edit(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_retry(args: argparse.Namespace) -> int:
+    vault_root = _vault_root()
+    try:
+        operations.retry(vault_root, args.id)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"'{args.id}': {context.MAX_ATTEMPTS} new attempts -- the last eval results were cleared")
+    return 0
+
+
 def cmd_reject(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
@@ -784,6 +848,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.add_argument("--feedback", default=None)
     p.set_defaults(func=cmd_reject)
+
+    p = sub.add_parser(
+        "retry",
+        help=f"(human) give a card whose proposals failed the evals {context.MAX_ATTEMPTS} times a fresh set of attempts",
+    )
+    p.add_argument("id")
+    p.set_defaults(func=cmd_retry)
 
     p = sub.add_parser(
         "accept-edit",

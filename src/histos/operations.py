@@ -38,6 +38,8 @@ _LEGACY_PROPOSALS_DIR = "propuestas"
 _LEGACY_APPROVED_DIR = "aprobados"
 # Who works an In progress card ('parent', 'sub-cap3'...), set by `assign --worker`.
 WORKER_KEY = "worker"
+# Last evals run on a proposal for the card -- written by propose, see the frontmatter schema.
+EVAL_RESULTS_KEY = "eval_results"
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
@@ -232,6 +234,22 @@ def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
         meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
         frontmatter.write(md_path, meta, body)
     return card_ids
+
+
+@locked("retry")
+def retry(vault_root: Path, card_id: str) -> None:
+    """(Human) give a card whose proposals kept failing the evals a fresh set of attempts."""
+    data = _load_valid(vault_root)
+    card = canvas.find_card(data, card_id)
+    if card is None:
+        raise canvas.HistosError(f"card '{card_id}' doesn't exist")
+    md_path = canvas.card_file_path(vault_root, card)
+    meta, body = frontmatter.read(md_path)
+    last = meta.get(EVAL_RESULTS_KEY) or {}
+    if card["color"] != canvas.EN_PROGRESO or last.get("passed") is not False:
+        raise canvas.HistosError(f"'{card_id}' has no failed evals to retry")
+    del meta[EVAL_RESULTS_KEY]
+    frontmatter.write(md_path, meta, body)
 
 
 @dataclass
