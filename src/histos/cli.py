@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-from . import canvas, config, context, frontmatter, lock, operations, validation
+from . import canvas, config, context, evals, frontmatter, lock, operations, validation
 from .fsutil import write_text_atomic
 
 _SETTINGS_PATH = ".claude/settings.json"
@@ -457,7 +457,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
     errors = validation.validate_all(data)
     if not errors:  # card paths are only trustworthy once the canvas itself is valid
         errors += validation.validate_frontmatter(vault_root, data)
-    errors += [f"config: {e}" for e in config.validate(vault_root)]
+    config_errors = config.validate(vault_root)
+    errors += [f"config: {e}" for e in config_errors]
+    if not config_errors:  # where evals/ lives comes from the config
+        errors += [f"evals: {e}" for e in evals.validate(vault_root, config.load(vault_root))]
     if errors:
         for e in errors:
             print(f"  - {e}")
