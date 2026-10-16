@@ -433,6 +433,60 @@ def cmd_classify(args: argparse.Namespace) -> int:
     return 0
 
 
+@_with_vault_lock
+def cmd_model(args: argparse.Namespace) -> int:
+    """Records the concrete model for cards: proposed by the agent, approved by the human."""
+    vault_root = _vault_root()
+    chosen = [flag for flag in ("proposed", "approved") if getattr(args, flag)] + (["clear"] if args.clear else [])
+    if len(chosen) != 1:
+        print("error: pass exactly one of --proposed, --approved or --clear", file=sys.stderr)
+        return 1
+    if args.approved and not args.authorized:
+        print(
+            "error: --approved records the human's choice and needs explicit authorization -- "
+            "only add --authorized if they said yes to this model in the conversation",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        data = operations._load_valid(vault_root)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    cards = []
+    for card_id in args.ids:
+        card = canvas.find_card(data, card_id)
+        if card is None:
+            print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
+            return 1
+        if card["color"] == canvas.APROBADA:
+            print(f"error: '{card_id}' is already Approved -- its model stays as a record", file=sys.stderr)
+            return 1
+        cards.append(card)
+
+    for card in cards:
+        md_path = canvas.card_file_path(vault_root, card)
+        meta, body = frontmatter.read(md_path)
+        if args.clear:
+            meta.pop("proposed_model", None)
+            meta.pop("approved_model", None)
+        else:
+            if not meta.get("proposed_tier"):
+                print(f"warning: {card['id']} has no proposed_tier -- run 'histos classify {card['id']}' first?",
+                      file=sys.stderr)
+            meta["proposed_model" if args.proposed else "approved_model"] = args.proposed or args.approved
+        frontmatter.write(md_path, meta, body)
+        if args.clear:
+            print(f"{card['id']}: models cleared")
+            continue
+        notes = [f"{k}: {meta[v]}" for k, v in (("proposed", "proposed_model"), ("tier", "proposed_tier"))
+                 if args.approved and meta.get(v)]
+        field_name = "proposed_model" if args.proposed else "approved_model"
+        print(f"{card['id']}: {field_name} = {meta[field_name]}" + (f" ({', '.join(notes)})" if notes else ""))
+    return 0
+
+
 def cmd_eval(args: argparse.Namespace) -> int:
     """Read-only dry run of what propose's evals would say about a draft."""
     vault_root = _vault_root()
@@ -697,6 +751,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--all", action="store_true", help="every card that isn't Approved")
     p.add_argument("--dry-run", action="store_true", help="print tiers and a summary, write nothing")
     p.set_defaults(func=cmd_classify)
+
+    p = sub.add_parser("model", help="records the concrete model for cards: --proposed (agent) or --approved (human's yes)")
+    p.add_argument("ids", nargs="+", metavar="ID")
+    p.add_argument("--proposed", metavar="MODEL", help="the model the agent proposes, e.g. 'Sonnet 5.5'")
+    p.add_argument("--approved", metavar="MODEL", help="the model the human approved (may differ from the proposed one)")
+    p.add_argument("--authorized", action="store_true", help="the human said yes to --approved in this conversation")
+    p.add_argument("--clear", action="store_true", help="remove both models")
+    p.set_defaults(func=cmd_model)
 
     p = sub.add_parser(
         "eval",
