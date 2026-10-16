@@ -252,15 +252,36 @@ def cmd_assign(args: argparse.Namespace) -> int:
         if card["color"] == canvas.BLOQUEADA:
             print(f"error: '{card_id}' is Blocked, can't be assigned yet", file=sys.stderr)
             return 1
+        if card["color"] == canvas.EN_PROGRESO and not args.takeover:
+            holder = frontmatter.read(canvas.card_file_path(vault_root, card))[0].get(operations.WORKER_KEY)
+            if args.worker is None or holder != args.worker:
+                who = f"worker: {holder}" if holder else "no worker recorded"
+                print(
+                    f"error: '{card_id}' is already In progress ({who}) -- "
+                    "'--takeover' if it's really free (e.g. its subagent died)",
+                    file=sys.stderr,
+                )
+                return 1
 
+    # Checked and written under the same vault lock: of two simultaneous assigns, exactly one wins.
     for card_id in args.ids:
         card = canvas.find_card(data, card_id)
-        card["color"] = canvas.EN_PROGRESO
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path)
+        previous = meta.get(operations.WORKER_KEY) if card["color"] == canvas.EN_PROGRESO else None
+        if previous is not None and previous == args.worker:
+            print(f"'{card_id}' is already yours ({args.worker}) -- nothing to do")
+            continue
+        card["color"] = canvas.EN_PROGRESO
         meta["assigned_to"] = args.by
+        if args.worker:
+            meta[operations.WORKER_KEY] = args.worker
+        else:
+            meta.pop(operations.WORKER_KEY, None)
         frontmatter.write(md_path, meta, body)
-        print(f"'{card_id}' -> In progress (assigned_to={args.by})")
+        worker = f", worker={args.worker}" if args.worker else ""
+        taken = f" -- taken over from {previous}" if previous else ""
+        print(f"'{card_id}' -> In progress (assigned_to={args.by}{worker}){taken}")
 
     canvas.save(vault_root, data)
     return 0
@@ -436,7 +457,8 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"{group.label} ({len(group.cards)})")
         for c in group.cards:
             desc = f"  -- {c.description}" if c.description else ""
-            print(f"  - {c.id}  ({c.file}){desc}")
+            worker = f" [{c.worker}]" if c.worker else ""
+            print(f"  - {c.id}{worker}  ({c.file}){desc}")
     waiting = guides.pending(vault_root)
     if waiting:
         print(f"Guides pending review: {', '.join(waiting)}  ('histos guide diff <file>' to review)")
@@ -551,6 +573,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("assign", help="moves one or more cards to In progress")
     p.add_argument("ids", nargs="+", metavar="ID")
     p.add_argument("--by", choices=["agent", "human"], default="agent")
+    p.add_argument("--worker", help="who works it, e.g. 'parent' or 'sub-cap3' -- tells parent and subagents apart")
+    p.add_argument(
+        "--takeover", action="store_true",
+        help="take a card that's already In progress for someone else (e.g. its subagent died)",
+    )
     p.set_defaults(func=cmd_assign)
 
     p = sub.add_parser("describe", help="updates description and/or sources (frontmatter) of an existing card")

@@ -36,6 +36,8 @@ APPROVED_DIR = "approved"
 # only used to keep an existing vault working with the folder names it already has.
 _LEGACY_PROPOSALS_DIR = "propuestas"
 _LEGACY_APPROVED_DIR = "aprobados"
+# Who works an In progress card ('parent', 'sub-cap3'...), set by `assign --worker`.
+WORKER_KEY = "worker"
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
@@ -113,6 +115,7 @@ class CardSummary:
     id: str
     file: str
     description: Optional[str]
+    worker: Optional[str] = None
 
 
 @dataclass
@@ -141,12 +144,14 @@ def get_status(vault_root: Path) -> StatusResult:
     for color in _STATUS_ORDER:
         summaries = []
         for card in by_color.get(color, []):
-            description = None
+            meta = {}
             md_path = canvas.card_file_path(vault_root, card)
             if md_path.exists():
                 meta, _ = frontmatter.read(md_path)
-                description = meta.get("description")
-            summaries.append(CardSummary(id=card["id"], file=card["file"], description=description))
+            worker = meta.get(WORKER_KEY) if color == canvas.EN_PROGRESO else None
+            summaries.append(CardSummary(
+                id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
+            ))
         groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
     return StatusResult(groups=groups)
 
@@ -232,11 +237,14 @@ def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> Re
         proposal_path.unlink()
 
     card["color"] = canvas.BACKLOG
-    if feedback:
-        md_path = canvas.card_file_path(vault_root, card)
+    md_path = canvas.card_file_path(vault_root, card)
+    if md_path.exists():
         meta, body = frontmatter.read(md_path)
-        meta["status_note"] = feedback
-        frontmatter.write(md_path, meta, body)
+        if feedback or WORKER_KEY in meta:
+            if feedback:
+                meta["status_note"] = feedback
+            meta.pop(WORKER_KEY, None)  # back in the backlog: anyone can take it next
+            frontmatter.write(md_path, meta, body)
 
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)

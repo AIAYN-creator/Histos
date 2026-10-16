@@ -118,10 +118,12 @@ def build_for_subagent(vault_root: Path, data: dict, card: dict) -> SubagentBrie
     if tier:
         model_line += f" (tier: {tier})"
     card_id = card["id"]
+    worker = meta.get(operations.WORKER_KEY)
+    you = f"You are {worker}, working" if worker else "You are working"
     header = "\n".join([
         f"# Subagent brief: {card_id}",
         "",
-        f"You are working one Histos card in isolation. {model_line}.",
+        f"{you} one Histos card in isolation. {model_line}.",
         f"When your draft is ready, run:   histos propose {card_id} --file <draft.md>",
         f"If evals fail, fix the draft and propose again ({MAX_ATTEMPTS} attempts in total at most).",
         "Never approve, reject, assign, link or arrange. Your final message to the parent is a short summary:",
