@@ -21,7 +21,7 @@ from typing import Optional
 
 import webview
 
-from .. import canvas, operations
+from .. import canvas, config, evals, operations
 
 _CONFIG_PATH = Path.home() / ".histos" / "gui_config.json"
 
@@ -148,14 +148,19 @@ def _selftest() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         vault_root = Path(tmp)
         try:
-            operations.init_vault(vault_root)
+            operations.init_vault(vault_root)  # takes the vault lock too
             status_result = operations.get_status(vault_root)
+            # v3's bundled files: the config template and its schema, the evals templates
+            cfg = config.load(vault_root)
+            loaded_evals = evals.load(vault_root, cfg)
         except Exception as e:
             print(f"SELFTEST FAIL: {e!r}")
             return 1
         ok = (
             vault_root.joinpath("AGENTS.md").exists()
             and len(status_result.groups) == len(operations.STATE_NAMES)
+            and cfg is not None
+            and len(loaded_evals) == 2
         )
         print("SELFTEST PASS" if ok else "SELFTEST FAIL: unexpected result shape")
         return 0 if ok else 1
