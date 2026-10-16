@@ -146,3 +146,13 @@ def test_card_text_includes_feedback_and_sources_count(vault):
     assert holds("architecture_terms_present", i)
     assert holds("code_blocks_present", i)  # from the source text, in the full context
     assert i.source_count == 1
+
+
+@pytest.mark.parametrize("text", ["Compare their trade-offs", "Las decisiones de diseno", "Two interfaces", "Varios fallos"])
+def test_plurals_match(text):
+    assert holds("architecture_terms_present", inputs(text)) or holds("debugging_terms_present", inputs(text))
+
+
+def test_plurals_dont_open_other_words():
+    assert not holds("architecture_terms_present", inputs("A designated reviewer"))
+    assert not holds("debugging_terms_present", inputs("Debuggers are tools"))  # not a plural of "debug"

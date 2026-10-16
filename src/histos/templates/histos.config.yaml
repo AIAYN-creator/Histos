@@ -4,8 +4,8 @@
 # checking reasoning -> exec -> fast; if none matches, exec. The tier is a suggestion with its
 # reason: the human still approves the concrete model (`histos model`).
 #
-# Calibrated (dec-defaults) on 416 real cards, writing and code: ~17 % fast, ~55 % exec
-# (half of them by default), ~28 % reasoning. Re-run scripts/calibrate_tiers.py from the
+# Calibrated (dec-defaults) on ~400 real cards, writing and code: ~13 % fast, ~57 % exec
+# (half of them by default), ~30 % reasoning. Re-run scripts/calibrate_tiers.py from the
 # Histos repo to measure your own vaults before tuning.
 
 tiers:

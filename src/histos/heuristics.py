@@ -216,8 +216,12 @@ def _find_term(text: str, terms: list[str]) -> str | None:
     folded = _fold(text)
     for term in terms:
         t = _fold(term)
-        # Whole words: "design" doesn't match "designated". ".py" needs a file name before it.
-        pattern = rf"\w{re.escape(t)}(?!\w)" if t.startswith(".") else rf"(?<!\w){re.escape(t)}(?!\w)"
+        # Whole words, plurals included: "trade-off" matches "trade-offs", "decision" matches
+        # "decisiones", but "design" doesn't match "designated". ".py" needs a file name before it.
+        if t.startswith("."):
+            pattern = rf"\w{re.escape(t)}(?!\w)"
+        else:
+            pattern = rf"(?<!\w){re.escape(t)}(?:s|es)?(?!\w)"
         if re.search(pattern, folded):
             return term
     return None
