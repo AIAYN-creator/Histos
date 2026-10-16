@@ -124,3 +124,9 @@ def test_eval_command_is_read_only_and_exits_1_on_failure(vault, monkeypatch, ca
 
     draft.write_text("uno dos tres cuatro cinco", encoding="utf-8")
     assert run(monkeypatch, vault, "eval", "cap3", "--file", str(draft)) == 0
+
+
+def test_a_failure_doesnt_repeat_its_detail(vault):
+    out = run_all(vault, "cap3", "uno dos tres cuatro cinco TODO").render("cap3")
+    line = next(l for l in out.splitlines() if "no_placeholders" in l)
+    assert line.count('"TODO" at line 1') == 1

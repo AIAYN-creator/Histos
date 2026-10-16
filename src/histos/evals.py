@@ -122,7 +122,8 @@ class EvalRun:
             for c in self.checks:
                 text = c.get("detail", "")
                 if not c["passed"]:
-                    text = f"{text} -- {c['error']}" if text else c["error"]
+                    # Default messages often already quote the detail ("... placeholder: "TODO" at line 3").
+                    text = c["error"] if not text or text in c["error"] else f"{text} -- {c['error']}"
                 lines.append(f"  {'PASS' if c['passed'] else 'FAIL'}  {c['name']:<{width}}  {text}")
         if self.skipped:
             lines.append(f"  ({self.skipped} eval{'s' if self.skipped != 1 else ''} "
