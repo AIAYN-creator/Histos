@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-from . import canvas, config, context, evals, frontmatter, guides, lock, operations, validation
+from . import canvas, config, context, evals, frontmatter, guides, heuristics, lock, operations, tiers, validation
 from .fsutil import write_text_atomic
 
 _SETTINGS_PATH = ".claude/settings.json"
@@ -98,6 +98,8 @@ def _with_vault_lock(func):
     ones lock inside operations.py, so the desktop app gets the same protection)."""
     @functools.wraps(func)
     def wrapper(args: argparse.Namespace) -> int:
+        if getattr(args, "dry_run", False):  # writes nothing, so it waits for nobody
+            return func(args)
         target = getattr(args, "id", None) or " ".join(getattr(args, "ids", None) or [])
         try:
             with lock.vault_lock(_vault_root(), f"{args.command} {target}".strip()):
@@ -371,6 +373,66 @@ def cmd_propose(args: argparse.Namespace) -> int:
     return 0
 
 
+@_with_vault_lock
+def cmd_classify(args: argparse.Namespace) -> int:
+    """Classifies cards into a tier from their context (never a draft) and writes proposed_tier."""
+    vault_root = _vault_root()
+    if bool(args.ids) == args.all:
+        print("error: pass card ids or --all (not both)", file=sys.stderr)
+        return 1
+    try:
+        cfg = config.load(vault_root)
+        if cfg is None:
+            raise canvas.HistosError(f"this vault has no {config.CONFIG_FILENAME} -- classify needs one")
+        data = operations._load_valid(vault_root)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    if args.all:
+        targets = [c for c in canvas.cards(data) if c["color"] != canvas.APROBADA]
+    else:
+        targets = []
+        for card_id in args.ids:
+            card = canvas.find_card(data, card_id)
+            if card is None:
+                print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
+                return 1
+            if card["color"] == canvas.APROBADA:
+                print(f"error: '{card_id}' is already Approved -- nothing to classify", file=sys.stderr)
+                return 1
+            targets.append(card)
+
+    counts = {name: 0 for name in tiers.PRECEDENCE}
+    defaults = 0
+    for card in targets:
+        result = tiers.classify(cfg, heuristics.gather(vault_root, data, card))
+        counts[result.tier] += 1
+        defaults += result.by_default
+        print(result.render(card["id"]))
+        if args.dry_run:
+            continue
+        md_path = canvas.card_file_path(vault_root, card)
+        meta, body = frontmatter.read(md_path)
+        previous = meta.get("proposed_tier")
+        if previous and previous != result.tier:
+            cleared = [f"{k} '{meta.pop(k)}'" for k in ("proposed_model", "approved_model") if k in meta]
+            if cleared:
+                print(
+                    f"warning: {card['id']}: tier changed {previous} -> {result.tier}, cleared "
+                    f"{' and '.join(cleared)} -- propose a model again",
+                    file=sys.stderr,
+                )
+        meta["proposed_tier"] = result.tier
+        frontmatter.write(md_path, meta, body)
+
+    if len(targets) > 1 or args.dry_run:
+        summary = " · ".join(f"{name} {counts[name]}" for name in ("fast", "exec", "reasoning"))
+        print(f"\n{summary}" + (f" ({defaults} by default)" if defaults else "")
+              + (" -- dry run, nothing written" if args.dry_run else ""))
+    return 0
+
+
 def cmd_eval(args: argparse.Namespace) -> int:
     """Read-only dry run of what propose's evals would say about a draft."""
     vault_root = _vault_root()
@@ -629,6 +691,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("diff", help="shows the diff between the current content and the pending proposal")
     p.add_argument("id")
     p.set_defaults(func=cmd_diff)
+
+    p = sub.add_parser("classify", help="assigns a tier (fast/exec/reasoning) to cards from their context, with the reason")
+    p.add_argument("ids", nargs="*", metavar="ID")
+    p.add_argument("--all", action="store_true", help="every card that isn't Approved")
+    p.add_argument("--dry-run", action="store_true", help="print tiers and a summary, write nothing")
+    p.set_defaults(func=cmd_classify)
 
     p = sub.add_parser(
         "eval",
