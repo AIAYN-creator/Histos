@@ -14,6 +14,7 @@ from typing import Optional
 
 from . import canvas, frontmatter, validation
 from .fsutil import copy_file_atomic, write_text_atomic
+from .lock import locked
 
 STATE_NAMES = {
     canvas.BLOQUEADA: "Blocked",
@@ -94,6 +95,7 @@ class InitResult:
     template_warnings: list[str]
 
 
+@locked("init")
 def init_vault(vault_root: Path) -> InitResult:
     canvas_path = canvas.vault_canvas_path(vault_root)
     if canvas_path.exists():
@@ -125,6 +127,7 @@ class StatusResult:
     groups: list[StatusGroup] = field(default_factory=list)  # in the fixed display order
 
 
+@locked("status")  # recomputing Blocked can save the canvas
 def get_status(vault_root: Path) -> StatusResult:
     data = _load_valid(vault_root)
     if canvas.recompute_blocked(data):
@@ -176,6 +179,7 @@ class ApproveResult:
     card_id: str
 
 
+@locked("approve")
 def approve(vault_root: Path, card_id: str) -> ApproveResult:
     data = _load_valid(vault_root)
     card = canvas.find_card(data, card_id)
@@ -212,6 +216,7 @@ class RejectResult:
     card_id: str
 
 
+@locked("reject")
 def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> RejectResult:
     data = _load_valid(vault_root)
     card = canvas.find_card(data, card_id)
@@ -251,6 +256,7 @@ class ArrangeResult:
     backup_path: Path
 
 
+@locked("arrange")
 def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) -> ArrangeResult:
     data = _load_valid(vault_root)
     canvas_path = canvas.vault_canvas_path(vault_root)

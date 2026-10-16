@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import functools
 import json
 import re
 import sys
 from pathlib import Path
 
-from . import canvas, config, frontmatter, operations, validation
+from . import canvas, config, frontmatter, lock, operations, validation
 from .fsutil import write_text_atomic
 
 _SETTINGS_PATH = ".claude/settings.json"
@@ -97,6 +98,21 @@ def _vault_root() -> Path:
     return Path.cwd()
 
 
+def _with_vault_lock(func):
+    """For the agent-side commands that load and save the vault themselves (the human-side
+    ones lock inside operations.py, so the desktop app gets the same protection)."""
+    @functools.wraps(func)
+    def wrapper(args: argparse.Namespace) -> int:
+        target = getattr(args, "id", None) or " ".join(getattr(args, "ids", None) or [])
+        try:
+            with lock.vault_lock(_vault_root(), f"{args.command} {target}".strip()):
+                return func(args)
+        except canvas.HistosError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+    return wrapper
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
@@ -110,6 +126,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+@_with_vault_lock
 def cmd_add_card(args: argparse.Namespace) -> int:
     if not canvas.is_valid_card_id(args.id):
         print(
@@ -174,6 +191,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     return 0
 
 
+@_with_vault_lock
 def cmd_link(args: argparse.Namespace) -> int:
     """Adds dependencies to an ALREADY existing card -- add-card --depends-on only covers
     creation; this covers discovering a dependency after the card was already created.
@@ -220,6 +238,7 @@ def cmd_link(args: argparse.Namespace) -> int:
     return 0
 
 
+@_with_vault_lock
 def cmd_assign(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
@@ -252,6 +271,7 @@ def cmd_assign(args: argparse.Namespace) -> int:
     return 0
 
 
+@_with_vault_lock
 def cmd_describe(args: argparse.Namespace) -> int:
     """Updates description and/or sources in the frontmatter -- never touches the body, so
     it doesn't need to go through propose/approve (it's metadata, like assigned_to in 'assign').
@@ -298,6 +318,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
     return 0
 
 
+@_with_vault_lock
 def cmd_propose(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
