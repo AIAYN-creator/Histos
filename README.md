@@ -1,4 +1,9 @@
-# Histos
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/histos-logo-dark.svg">
+    <img src="docs/assets/histos-logo-light.svg" alt="Histos" width="320">
+  </picture>
+</h1>
 
 Open-source, agent-agnostic tool that uses **Obsidian Canvas** as a shared human-AI board for managing written-production projects: theses, dissertations, papers, blog posts, reports.
 
