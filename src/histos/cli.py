@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-from . import canvas, config, frontmatter, lock, operations, validation
+from . import canvas, config, context, frontmatter, lock, operations, validation
 from .fsutil import write_text_atomic
 
 _SETTINGS_PATH = ".claude/settings.json"
@@ -23,11 +23,6 @@ _BASE_DENY_RULES = [
     "Edit(PROJECT.md)",
     "Write(ARCHITECTURE.md)",
     "Edit(ARCHITECTURE.md)",
-]
-# Vault-wide guidance files, in the order `context` appends them after the cards.
-_GUIDANCE_FILES = [
-    ("PROJECT.md", "Project brief"),
-    ("ARCHITECTURE.md", "Architecture"),
 ]
 
 
@@ -372,43 +367,6 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 0
 
 
-def _read_source_text(path: Path) -> str:
-    if path.suffix.lower() == ".docx":
-        try:
-            import docx
-        except ImportError:
-            return f"[couldn't read {path}: missing the python-docx dependency]"
-        try:
-            doc = docx.Document(str(path))
-            return "\n".join(p.text for p in doc.paragraphs)
-        except Exception as e:
-            return f"[couldn't read {path}: {e}]"
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError as e:
-        return f"[couldn't read {path}: {e}]"
-
-
-def _render_card_context(vault_root: Path, card: dict, label: str, with_feedback: bool = False) -> str:
-    md_path = canvas.card_file_path(vault_root, card)
-    meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
-
-    parts = [f"## {label}: {card['id']} ({operations.STATE_NAMES[card['color']]})"]
-    if meta.get("description"):
-        parts.append(f"Description: {meta['description']}")
-    if with_feedback and meta.get("status_note"):
-        parts.append(f"Feedback on a rejected proposal: {meta['status_note']}")
-    if card["color"] == canvas.APROBADA and body.strip():
-        parts.append(f"Approved content:\n{body.strip()}")
-    for src in meta.get("sources") or []:
-        src_path = Path(src).expanduser()
-        if not src_path.exists():
-            parts.append(f"[source not found: {src}]")
-            continue
-        parts.append(f"Source ({src}):\n{_read_source_text(src_path)}")
-    return "\n\n".join(parts)
-
-
 def cmd_context(args: argparse.Namespace) -> int:
     """Bundles description+approved content+sources for the card and its dependencies,
     the feedback from a rejected proposal of the card itself, and PROJECT.md/ARCHITECTURE.md
@@ -426,28 +384,7 @@ def cmd_context(args: argparse.Namespace) -> int:
         print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
 
-    sections = [_render_card_context(vault_root, card, "Card", with_feedback=True)]
-
-    by_id = {c["id"]: c for c in canvas.cards(data)}
-    direct = [e["fromNode"] for e in canvas.incoming_edges(data, args.id)]
-    for dep_id in direct:
-        dep_card = by_id.get(dep_id)
-        if dep_card:
-            sections.append(_render_card_context(vault_root, dep_card, "Dependency"))
-
-    md_path = canvas.card_file_path(vault_root, card)
-    meta, _ = frontmatter.read(md_path) if md_path.exists() else ({}, "")
-    for dep_id in meta.get(operations.IMPLIED_DEPENDENCIES_KEY) or []:
-        dep_card = by_id.get(dep_id)
-        if dep_card and dep_id not in direct:
-            sections.append(_render_card_context(vault_root, dep_card, "Dependency (implied -- arrow not drawn)"))
-
-    for filename, label in _GUIDANCE_FILES:
-        path = vault_root / filename
-        if path.exists():
-            sections.append(f"## {label} ({filename})\n\n" + path.read_text(encoding="utf-8").strip())
-
-    print("\n\n---\n\n".join(sections))
+    print(context.build(vault_root, data, card))
     return 0
 
 
