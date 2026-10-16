@@ -46,6 +46,9 @@ def render_card(vault_root: Path, card: dict, label: str, with_feedback: bool = 
     parts = [f"## {label}: {card['id']} ({operations.STATE_NAMES[card['color']]})"]
     if meta.get("description"):
         parts.append(f"Description: {meta['description']}")
+    routing = _routing_line(meta) if with_feedback else None  # only the card itself, not its dependencies
+    if routing:
+        parts.append(routing)
     if with_feedback and meta.get("status_note"):
         parts.append(f"Feedback on a rejected proposal: {meta['status_note']}")
     if card["color"] == canvas.APROBADA and body.strip():
@@ -57,6 +60,15 @@ def render_card(vault_root: Path, card: dict, label: str, with_feedback: bool = 
             continue
         parts.append(f"Source ({src}):\n{read_source_text(src_path)}")
     return "\n\n".join(parts)
+
+
+def _routing_line(meta: dict) -> str | None:
+    pieces = [f"Tier: {meta['proposed_tier']}"] if meta.get("proposed_tier") else []
+    if meta.get("approved_model"):
+        pieces.append(f"Approved model: {meta['approved_model']}")
+    elif meta.get("proposed_model"):
+        pieces.append(f"Proposed model: {meta['proposed_model']} (not approved yet)")
+    return " · ".join(pieces) or None
 
 
 def dependencies(vault_root: Path, data: dict, card: dict) -> list[tuple[dict, str]]:

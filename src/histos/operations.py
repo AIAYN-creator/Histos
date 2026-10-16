@@ -150,6 +150,9 @@ class CardSummary:
     file: str
     description: Optional[str]
     worker: Optional[str] = None
+    tier: Optional[str] = None  # proposed_tier
+    approved_model: Optional[str] = None
+    proposed_model: Optional[str] = None
 
 
 @dataclass
@@ -185,6 +188,8 @@ def get_status(vault_root: Path) -> StatusResult:
             worker = meta.get(WORKER_KEY) if color == canvas.EN_PROGRESO else None
             summaries.append(CardSummary(
                 id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
+                tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
+                proposed_model=meta.get("proposed_model"),
             ))
         groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
     return StatusResult(groups=groups)

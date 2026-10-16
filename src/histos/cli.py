@@ -689,11 +689,33 @@ def cmd_status(args: argparse.Namespace) -> int:
         for c in group.cards:
             desc = f"  -- {c.description}" if c.description else ""
             worker = f" [{c.worker}]" if c.worker else ""
-            print(f"  - {c.id}{worker}  ({c.file}){desc}")
+            routing = _routing_label(c)
+            routing = f"  {{{routing}}}" if routing else ""
+            print(f"  - {c.id}{worker}  ({c.file}){routing}{desc}")
+
+    open_cards = [c for g in result.groups if g.color != canvas.APROBADA for c in g.cards]
+    if any(c.tier for c in open_cards):
+        counts = {t: sum(c.tier == t for c in open_cards) for t in ("fast", "exec", "reasoning")}
+        unclassified = sum(c.tier is None for c in open_cards)
+        print("Tiers: " + " · ".join(f"{t} {n}" for t, n in counts.items()) + f" · unclassified {unclassified}")
+    awaiting = [c for c in open_cards if c.proposed_model and not c.approved_model]
+    if awaiting:
+        listed = ", ".join(f"{c.id} ({c.tier + ', ' if c.tier else ''}proposed {c.proposed_model})" for c in awaiting)
+        print(f"Waiting for your model approval: {listed}")
     waiting = guides.pending(vault_root)
     if waiting:
         print(f"Guides pending review: {', '.join(waiting)}  ('histos guide diff <file>' to review)")
     return 0
+
+
+def _routing_label(c: operations.CardSummary) -> str:
+    """'exec · Sonnet 5.5', 'reasoning · proposed Opus 5.5?' (no yes from the human yet), 'fast', or ''."""
+    parts = [c.tier] if c.tier else []
+    if c.approved_model:
+        parts.append(c.approved_model)
+    elif c.proposed_model:
+        parts.append(f"proposed {c.proposed_model}?")
+    return " · ".join(parts)
 
 
 def cmd_guide(args: argparse.Namespace) -> int:
