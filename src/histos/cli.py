@@ -586,6 +586,10 @@ def cmd_diff(args: argparse.Namespace) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
+    if not args.no_evals:
+        header = _stored_evals_summary(vault_root, args.id)
+        if header:
+            print(header + "\n")
     diff = difflib.unified_diff(
         result.current_body.splitlines(keepends=True),
         result.proposed_body.splitlines(keepends=True),
@@ -594,6 +598,25 @@ def cmd_diff(args: argparse.Namespace) -> int:
     )
     sys.stdout.writelines(diff)
     return 0
+
+
+def _stored_evals_summary(vault_root: Path, card_id: str) -> str | None:
+    """What the evals said when this pending proposal was made -- written by that same propose,
+    so it always matches. Not re-run: 'histos eval' does that."""
+    card = canvas.find_card(canvas.load(vault_root), card_id)
+    meta, _ = frontmatter.read(canvas.card_file_path(vault_root, card))
+    stored = meta.get(operations.EVAL_RESULTS_KEY)
+    if not isinstance(stored, dict) or "checks" not in stored:
+        return None
+    run = evals.EvalRun(passed=bool(stored.get("passed")), checks=stored["checks"], skipped=0)
+    lines = run.render(card_id).split("\n")
+    when = ""
+    try:
+        when = ", " + datetime.fromisoformat(str(stored["at"])).strftime("%Y-%m-%d %H:%M")
+    except (KeyError, ValueError):
+        pass
+    lines[0] += f"  (attempt {stored.get('attempt', 1)} of {context.MAX_ATTEMPTS}{when})"
+    return "\n".join(lines)
 
 
 def cmd_context(args: argparse.Namespace) -> int:
@@ -853,6 +876,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("diff", help="shows the diff between the current content and the pending proposal")
     p.add_argument("id")
+    p.add_argument("--no-evals", action="store_true", help="only the diff, without the evals summary on top")
     p.set_defaults(func=cmd_diff)
 
     p = sub.add_parser("classify", help="assigns a tier (fast/exec/reasoning) to cards from their context, with the reason")
