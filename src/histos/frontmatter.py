@@ -1,6 +1,7 @@
 """Lectura/escritura del frontmatter YAML de las tarjetas -- ver docs/canvas-schema.md."""
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -18,6 +19,15 @@ DEFAULT_META = {
     "assigned_to": None,
     "status_note": None,
 }
+
+
+# Fingerprint of the body as Histos last wrote it legitimately (add-card, approve, accept-edit).
+# The content_untouched eval compares against it to catch direct writes to content/.
+CONTENT_HASH_KEY = "content_hash"
+
+
+def body_hash(body: str) -> str:
+    return hashlib.sha256(body.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
 def read(path: Path) -> tuple[dict, str]:

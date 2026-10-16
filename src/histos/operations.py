@@ -204,7 +204,9 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
         meta, _ = frontmatter.read(md_path)
     else:
         meta = dict(frontmatter.DEFAULT_META)
-    frontmatter.write(md_path, meta, proposal_path.read_text(encoding="utf-8"))
+    body = proposal_path.read_text(encoding="utf-8")
+    meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+    frontmatter.write(md_path, meta, body)
 
     approved_path = _approved_path(vault_root, card_id)
     approved_path.parent.mkdir(parents=True, exist_ok=True)
@@ -214,6 +216,22 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
     return ApproveResult(card_id=card_id)
+
+
+@locked("accept-edit")
+def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
+    """(Human) bless hand edits to content/<id>.md: the current body becomes the legitimate
+    one, so the content_untouched eval stops flagging it."""
+    data = _load_valid(vault_root)
+    missing = [i for i in card_ids if canvas.find_card(data, i) is None]
+    if missing:
+        raise canvas.HistosError(f"card(s) not found: {', '.join(missing)}")
+    for card_id in card_ids:
+        md_path = canvas.card_file_path(vault_root, canvas.find_card(data, card_id))
+        meta, body = frontmatter.read(md_path)
+        meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+        frontmatter.write(md_path, meta, body)
+    return card_ids
 
 
 @dataclass

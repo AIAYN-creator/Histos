@@ -177,6 +177,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     if args.description:
         meta["description"] = args.description
         body += f"{args.description}\n\n"
+    meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
     frontmatter.write(md_path, meta, body)
 
     canvas.place_new_card(data, node)
@@ -434,6 +435,18 @@ def cmd_approve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_accept_edit(args: argparse.Namespace) -> int:
+    vault_root = _vault_root()
+    try:
+        accepted = operations.accept_edit(vault_root, args.ids)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    for card_id in accepted:
+        print(f"'{card_id}': current content accepted as yours")
+    return 0
+
+
 def cmd_reject(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
@@ -614,6 +627,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.add_argument("--feedback", default=None)
     p.set_defaults(func=cmd_reject)
+
+    p = sub.add_parser(
+        "accept-edit",
+        help="(human) accept your own hand edits to content/<id>.md, so the content_untouched eval stops flagging them",
+    )
+    p.add_argument("ids", nargs="+", metavar="ID")
+    p.set_defaults(func=cmd_accept_edit)
 
     p = sub.add_parser("status", help="lists cards grouped by status")
     p.set_defaults(func=cmd_status)

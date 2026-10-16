@@ -15,6 +15,7 @@
     "actual_duration_hours": { "type": ["number", "null"] },
     "assigned_to": { "enum": ["agent", "human", null] },
     "worker": { "type": "string", "minLength": 1 },
+    "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "status_note": { "type": ["string", "null"] },
     "implied_dependencies": {
       "type": "array",

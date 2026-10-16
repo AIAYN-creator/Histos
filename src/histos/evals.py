@@ -24,6 +24,7 @@ from typing import Callable
 
 import yaml
 
+from . import checks
 from .config import Config
 from .errors import HistosError
 
@@ -46,13 +47,22 @@ class CheckSpec:
     rule: Callable[[dict], str | None] = lambda params: None  # cross-parameter rule -> error
 
 
-# The catalog. cod-checks implements what each one measures.
+# The catalog: what each check accepts. checks.py implements what each one measures.
 CATALOG: dict[str, CheckSpec] = {
     "word_count": CheckSpec(
         params={"min": _non_negative_int, "max": _non_negative_int},
         param_types={"min": "a whole number >= 0", "max": "a whole number >= 0"},
         rule=lambda p: "needs 'min', 'max' or both" if "min" not in p and "max" not in p
         else ("'min' is greater than 'max'" if "min" in p and "max" in p and p["min"] > p["max"] else None),
+    ),
+    "no_placeholders": CheckSpec(
+        params={"patterns": _string_list},
+        param_types={"patterns": "a non-empty list of texts"},
+    ),
+    "required_headings": CheckSpec(
+        params={"headings": _string_list},
+        param_types={"headings": "a non-empty list of headings"},
+        rule=lambda p: "needs 'headings'" if "headings" not in p else None,
     ),
     "content_untouched": CheckSpec(params={}, param_types={}),
 }
@@ -67,6 +77,9 @@ class Eval:
     only: list[str] = field(default_factory=list)
     except_: list[str] = field(default_factory=list)
     file: str = ""
+
+    def run(self, draft: str, vault_root: Path, data: dict, card: dict) -> checks.CheckOutcome:
+        return checks.RUNNERS[self.check](checks.CheckInput(draft, self.params, vault_root, data, card))
 
     def applies_to(self, card_id: str) -> bool:
         if self.only and not any(fnmatch.fnmatchcase(card_id, p) for p in self.only):
