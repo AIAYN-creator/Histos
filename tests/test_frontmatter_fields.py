@@ -1,7 +1,7 @@
 import pytest
+from conftest import run
 
 from histos import canvas, frontmatter, validation
-from histos.cli import build_parser
 
 GOOD_EVALS = {
     "passed": False,
@@ -12,12 +12,6 @@ GOOD_EVALS = {
         {"name": "content_untouched", "passed": True},
     ],
 }
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
 
 
 @pytest.fixture

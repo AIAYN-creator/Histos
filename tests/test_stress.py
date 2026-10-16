@@ -4,9 +4,12 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "stress_parallel.py"
 
 
+@pytest.mark.slow
 def test_parallel_agents_lose_nothing():
     spec = importlib.util.spec_from_file_location("stress_parallel", SCRIPT)
     stress = importlib.util.module_from_spec(spec)

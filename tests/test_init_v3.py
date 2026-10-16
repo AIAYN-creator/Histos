@@ -2,14 +2,9 @@ import hashlib
 import json
 from importlib import resources
 
+from conftest import run
+
 from histos import config, evals, operations
-from histos.cli import build_parser
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
 
 
 def template(rel):

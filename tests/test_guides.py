@@ -1,12 +1,5 @@
 import pytest
-
-from histos.cli import build_parser
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
+from conftest import run
 
 
 @pytest.fixture

@@ -4,17 +4,11 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import run
 
 from histos import canvas, frontmatter, validation
-from histos.cli import build_parser
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
 
 
 @pytest.fixture
@@ -93,6 +87,7 @@ def test_validate_checks_the_worker_type(vault):
     assert any("worker" in e for e in errors)
 
 
+@pytest.mark.slow
 def test_two_simultaneous_assigns_exactly_one_wins(vault):
     env = dict(os.environ, PYTHONPATH=SRC)
     procs = [

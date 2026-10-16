@@ -1,14 +1,8 @@
 import pytest
+from conftest import run
 
 from histos import canvas, frontmatter, heuristics
-from histos.cli import build_parser
 from histos.heuristics import Inputs
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
 
 
 def inputs(card_text="", full_text=None, deps=0, sources=0):

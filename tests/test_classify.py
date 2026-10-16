@@ -1,9 +1,9 @@
 import hashlib
 
 import pytest
+from conftest import run
 
 from histos import config, frontmatter
-from histos.cli import build_parser
 
 CONFIG = """\
 tiers:
@@ -15,12 +15,6 @@ tiers:
     match: all
     heuristics: ["token_count < 200", "no_code_blocks"]
 """
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
 
 
 @pytest.fixture

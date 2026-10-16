@@ -1,7 +1,7 @@
 import pytest
+from conftest import run
 
 from histos import config
-from histos.cli import build_parser
 from histos.errors import HistosError
 
 VALID = """\
@@ -24,12 +24,6 @@ evals:
 
 def write(tmp_path, text):
     (tmp_path / config.CONFIG_FILENAME).write_text(text, encoding="utf-8")
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
 
 
 def test_no_file_means_v2_behaviour(tmp_path):

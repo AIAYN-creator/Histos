@@ -7,18 +7,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+from conftest import run
 
 from histos import canvas, lock, operations
-from histos.cli import build_parser
 from histos.errors import HistosError
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    args = build_parser().parse_args(list(argv))
-    return args.func(args)
 
 
 @contextmanager
@@ -74,6 +68,7 @@ def test_giving_up_names_who_holds_it(initialized_vault, monkeypatch, capsys):
     assert "the vault is busy" in err and "propose cap3" in err
 
 
+@pytest.mark.slow
 def test_a_killed_holder_never_leaves_the_vault_locked(initialized_vault, monkeypatch):
     holder = subprocess.Popen(
         [sys.executable, "-c",
@@ -106,6 +101,7 @@ def test_operations_lock_too_so_the_desktop_app_is_covered(initialized_vault, mo
             operations.get_status(initialized_vault)
 
 
+@pytest.mark.slow
 def test_parallel_processes_never_lose_each_others_changes(initialized_vault, monkeypatch):
     ids = [f"cap{i}" for i in range(8)]
     for card_id in ids:
