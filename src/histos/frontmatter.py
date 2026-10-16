@@ -1,4 +1,4 @@
-"""Lectura/escritura del frontmatter YAML de las tarjetas -- ver docs/canvas-schema.md."""
+"""Reading and writing the cards' YAML frontmatter -- see docs/canvas-schema.md."""
 from __future__ import annotations
 
 import hashlib

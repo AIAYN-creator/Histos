@@ -191,7 +191,7 @@ def test_init_adds_legend_text_node(tmp_path, monkeypatch):
     assert len(legend) == 1
     assert legend[0]["type"] == "text"
     assert "Backlog" in legend[0]["text"]
-    # el legend no cuenta como tarjeta para nada de la logica de estado
+    # the legend never counts as a card in any status logic
     assert canvas.cards(data) == []
 
 
@@ -254,12 +254,12 @@ def test_link_blocks_already_assigned_card(tmp_path, monkeypatch, capsys):
         "--depends-on", "fuentes-apis", "--authorized",
     ) == 0
 
-    # el cambio de estado se persiste ya en el propio 'link'...
+    # the state change is already saved by 'link' itself...
     data = canvas.load(tmp_path)
     assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BLOCKED
 
-    # ...y 'status' lo confirma (era el sintoma original del bug: seguia listada
-    # bajo "En progreso" en el siguiente 'histos status').
+    # ...and 'status' confirms it (the original bug's symptom: it was still listed
+    # under "In progress" in the next 'histos status').
     capsys.readouterr()
     run(monkeypatch, tmp_path, "status")
     output = capsys.readouterr().out
@@ -286,7 +286,7 @@ def test_link_blocked_card_returns_to_backlog_once_dependency_approved(tmp_path,
 
     data = canvas.load(tmp_path)
     assert canvas.find_card(data, "fuentes-apis")["color"] == canvas.APPROVED
-    # vuelve a un estado trabajable (Backlog) solo, sin que nadie mueva el color a mano
+    # back to a workable state (Backlog) on its own, without anyone recoloring it by hand
     assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BACKLOG
 
 

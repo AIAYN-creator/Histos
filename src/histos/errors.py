@@ -2,4 +2,4 @@
 
 
 class HistosError(Exception):
-    """Errores esperables (vault no encontrado, id duplicado, etc.) -- mensaje ya listo para el usuario."""
+    """Expected errors (vault not found, duplicate id...) -- the message is ready for the user as is."""

@@ -1,5 +1,6 @@
-"""Validacion completa de un .canvas: schema + lo que el schema no puede ver por si solo
-(integridad referencial de las edges, aciclicidad del grafo). Ver docs/canvas-schema.md.
+"""Full validation of a vault: the canvas schema plus what a schema can't see on its own
+(edges pointing to existing nodes, an acyclic graph), and the cards' frontmatter.
+See docs/canvas-schema.md.
 """
 from __future__ import annotations
 
@@ -76,7 +77,7 @@ def validate_frontmatter(vault_root: Path, data: dict) -> list[str]:
 
 def validate_all(data: dict) -> list[str]:
     errors = validate_schema(data)
-    # las comprobaciones de grafo asumen que los edges/ids ya tienen forma valida
+    # the graph checks assume edges and ids are already well formed
     if not errors:
         errors += validate_references(data)
         errors += validate_acyclic(data)

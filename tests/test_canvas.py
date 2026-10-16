@@ -73,8 +73,8 @@ def test_recompute_blocked_unblocks_when_dep_approved():
 
 
 def test_recompute_blocked_demotes_en_progreso_when_dep_not_approved():
-    # p.ej. 'histos link' anade una dependencia sin aprobar a una tarjeta ya asignada:
-    # Bloqueada es derivada del grafo, no algo que solo se fija al crear/asignar.
+    # e.g. 'histos link' adds an unapproved dependency to a card already assigned:
+    # Blocked is derived from the graph, not something set only on create/assign.
     data = {
         "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.IN_PROGRESS)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
@@ -93,8 +93,8 @@ def test_recompute_blocked_leaves_en_progreso_alone_when_deps_satisfied():
 
 
 def test_recompute_blocked_does_not_auto_restore_en_progreso():
-    # Una tarjeta degradada a Bloqueada no vuelve sola a En progreso al aprobarse la
-    # dependencia -- aterriza en Backlog, hace falta 'assign' de nuevo para retomarla.
+    # A card dropped to Blocked doesn't go back to In progress by itself once its
+    # dependency is approved -- it lands in Backlog and needs 'assign' again.
     data = {
         "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.BLOCKED)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
