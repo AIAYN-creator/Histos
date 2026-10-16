@@ -185,6 +185,10 @@ DEFAULT_TERMS: dict[str, list[str]] = {
         "trade-off", "tradeoff",
         "arquitectura", "decision de diseno", "redisenar", "refactorizar", "refactorizacion",
         "esquema", "modelo de datos", "interfaz", "metodologia", "marco teorico",
+        # Decisions and synthesis (dec-defaults): without these, "DECIDIR: stack de hosting" or
+        # "Conclusiones" came out fast on the real vaults.
+        "decidir", "decision", "decide", "elegir", "choose", "comparar alternativas",
+        "discusion", "discussion", "sintesis", "synthesis",
     ],
     "debugging": [
         "bug", "bugs", "debug", "debugging", "traceback", "stack trace", "exception", "crash",

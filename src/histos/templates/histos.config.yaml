@@ -1,0 +1,41 @@
+# Histos tier heuristics -- see docs/canvas-schema.md.
+#
+# `histos classify <id>` measures a card's context and picks the first tier that matches,
+# checking reasoning -> exec -> fast; if none matches, exec. The tier is a suggestion with its
+# reason: the human still approves the concrete model (`histos model`).
+#
+# Calibrated (dec-defaults) on 416 real cards, writing and code: ~17 % fast, ~55 % exec
+# (half of them by default), ~28 % reasoning. Re-run scripts/calibrate_tiers.py from the
+# Histos repo to measure your own vaults before tuning.
+
+tiers:
+  - name: reasoning
+    match: any
+    heuristics:
+      - "architecture_terms_present"   # design, schema, methodology, decisions, synthesis...
+      - "debugging_terms_present"
+      - "multi_step_reasoning_implied"
+      - "token_count >= 3000"          # roughly the largest 5 % of contexts
+
+  - name: exec
+    match: any
+    heuristics:
+      - "code_blocks_present"
+      - "file_operations_mentioned"
+
+  - name: fast
+    match: all                         # conservative on purpose: a wrong "fast" costs a retry
+    heuristics:
+      - "token_count < 300"
+      - "dependency_count <= 1"
+      - "no_code_blocks"
+      - "not file_operations_mentioned"
+
+# Extra words for the *_terms_present conditions, added to the built-in lists:
+# terms:
+#   architecture: ["ontologia"]
+
+evals:
+  enabled: true
+  path: evals/
+  run_on: propose

@@ -92,3 +92,20 @@ def test_the_spec_example_can_never_give_fast(tmp_path):
         fast_match="any",
     )
     assert tiers.classify(cfg, text("x" * 200)).tier == "exec"  # 50 tokens
+
+
+def test_the_bundled_default_config_is_valid_and_can_give_every_tier(tmp_path):
+    from importlib import resources
+    text = resources.files("histos").joinpath("templates", config.CONFIG_FILENAME).read_text(encoding="utf-8")
+    (tmp_path / config.CONFIG_FILENAME).write_text(text, encoding="utf-8")
+    (tmp_path / "evals").mkdir()
+    assert config.validate(tmp_path) == []
+    cfg = config.load(tmp_path)
+    assert tiers.classify(cfg, text_inputs("Bibliografia")).tier == "fast"
+    assert tiers.classify(cfg, text_inputs("Leer el CSV de la carpeta datos")).tier == "exec"
+    assert tiers.classify(cfg, text_inputs("DECIDIR: stack de hosting")).tier == "reasoning"
+    assert tiers.classify(cfg, text_inputs("Conclusiones y sintesis")).tier == "reasoning"
+
+
+def text_inputs(card_text):
+    return Inputs(card_text, card_text, 0, 0)
