@@ -43,7 +43,8 @@ def test_valid_file_loads_with_defaults(tmp_path):
     assert set(cfg.tiers) == {"fast", "exec", "reasoning"}
     assert cfg.tiers["reasoning"].match == "any"
     assert cfg.tiers["fast"].match == "all"
-    assert cfg.tiers["fast"].heuristics == ["token_count < 200", "no_code_blocks"]
+    assert [c.source for c in cfg.tiers["fast"].heuristics] == ["token_count < 200", "no_code_blocks"]
+    assert cfg.terms == {}
     assert cfg.evals.enabled and cfg.evals.path == "evals/" and cfg.evals.run_on == "propose"
 
 
@@ -55,6 +56,11 @@ def test_missing_evals_section_means_evals_off(tmp_path):
 def test_evals_section_without_enabled_is_on(tmp_path):
     write(tmp_path, VALID.replace("  enabled: true\n", ""))
     assert config.load(tmp_path).evals.enabled is True
+
+
+def test_extra_terms_load(tmp_path):
+    write(tmp_path, VALID + "terms:\n  architecture: [ontologia]\n")
+    assert config.load(tmp_path).terms == {"architecture": ["ontologia"]}
 
 
 def test_a_tier_can_have_no_rules(tmp_path):
@@ -73,6 +79,10 @@ def test_a_tier_can_have_no_rules(tmp_path):
     (VALID.replace("path: evals/", "path: /evals/"), "inside the vault"),
     (VALID.replace("path: evals/", "path: ."), "inside the vault"),
     (VALID.replace("run_on: propose", "run_on: approve"), "approve"),
+    (VALID.replace('"architecture_terms_present"', '"arquitecture_terms_present"'), "unknown condition"),
+    (VALID.replace('"token_count >= 2000"', '"token_count >= mucho"'), "unknown condition"),
+    (VALID.replace('"token_count >= 2000"', '"token_count"'), "is a measure"),
+    (VALID + "terms:\n  colors: [red]\n", "colors"),
     ("tiers: [unclosed\n", "YAML"),
     ("", "empty"),
 ])

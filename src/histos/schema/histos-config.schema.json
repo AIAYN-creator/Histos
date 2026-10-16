@@ -13,9 +13,23 @@
       "maxItems": 3,
       "items": { "$ref": "#/$defs/tier" }
     },
-    "evals": { "$ref": "#/$defs/evals" }
+    "evals": { "$ref": "#/$defs/evals" },
+    "terms": {
+      "description": "Extra terms for the *_terms_present / file_operations_mentioned conditions -- added to the built-in lists, never replacing them.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "architecture": { "$ref": "#/$defs/termList" },
+        "debugging": { "$ref": "#/$defs/termList" },
+        "file_operations": { "$ref": "#/$defs/termList" }
+      }
+    }
   },
   "$defs": {
+    "termList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "tier": {
       "type": "object",
       "additionalProperties": false,

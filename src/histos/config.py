@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import yaml
 from jsonschema import Draft202012Validator
 
+from . import heuristics
 from .errors import HistosError
 
 CONFIG_FILENAME = "histos.config.yaml"
@@ -29,7 +30,7 @@ _SCHEMA_CACHE: dict | None = None
 class Tier:
     name: str
     match: str
-    heuristics: list[str]
+    heuristics: list[heuristics.Condition]
 
 
 @dataclass
@@ -43,6 +44,7 @@ class EvalsConfig:
 class Config:
     tiers: dict[str, Tier]
     evals: EvalsConfig
+    terms: dict[str, list[str]]
 
 
 def config_path(vault_root: Path) -> Path:
@@ -91,6 +93,13 @@ def _read_and_check(vault_root: Path, path: Path) -> tuple[dict, list[str]]:
         if names.count(name) != 1:
             errors.append(f"tiers: '{name}' must appear exactly once (found {names.count(name)})")
 
+    for i, tier in enumerate(raw["tiers"]):
+        for j, expr in enumerate(tier["heuristics"]):
+            try:
+                heuristics.parse(expr)
+            except ValueError as e:
+                errors.append(f"tiers/{i}/heuristics/{j}: {e}")
+
     evals_path = (raw.get("evals") or {}).get("path")
     if evals_path is not None and not _inside_vault(vault_root, evals_path):
         errors.append(f"evals/path: '{evals_path}' must be a relative path inside the vault")
@@ -107,7 +116,11 @@ def _inside_vault(vault_root: Path, rel: str) -> bool:
 
 def _build(raw: dict) -> Config:
     tiers = {
-        t["name"]: Tier(name=t["name"], match=t.get("match", DEFAULT_MATCH), heuristics=list(t["heuristics"]))
+        t["name"]: Tier(
+            name=t["name"],
+            match=t.get("match", DEFAULT_MATCH),
+            heuristics=[heuristics.parse(h) for h in t["heuristics"]],
+        )
         for t in raw["tiers"]
     }
     ev = raw.get("evals")
@@ -116,7 +129,7 @@ def _build(raw: dict) -> Config:
         path=(ev or {}).get("path", DEFAULT_EVALS_PATH),
         run_on=(ev or {}).get("run_on", "propose"),
     )
-    return Config(tiers=tiers, evals=evals)
+    return Config(tiers=tiers, evals=evals, terms={k: list(v) for k, v in (raw.get("terms") or {}).items()})
 
 
 def _load_schema() -> dict:
