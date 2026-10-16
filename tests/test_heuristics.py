@@ -156,3 +156,12 @@ def test_plurals_match(text):
 def test_plurals_dont_open_other_words():
     assert not holds("architecture_terms_present", inputs("A designated reviewer"))
     assert not holds("debugging_terms_present", inputs("Debuggers are tools"))  # not a plural of "debug"
+
+
+def test_negated_conditions_read_naturally():
+    plain = heuristics.parse("no_code_blocks").evaluate(inputs("texto"))
+    assert (plain.holds, plain.detail) == (True, "no code blocks")
+    files = heuristics.parse("not file_operations_mentioned").evaluate(inputs("texto"))
+    assert (files.holds, files.detail) == (True, "no file operations terms")
+    code = heuristics.parse("no_code_blocks").evaluate(inputs("```\nx\n```"))
+    assert (code.holds, code.detail) == (False, "fenced code block")

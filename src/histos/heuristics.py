@@ -54,9 +54,9 @@ class Condition:
             value = MEASURES[self.name](inputs)
             return Outcome(_COMPARATORS[self.op](value, self.number), f"{self.name} = {value}")
         holds, detail = CHECKS[self.name](inputs, terms or {})
-        if self.negated:
-            return Outcome(not holds, detail if holds else f"no {self.name.removesuffix('_present')}")
-        return Outcome(holds, detail)
+        # Each check already words its detail both ways ("fenced code block" / "no code blocks"),
+        # so a negation only flips the verdict.
+        return Outcome(holds != self.negated, detail)
 
 
 def gather(vault_root: Path, data: dict, card: dict) -> Inputs:
@@ -140,7 +140,8 @@ def _math(i: Inputs, terms: dict) -> tuple[bool, str]:
 def _terms_check(kind: str) -> Callable[[Inputs, dict], tuple[bool, str]]:
     def check(i: Inputs, terms: dict) -> tuple[bool, str]:
         hit = _find_term(i.card_text, DEFAULT_TERMS[kind] + list(terms.get(kind, [])))
-        return (True, f'{kind} term "{hit}"') if hit else (False, f"no {kind} terms")
+        label = kind.replace("_", " ")
+        return (True, f'{label} term "{hit}"') if hit else (False, f"no {label} terms")
     return check
 
 
