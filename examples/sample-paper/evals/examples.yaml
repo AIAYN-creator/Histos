@@ -1,0 +1,15 @@
+# Examples, switched off: they depend on each project. Remove the leading "# " of an eval to
+# turn it on, and adjust it. `only`/`except` take card id patterns, so a word minimum can apply
+# to chapters ("cap*") and not to code cards ("cod-*").
+
+# - name: min_word_count
+#   check: word_count
+#   min: 300
+#   error: "A chapter needs at least 300 words"
+#   only: ["cap*"]
+
+# - name: chapter_structure
+#   check: required_headings
+#   headings: ["## Introduction", "## Conclusions"]
+#   only: ["cap*"]
+#   except: ["cap0"]

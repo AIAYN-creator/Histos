@@ -149,10 +149,12 @@ def test_reject_records_feedback_and_returns_to_backlog(tmp_path, monkeypatch):
     assert not (tmp_path / "proposals" / "cap1.md").exists()
 
 
-def test_validate_command_on_example_canvas(tmp_path, monkeypatch):
+def test_the_example_vault_is_valid(tmp_path, monkeypatch):
     repo_root = Path(__file__).resolve().parents[1]
-    shutil.copy(repo_root / "examples" / "example.canvas", tmp_path / "project.canvas")
-    assert run(monkeypatch, tmp_path, "validate") == 0
+    vault = tmp_path / "sample-paper"
+    shutil.copytree(repo_root / "examples" / "sample-paper", vault)
+    assert run(monkeypatch, vault, "validate") == 0
+    assert run(monkeypatch, vault, "status") == 0
 
 
 def test_init_installs_agent_templates(tmp_path, monkeypatch):

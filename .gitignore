@@ -32,3 +32,6 @@ Thumbs.db
 # Config local de Claude Code -- especifica de esta maquina, settings.json
 # (compartido) si sigue trackeado
 .claude/settings.local.json
+
+# Histos's own vault lock (examples/ and any vault kept in a repo)
+.histos.lock
