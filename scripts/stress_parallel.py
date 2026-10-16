@@ -15,7 +15,6 @@ for project.canvas and the vault lock. Then it checks the invariants:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import random
 import shutil
