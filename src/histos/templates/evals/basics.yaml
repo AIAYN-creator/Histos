@@ -1,0 +1,9 @@
+# Evals that fit any project, writing or code -- run by `histos propose` before a draft
+# reaches you. They filter obvious junk; you still review everything that passes.
+# Format and checks: docs/canvas-schema.md. Only you edit this folder (AGENTS.md rule).
+
+- name: no_direct_writes
+  check: content_untouched        # nobody wrote to content/ outside histos
+
+- name: no_placeholders
+  check: no_placeholders          # no TODO, TBD, FIXME, XXX, lorem ipsum, [...] left behind

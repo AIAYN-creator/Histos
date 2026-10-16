@@ -24,6 +24,10 @@ _BASE_DENY_RULES = [
     "Edit(PROJECT.md)",
     "Write(ARCHITECTURE.md)",
     "Edit(ARCHITECTURE.md)",
+    "Write(histos.config.yaml)",
+    "Edit(histos.config.yaml)",
+    "Write(evals/**)",
+    "Edit(evals/**)",
 ]
 
 
@@ -113,6 +117,21 @@ def _with_vault_lock(func):
 
 def cmd_init(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
+    if args.add_config:
+        try:
+            warnings = operations.add_config(vault_root)
+        except canvas.HistosError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        for warning in warnings:
+            print(f"warning: {warning}", file=sys.stderr)
+        try:
+            sources = _all_registered_sources(vault_root, operations._load_valid(vault_root))
+        except canvas.HistosError:
+            sources = []  # the deny rules for config/evals don't depend on a valid canvas
+        _sync_permissions_deny(vault_root, sources)
+        print("v3 config checked: histos.config.yaml and evals/ are in place")
+        return 0
     try:
         result = operations.init_vault(vault_root)
     except canvas.HistosError as e:
@@ -760,6 +779,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("init", help="creates project.canvas + content/ in the current directory")
+    p.add_argument(
+        "--add-config", action="store_true",
+        help="existing vault: only add histos.config.yaml and evals/ if they're missing, touch nothing else",
+    )
     p.set_defaults(func=cmd_init)
 
     p = sub.add_parser("add-card", help="creates a new card")

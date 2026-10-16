@@ -31,7 +31,8 @@ def vault(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "add-card", "cap3", "--title", "Tres")
     run(monkeypatch, tmp_path, "add-card", "cod-lock", "--title", "Codigo")
     (tmp_path / config.CONFIG_FILENAME).write_text(CONFIG, encoding="utf-8")
-    (tmp_path / "evals").mkdir()
+    for bundled in (tmp_path / "evals").glob("*.yaml"):  # init's own evals: these tests bring theirs
+        bundled.unlink()
     (tmp_path / "evals" / "a.yaml").write_text(
         "- {name: no_direct_writes, check: content_untouched}\n"
         "- {name: min_word_count, check: word_count, min: 5, error: Al menos 5 palabras, only: ['cap*']}\n",

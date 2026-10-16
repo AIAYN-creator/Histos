@@ -40,6 +40,8 @@ _LEGACY_APPROVED_DIR = "aprobados"
 WORKER_KEY = "worker"
 # Last evals run on a proposal for the card -- written by propose, see the frontmatter schema.
 EVAL_RESULTS_KEY = "eval_results"
+V3_CONFIG_TEMPLATE = "histos.config.yaml"
+V3_EVALS_TEMPLATES = ["evals/basics.yaml", "evals/examples.yaml"]
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
@@ -108,8 +110,38 @@ def init_vault(vault_root: Path) -> InitResult:
     (vault_root / PROPOSALS_DIR).mkdir(parents=True, exist_ok=True)
     (vault_root / APPROVED_DIR).mkdir(parents=True, exist_ok=True)
     canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
-    warnings = _install_agent_templates(vault_root)
+    warnings = _install_agent_templates(vault_root) + _install_v3_config(vault_root)
     return InitResult(vault_root=vault_root, template_warnings=warnings)
+
+
+def _install_v3_config(vault_root: Path) -> list[str]:
+    """histos.config.yaml and an evals/ folder, each only if it isn't there yet. The bundled
+    evals go in only when there's no evals/ folder at all, so they never add active evals
+    next to ones the human already wrote."""
+    to_install = []
+    warnings = []
+    if (vault_root / V3_CONFIG_TEMPLATE).exists():
+        warnings.append(f"{V3_CONFIG_TEMPLATE} already exists, leaving it alone")
+    else:
+        to_install.append(V3_CONFIG_TEMPLATE)
+    if (vault_root / "evals").exists():
+        warnings.append("evals/ already exists, leaving it alone")
+    else:
+        to_install += V3_EVALS_TEMPLATES
+    for rel_path in to_install:
+        ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
+        target = vault_root / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(target, ref.read_text(encoding="utf-8"))
+    return warnings
+
+
+@locked("init --add-config")
+def add_config(vault_root: Path) -> list[str]:
+    """Brings an existing vault to v3: adds histos.config.yaml and evals/ if missing, nothing else."""
+    if not canvas.vault_canvas_path(vault_root).exists():
+        raise canvas.HistosError(f"no {canvas.CANVAS_FILENAME} here -- use plain 'histos init' for a new vault")
+    return _install_v3_config(vault_root)
 
 
 @dataclass
