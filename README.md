@@ -9,9 +9,9 @@ Open-source, agent-agnostic tool that uses **Obsidian Canvas** as a shared human
 
 The agent proposes the workflow and drafts the tasks; the human approves real changes before they're applied to the content.
 
-![A sample Histos board before and after running histos arrange](docs/assets/histos-arrange.gif)
+![The v3 cycle on a sample paper: a tier with its reason, a model you approve, a parent and a subagent working two cards, evals filtering a draft, and your review](docs/assets/histos-demo.gif)
 
-<sub>A sample project's board before and after `histos arrange`, rendered to match Obsidian's canvas (same colors, same arrow curves) — regenerate it with [`scripts/make_readme_gif.py`](scripts/make_readme_gif.py).</sub>
+<sub>The v3 cycle on a sample paper. Every line in the terminal is real `histos` output — [`scripts/make_demo_gif.py`](scripts/make_demo_gif.py) runs the commands on a throwaway vault to draw it.</sub>
 
 Installing: [docs/install.md](docs/install.md). Day-to-day use (terminal and desktop app, side by side): [docs/usage.md](docs/usage.md).
 
@@ -72,6 +72,10 @@ A real, agent-agnostic guarantee (not just for Claude Code) would require separa
 
 - **Node types:** `file` — each card points to a real `.md` in the vault, it never contains embedded text. `text` is used only for the decorative color legend that `histos init` generates (the CLI ignores it entirely). `group` shows up in two ways: the ones `histos arrange` creates and owns ("Not connected" and "Done", ids starting with `histos:`), and any you draw yourself in Obsidian, which Histos never touches.
 - **Layout:** reads like a Gantt chart but without calendar dates — dependencies flow left to right, and every arrow leaves a card's right side and enters the next card's left side. A new card lands one column to the right of its dependencies, at their average height, in the nearest spot that doesn't overlap another node or sit on an existing arrow. Nothing else moves when that happens: `add-card` only places the card it creates, `describe` may resize a card to fit a new description but never repositions it, and `link` never touches position or size at all. The one command that moves existing cards is [`histos arrange`](#cli), which a human runs on purpose to re-lay out the whole board: dependency columns ordered to minimize crossings, a free corridor wherever an arrow skips over a column (so no arrow is ever drawn across a card), and two groups it owns — "Not connected" and "Done" (see [`docs/canvas-schema.md`](docs/canvas-schema.md)).
+
+![A sample Histos board before and after running histos arrange](docs/assets/histos-arrange.gif)
+
+<sub>A sample project's board before and after `histos arrange`, rendered to match Obsidian's canvas (same colors, same arrow curves) — regenerate it with [`scripts/make_readme_gif.py`](scripts/make_readme_gif.py).</sub>
 
 ### Color legend
 
