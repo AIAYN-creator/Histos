@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-from . import canvas, config, context, evals, frontmatter, lock, operations, validation
+from . import canvas, config, context, evals, frontmatter, guides, lock, operations, validation
 from .fsutil import write_text_atomic
 
 _SETTINGS_PATH = ".claude/settings.json"
@@ -437,6 +437,44 @@ def cmd_status(args: argparse.Namespace) -> int:
         for c in group.cards:
             desc = f"  -- {c.description}" if c.description else ""
             print(f"  - {c.id}  ({c.file}){desc}")
+    waiting = guides.pending(vault_root)
+    if waiting:
+        print(f"Guides pending review: {', '.join(waiting)}  ('histos guide diff <file>' to review)")
+    return 0
+
+
+def cmd_guide(args: argparse.Namespace) -> int:
+    """PROJECT.md / ARCHITECTURE.md changes: the agent proposes, the human approves."""
+    vault_root = _vault_root()
+    try:
+        if args.guide_action == "propose":
+            draft = Path(args.file)
+            if not draft.exists():
+                print(f"error: can't find the draft '{draft}'", file=sys.stderr)
+                return 1
+            result = guides.propose(vault_root, args.name, draft.read_text(encoding="utf-8"))
+            if result.replaced_pending:
+                print(f"warning: replaced the change to {result.name} that was already pending", file=sys.stderr)
+            print(f"{result.name}: change pending review ('histos guide diff {result.name}' to review it)")
+        elif args.guide_action == "diff":
+            result = guides.get_diff(vault_root, args.name)
+            sys.stdout.writelines(difflib.unified_diff(
+                result.current.splitlines(keepends=True),
+                result.proposed.splitlines(keepends=True),
+                fromfile=f"{result.name} (current)",
+                tofile=f"{result.name} (proposed)",
+            ))
+        elif args.guide_action == "approve":
+            result = guides.approve(vault_root, args.name)
+            kept = f" -- previous version kept in {result.archived_previous.relative_to(vault_root).as_posix()}" \
+                if result.archived_previous else ""
+            print(f"{result.name}: updated{kept}")
+        else:
+            name = guides.reject(vault_root, args.name, args.feedback)
+            print(f"{name}: change discarded")
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -552,6 +590,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("status", help="lists cards grouped by status")
     p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser(
+        "guide",
+        help="changes to PROJECT.md / ARCHITECTURE.md: the agent proposes, the human approves (like a card)",
+    )
+    guide_sub = p.add_subparsers(dest="guide_action", required=True)
+    g = guide_sub.add_parser("propose", help="the agent proposes a new version of the file")
+    g.add_argument("name", help="PROJECT.md or ARCHITECTURE.md")
+    g.add_argument("--file", required=True, help="draft with the whole new file")
+    g = guide_sub.add_parser("diff", help="what the pending change would change")
+    g.add_argument("name", help="PROJECT.md or ARCHITECTURE.md")
+    g = guide_sub.add_parser("approve", help="(human) write the pending change; the old version is kept in approved/guides/")
+    g.add_argument("name", help="PROJECT.md or ARCHITECTURE.md")
+    g = guide_sub.add_parser("reject", help="(human) discard the pending change")
+    g.add_argument("name", help="PROJECT.md or ARCHITECTURE.md")
+    g.add_argument("--feedback", help="why -- the agent sees it in 'histos context'")
+    p.set_defaults(func=cmd_guide)
 
     p = sub.add_parser("validate", help="validates project.canvas against the formal schema")
     p.set_defaults(func=cmd_validate)

@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import canvas, frontmatter, operations
+from . import canvas, frontmatter, guides, operations
 
 # Proposals per cycle when evals keep failing -- so an unattended agent doesn't burn tokens forever.
 MAX_ATTEMPTS = 3
@@ -79,11 +79,15 @@ def card_sections(vault_root: Path, data: dict, card: dict) -> list[str]:
 
 
 def guidance_sections(vault_root: Path) -> list[str]:
+    rejected = guides.feedback(vault_root)
     sections = []
     for filename, label in GUIDANCE_FILES:
         path = vault_root / filename
-        if path.exists():
-            sections.append(f"## {label} ({filename})\n\n" + path.read_text(encoding="utf-8").strip())
+        parts = [path.read_text(encoding="utf-8").strip()] if path.exists() else []
+        if filename in rejected:
+            parts.append(f"Feedback on a rejected {filename} change: {rejected[filename]}")
+        if parts:
+            sections.append(f"## {label} ({filename})\n\n" + "\n\n".join(parts))
     return sections
 
 
