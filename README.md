@@ -139,7 +139,15 @@ histos arrange [--no-set-aside-done] [--no-prune-redundant]
 
 Why this matters so much: cards reference their `.md` files with paths relative to the vault (`content/cap1.md`). If you open a folder above the one containing `project.canvas` (e.g. the parent directory instead of the vault itself), those paths no longer resolve and Obsidian shows cards as "Create new note" / "Swap file..." instead of with content — it's not broken, it's the wrong folder. If this happens after you already had the vault open correctly (e.g. because `histos` created files while Obsidian was already open), reload with `Ctrl+R` before suspecting anything else.
 
-Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`). Practical day-to-day usage guide (for humans, not agents): [`docs/usage.md`](docs/usage.md).
+Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/) (`pytest`; `pytest -m "not slow"` skips the few that start real parallel processes — CI runs everything on Windows and Linux). Practical day-to-day usage guide (for humans, not agents): [`docs/usage.md`](docs/usage.md). A complete sample vault: [`examples/sample-paper/`](examples/sample-paper/).
+
+Scripts in [`scripts/`](scripts/), each runnable on its own and none touching your vaults:
+
+- `make_example_vault.py` — rebuilds `examples/sample-paper/` by running the real `histos` commands.
+- `make_demo_gif.py`, `make_readme_gif.py`, `make_logo.py` — the README's GIFs and logo.
+- `calibrate_tiers.py` — how a tier config would split your vaults' cards (read-only).
+- `stress_parallel.py` — several agents hammering a throwaway vault at once, then checks nothing was lost.
+- `check_links.py` — every relative link in the README and `docs/` points somewhere real.
 
 ## Roadmap
 
