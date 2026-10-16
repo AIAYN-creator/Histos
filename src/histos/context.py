@@ -3,9 +3,13 @@ heuristics measure it, and `--for-subagent` wraps it in a brief.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import canvas, frontmatter, operations
+
+# Proposals per cycle when evals keep failing -- so an unattended agent doesn't burn tokens forever.
+MAX_ATTEMPTS = 3
 
 # Vault-wide guidance files, in the order they're appended after the cards.
 GUIDANCE_FILES = [
@@ -89,3 +93,40 @@ def build(vault_root: Path, data: dict, card: dict) -> str:
 
 def join(sections: list[str]) -> str:
     return "\n\n---\n\n".join(sections)
+
+
+@dataclass
+class SubagentBrief:
+    text: str
+    approved_model: str | None
+
+
+def build_for_subagent(vault_root: Path, data: dict, card: dict) -> SubagentBrief:
+    """Everything a subagent that inherits nothing from its parent needs: a header with what
+    to do and when to stop, AGENTS.md (the hard rules hold for it too), then the same card,
+    dependency and guidance sections as `histos context` -- built by the same functions, so
+    parent and child never see two versions of one card.
+    """
+    meta, _ = read_card(vault_root, card)
+    model = meta.get("approved_model")
+    tier = meta.get("proposed_tier")
+    model_line = f"Approved model: {model}" if model else "Approved model: none recorded"
+    if tier:
+        model_line += f" (tier: {tier})"
+    card_id = card["id"]
+    header = "\n".join([
+        f"# Subagent brief: {card_id}",
+        "",
+        f"You are working one Histos card in isolation. {model_line}.",
+        f"When your draft is ready, run:   histos propose {card_id} --file <draft.md>",
+        f"If evals fail, fix the draft and propose again ({MAX_ATTEMPTS} attempts in total at most).",
+        "Never approve, reject, assign, link or arrange. Your final message to the parent is a short summary:",
+        "what you did, the evals result, and anything the human should look at.",
+    ])
+
+    sections = [header]
+    agents_md = vault_root / "AGENTS.md"
+    if agents_md.exists():
+        sections.append("## Vault rules (AGENTS.md)\n\n" + agents_md.read_text(encoding="utf-8").strip())
+    sections += card_sections(vault_root, data, card) + guidance_sections(vault_root)
+    return SubagentBrief(text=join(sections), approved_model=model)

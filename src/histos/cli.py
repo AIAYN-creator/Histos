@@ -384,7 +384,21 @@ def cmd_context(args: argparse.Namespace) -> int:
         print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
 
-    print(context.build(vault_root, data, card))
+    if not args.for_subagent:
+        print(context.build(vault_root, data, card))
+        return 0
+
+    if card["color"] != canvas.EN_PROGRESO:
+        print(
+            f"error: '{args.id}' isn't In progress (current state: {operations.STATE_NAMES[card['color']]}) "
+            "-- assign it before handing it to a subagent",
+            file=sys.stderr,
+        )
+        return 1
+    brief = context.build_for_subagent(vault_root, data, card)
+    if brief.approved_model is None:
+        print(f"warning: '{args.id}' has no approved_model recorded", file=sys.stderr)
+    print(brief.text)
     return 0
 
 
@@ -521,6 +535,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("context", help="bundles description+approved dependencies+sources+PROJECT.md+ARCHITECTURE.md to work the card")
     p.add_argument("id")
+    p.add_argument(
+        "--for-subagent", action="store_true",
+        help="self-contained brief for a subagent that starts from zero: adds AGENTS.md and what to do when done",
+    )
     p.set_defaults(func=cmd_context)
 
     p = sub.add_parser("approve", help="applies the pending proposal to the real .md")
