@@ -106,6 +106,51 @@ def validate(vault_root: Path, cfg: Config | None) -> list[str]:
     return _read_all(vault_root, cfg)[1]
 
 
+@dataclass
+class EvalRun:
+    passed: bool
+    checks: list[dict]  # exactly the `checks` list of eval_results (see the frontmatter schema)
+    skipped: int  # evals that don't apply to this card (only/except)
+
+    def render(self, card_id: str) -> str:
+        if not self.checks:
+            lines = ["evals: none apply"]
+        else:
+            ok = sum(1 for c in self.checks if c["passed"])
+            width = max(len(c["name"]) for c in self.checks)
+            lines = [f"evals: {ok} of {len(self.checks)} passed"]
+            for c in self.checks:
+                text = c.get("detail", "")
+                if not c["passed"]:
+                    text = f"{text} -- {c['error']}" if text else c["error"]
+                lines.append(f"  {'PASS' if c['passed'] else 'FAIL'}  {c['name']:<{width}}  {text}")
+        if self.skipped:
+            lines.append(f"  ({self.skipped} eval{'s' if self.skipped != 1 else ''} "
+                         f"{'don' if self.skipped != 1 else 'doesn'}'t apply to {card_id})")
+        return "\n".join(lines)
+
+
+def run_all(vault_root: Path, cfg: Config | None, data: dict, card: dict, draft: str) -> EvalRun:
+    """Every eval that applies to the card, all of them -- no stopping at the first failure, so
+    the agent fixes everything in one retry instead of spending its attempts one by one."""
+    results, skipped = [], 0
+    for ev in load(vault_root, cfg):
+        if not ev.applies_to(card["id"]):
+            skipped += 1
+            continue
+        try:
+            outcome = ev.run(draft, vault_root, data, card)
+        except Exception as e:  # a crashing check is a failed eval, never a silent pass
+            outcome = checks.CheckOutcome(False, f"check crashed: {e}", f"the '{ev.check}' check crashed")
+        result = {"name": ev.name, "passed": outcome.passed}
+        if not outcome.passed:
+            result["error"] = ev.error or outcome.message
+        if outcome.detail:
+            result["detail"] = outcome.detail
+        results.append(result)
+    return EvalRun(passed=all(r["passed"] for r in results), checks=results, skipped=skipped)
+
+
 def _read_all(vault_root: Path, cfg: Config | None) -> tuple[list[Eval], list[str]]:
     if cfg is None or not cfg.evals.enabled:
         return [], []

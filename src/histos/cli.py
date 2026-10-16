@@ -371,6 +371,25 @@ def cmd_propose(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    """Read-only dry run of what propose's evals would say about a draft."""
+    vault_root = _vault_root()
+    draft_path = Path(args.file)
+    try:
+        data = operations._load_valid(vault_root)
+        card = canvas.find_card(data, args.id)
+        if card is None:
+            raise canvas.HistosError(f"card '{args.id}' doesn't exist")
+        if not draft_path.exists():
+            raise canvas.HistosError(f"can't find the draft '{draft_path}'")
+        result = evals.run_all(vault_root, config.load(vault_root), data, card, draft_path.read_text(encoding="utf-8"))
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(result.render(args.id))
+    return 0 if result.passed else 1
+
+
 def cmd_diff(args: argparse.Namespace) -> int:
     vault_root = _vault_root()
     try:
@@ -610,6 +629,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("diff", help="shows the diff between the current content and the pending proposal")
     p.add_argument("id")
     p.set_defaults(func=cmd_diff)
+
+    p = sub.add_parser(
+        "eval",
+        help="runs the vault's evals on a draft without proposing it -- no state change, no attempt spent",
+    )
+    p.add_argument("id")
+    p.add_argument("--file", required=True, help="the draft to check")
+    p.set_defaults(func=cmd_eval)
 
     p = sub.add_parser("context", help="bundles description+approved dependencies+sources+PROJECT.md+ARCHITECTURE.md to work the card")
     p.add_argument("id")
