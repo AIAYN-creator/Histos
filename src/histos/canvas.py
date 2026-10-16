@@ -15,11 +15,11 @@ from .fsutil import write_text_atomic
 CANVAS_FILENAME = "project.canvas"
 
 # Leyenda de estado (docs/canvas-schema.md)
-BLOQUEADA = "1"
-EN_PROGRESO = "2"
-PROPUESTA_PENDIENTE = "3"
-APROBADA = "4"
-SOLICITUD_CAMBIO_DEPENDENCIA = "5"
+BLOCKED = "1"
+IN_PROGRESS = "2"
+PENDING_REVIEW = "3"
+APPROVED = "4"
+DEPENDENCY_CHANGE_REQUEST = "5"
 BACKLOG = "6"
 
 # Backlog/Bloqueada se recalculan libremente en las dos direcciones segun el grafo.
@@ -27,8 +27,8 @@ BACKLOG = "6"
 # tarjeta desbloqueada aterriza en Backlog y hace falta 'assign' de nuevo para
 # retomarla). Propuesta/Solicitud/Aprobada quedan fuera del todo: son estados con una
 # accion humana de por medio, no derivables solo del grafo.
-_FREELY_DERIVED_COLORS = {BLOQUEADA, BACKLOG}
-_DEMOTABLE_TO_BLOQUEADA = _FREELY_DERIVED_COLORS | {EN_PROGRESO}
+_FREELY_DERIVED_COLORS = {BLOCKED, BACKLOG}
+_DEMOTABLE_TO_BLOQUEADA = _FREELY_DERIVED_COLORS | {IN_PROGRESS}
 
 CARD_WIDTH = 280
 CARD_HEIGHT = 100
@@ -66,7 +66,7 @@ _ARROW_END_OFFSET = 7
 _ARROW_HANDLE_MIN = 70
 _ARROW_HANDLE_MAX = 150
 _CURVE_SAMPLES = 40
-_GRID_STATUS_ORDER = [EN_PROGRESO, PROPUESTA_PENDIENTE, SOLICITUD_CAMBIO_DEPENDENCIA, BLOQUEADA, BACKLOG, APROBADA]
+_GRID_STATUS_ORDER = [IN_PROGRESS, PENDING_REVIEW, DEPENDENCY_CHANGE_REQUEST, BLOCKED, BACKLOG, APPROVED]
 
 LEGEND_ID = "legend"
 _LEGEND_TEXT = """## Status legend (Histos)
@@ -261,7 +261,7 @@ def arrange(data: dict, set_aside_done: bool = False, prune_redundant: bool = Fa
             dependents[u].append(v)
         done = {
             cid for cid, c in by_id.items()
-            if c["color"] == APROBADA and all(by_id[d]["color"] == APROBADA for d in dependents[cid])
+            if c["color"] == APPROVED and all(by_id[d]["color"] == APPROVED for d in dependents[cid])
         }
     loose_open = [c for cid, c in by_id.items() if cid not in connected and cid not in done]
     loose_done = [c for cid, c in by_id.items() if cid not in connected and cid in done]
@@ -772,10 +772,10 @@ def recompute_blocked(data: dict) -> bool:
             continue
         deps = incoming_edges(data, card["id"])
         all_approved = all(
-            by_id.get(e["fromNode"], {}).get("color") == APROBADA for e in deps
+            by_id.get(e["fromNode"], {}).get("color") == APPROVED for e in deps
         )
         if not all_approved:
-            target = BLOQUEADA
+            target = BLOCKED
         elif color in _FREELY_DERIVED_COLORS:
             target = BACKLOG
         else:

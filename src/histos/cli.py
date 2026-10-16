@@ -179,8 +179,8 @@ def cmd_add_card(args: argparse.Namespace) -> int:
             print(f"error: dependency '{dep}' doesn't exist", file=sys.stderr)
             return 1
 
-    all_approved = all(by_id[dep]["color"] == canvas.APROBADA for dep in depends_on)
-    initial_color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOQUEADA
+    all_approved = all(by_id[dep]["color"] == canvas.APPROVED for dep in depends_on)
+    initial_color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOCKED
 
     width, height = canvas.estimate_card_size(args.description)
     node = canvas.add_card_node(data, args.id, initial_color, width=width, height=height)
@@ -272,10 +272,10 @@ def cmd_assign(args: argparse.Namespace) -> int:
         if card is None:
             print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
             return 1
-        if card["color"] == canvas.BLOQUEADA:
+        if card["color"] == canvas.BLOCKED:
             print(f"error: '{card_id}' is Blocked, can't be assigned yet", file=sys.stderr)
             return 1
-        if card["color"] == canvas.EN_PROGRESO and not args.takeover:
+        if card["color"] == canvas.IN_PROGRESS and not args.takeover:
             holder = frontmatter.read(canvas.card_file_path(vault_root, card))[0].get(operations.WORKER_KEY)
             if args.worker is None or holder != args.worker:
                 who = f"worker: {holder}" if holder else "no worker recorded"
@@ -291,11 +291,11 @@ def cmd_assign(args: argparse.Namespace) -> int:
         card = canvas.find_card(data, card_id)
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path)
-        previous = meta.get(operations.WORKER_KEY) if card["color"] == canvas.EN_PROGRESO else None
+        previous = meta.get(operations.WORKER_KEY) if card["color"] == canvas.IN_PROGRESS else None
         if previous is not None and previous == args.worker:
             print(f"'{card_id}' is already yours ({args.worker}) -- nothing to do")
             continue
-        card["color"] = canvas.EN_PROGRESO
+        card["color"] = canvas.IN_PROGRESS
         meta["assigned_to"] = args.by
         if args.worker:
             meta[operations.WORKER_KEY] = args.worker
@@ -413,7 +413,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     if card is None:
         print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
         return 1
-    if card["color"] != canvas.EN_PROGRESO:
+    if card["color"] != canvas.IN_PROGRESS:
         print(
             f"error: '{args.id}' isn't In progress (current state: {operations.STATE_NAMES[card['color']]}) "
             "-- use 'histos assign' first",
@@ -439,7 +439,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     proposal_path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(proposal_path, draft)
 
-    card["color"] = canvas.PROPUESTA_PENDIENTE
+    card["color"] = canvas.PENDING_REVIEW
     canvas.save(vault_root, data)
     print(f"'{args.id}' -> Proposal pending review ('histos diff {args.id}' to review it)")
     return 0
@@ -462,7 +462,7 @@ def cmd_classify(args: argparse.Namespace) -> int:
         return 1
 
     if args.all:
-        targets = [c for c in canvas.cards(data) if c["color"] != canvas.APROBADA]
+        targets = [c for c in canvas.cards(data) if c["color"] != canvas.APPROVED]
     else:
         targets = []
         for card_id in args.ids:
@@ -470,7 +470,7 @@ def cmd_classify(args: argparse.Namespace) -> int:
             if card is None:
                 print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
                 return 1
-            if card["color"] == canvas.APROBADA:
+            if card["color"] == canvas.APPROVED:
                 print(f"error: '{card_id}' is already Approved -- nothing to classify", file=sys.stderr)
                 return 1
             targets.append(card)
@@ -532,7 +532,7 @@ def cmd_model(args: argparse.Namespace) -> int:
         if card is None:
             print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
             return 1
-        if card["color"] == canvas.APROBADA:
+        if card["color"] == canvas.APPROVED:
             print(f"error: '{card_id}' is already Approved -- its model stays as a record", file=sys.stderr)
             return 1
         cards.append(card)
@@ -640,7 +640,7 @@ def cmd_context(args: argparse.Namespace) -> int:
         print(context.build(vault_root, data, card))
         return 0
 
-    if card["color"] != canvas.EN_PROGRESO:
+    if card["color"] != canvas.IN_PROGRESS:
         print(
             f"error: '{args.id}' isn't In progress (current state: {operations.STATE_NAMES[card['color']]}) "
             "-- assign it before handing it to a subagent",
@@ -716,7 +716,7 @@ def cmd_status(args: argparse.Namespace) -> int:
             routing = f"  {{{routing}}}" if routing else ""
             print(f"  - {c.id}{worker}  ({c.file}){routing}{desc}")
 
-    open_cards = [c for g in result.groups if g.color != canvas.APROBADA for c in g.cards]
+    open_cards = [c for g in result.groups if g.color != canvas.APPROVED for c in g.cards]
     if any(c.tier for c in open_cards):
         counts = {t: sum(c.tier == t for c in open_cards) for t in ("fast", "exec", "reasoning")}
         unclassified = sum(c.tier is None for c in open_cards)

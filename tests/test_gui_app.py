@@ -21,7 +21,7 @@ def _add_pending_card(vault_root, card_id, *, description=None):
     """
     data = canvas.load(vault_root)
     width, height = canvas.estimate_card_size(description)
-    node = canvas.add_card_node(data, card_id, canvas.PROPUESTA_PENDIENTE, width=width, height=height)
+    node = canvas.add_card_node(data, card_id, canvas.PENDING_REVIEW, width=width, height=height)
     canvas.place_new_card(data, node)
     meta = dict(frontmatter.DEFAULT_META)
     if description:
@@ -109,7 +109,7 @@ def test_get_status_returns_all_groups_in_order(tmp_path):
         "Backlog", "Blocked", "In progress",
         "Proposal pending review", "Dependency change request", "Approved",
     ]
-    pending = next(g for g in result["data"]["groups"] if g["color"] == canvas.PROPUESTA_PENDIENTE)
+    pending = next(g for g in result["data"]["groups"] if g["color"] == canvas.PENDING_REVIEW)
     assert [c["id"] for c in pending["cards"]] == ["cap1"]
     assert pending["cards"][0]["description"] == "a thing to review"
 

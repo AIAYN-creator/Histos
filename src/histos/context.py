@@ -51,7 +51,7 @@ def render_card(vault_root: Path, card: dict, label: str, with_feedback: bool = 
         parts.append(routing)
     if with_feedback and meta.get("status_note"):
         parts.append(f"Feedback on a rejected proposal: {meta['status_note']}")
-    if card["color"] == canvas.APROBADA and body.strip():
+    if card["color"] == canvas.APPROVED and body.strip():
         parts.append(f"Approved content:\n{body.strip()}")
     for src in meta.get("sources") or []:
         src_path = Path(src).expanduser()

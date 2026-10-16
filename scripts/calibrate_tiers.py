@@ -39,7 +39,7 @@ def measure(vault: Path) -> list[tuple[str, Inputs]]:
         meta, body = context.read_card(vault, card)
         title = next((line for line in body.splitlines() if line.startswith("# ")), "")
         card_text = "\n".join(x for x in (title, meta.get("description"), meta.get("status_note")) if x)
-        before = dict(card, color=canvas.EN_PROGRESO)  # leaves its own approved content out
+        before = dict(card, color=canvas.IN_PROGRESS)  # leaves its own approved content out
         full = context.join(context.card_sections(vault, data, before))
         deps = len(context.dependencies(vault, data, card))
         rows.append((card["id"], Inputs(card_text, full, deps, len(meta.get("sources") or []))))

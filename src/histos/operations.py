@@ -17,17 +17,17 @@ from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
 STATE_NAMES = {
-    canvas.BLOQUEADA: "Blocked",
-    canvas.EN_PROGRESO: "In progress",
-    canvas.PROPUESTA_PENDIENTE: "Proposal pending review",
-    canvas.APROBADA: "Approved",
-    canvas.SOLICITUD_CAMBIO_DEPENDENCIA: "Dependency change request",
+    canvas.BLOCKED: "Blocked",
+    canvas.IN_PROGRESS: "In progress",
+    canvas.PENDING_REVIEW: "Proposal pending review",
+    canvas.APPROVED: "Approved",
+    canvas.DEPENDENCY_CHANGE_REQUEST: "Dependency change request",
     canvas.BACKLOG: "Backlog",
 }
 
 _STATUS_ORDER = [
-    canvas.BACKLOG, canvas.BLOQUEADA, canvas.EN_PROGRESO,
-    canvas.PROPUESTA_PENDIENTE, canvas.SOLICITUD_CAMBIO_DEPENDENCIA, canvas.APROBADA,
+    canvas.BACKLOG, canvas.BLOCKED, canvas.IN_PROGRESS,
+    canvas.PENDING_REVIEW, canvas.DEPENDENCY_CHANGE_REQUEST, canvas.APPROVED,
 ]
 
 PROPOSALS_DIR = "proposals"
@@ -185,7 +185,7 @@ def get_status(vault_root: Path) -> StatusResult:
             md_path = canvas.card_file_path(vault_root, card)
             if md_path.exists():
                 meta, _ = frontmatter.read(md_path)
-            worker = meta.get(WORKER_KEY) if color == canvas.EN_PROGRESO else None
+            worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
             summaries.append(CardSummary(
                 id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
                 tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
@@ -229,7 +229,7 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
     card = canvas.find_card(data, card_id)
     if card is None:
         raise canvas.HistosError(f"card '{card_id}' doesn't exist")
-    if card["color"] != canvas.PROPUESTA_PENDIENTE:
+    if card["color"] != canvas.PENDING_REVIEW:
         raise canvas.HistosError(
             f"'{card_id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})"
         )
@@ -251,7 +251,7 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
     approved_path.parent.mkdir(parents=True, exist_ok=True)
     proposal_path.replace(approved_path)
 
-    card["color"] = canvas.APROBADA
+    card["color"] = canvas.APPROVED
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
     return ApproveResult(card_id=card_id)
@@ -283,7 +283,7 @@ def retry(vault_root: Path, card_id: str) -> None:
     md_path = canvas.card_file_path(vault_root, card)
     meta, body = frontmatter.read(md_path)
     last = meta.get(EVAL_RESULTS_KEY) or {}
-    if card["color"] != canvas.EN_PROGRESO or last.get("passed") is not False:
+    if card["color"] != canvas.IN_PROGRESS or last.get("passed") is not False:
         raise canvas.HistosError(f"'{card_id}' has no failed evals to retry")
     del meta[EVAL_RESULTS_KEY]
     frontmatter.write(md_path, meta, body)
@@ -300,7 +300,7 @@ def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> Re
     card = canvas.find_card(data, card_id)
     if card is None:
         raise canvas.HistosError(f"card '{card_id}' doesn't exist")
-    if card["color"] != canvas.PROPUESTA_PENDIENTE:
+    if card["color"] != canvas.PENDING_REVIEW:
         raise canvas.HistosError(
             f"'{card_id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})"
         )

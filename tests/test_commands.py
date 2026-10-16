@@ -26,21 +26,21 @@ def test_full_loop(tmp_path, monkeypatch):
 
     data = canvas.load(tmp_path)
     assert canvas.find_card(data, "cap1")["color"] == canvas.BACKLOG
-    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOCKED
 
     assert run(monkeypatch, tmp_path, "assign", "cap1") == 0
-    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.EN_PROGRESO
+    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.IN_PROGRESS
 
     draft = tmp_path / "borrador.md"
     draft.write_text("# Intro\n\nContenido propuesto.\n", encoding="utf-8")
     assert run(monkeypatch, tmp_path, "propose", "cap1", "--file", str(draft)) == 0
-    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.PROPUESTA_PENDIENTE
+    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.PENDING_REVIEW
 
     assert run(monkeypatch, tmp_path, "diff", "cap1") == 0
 
     assert run(monkeypatch, tmp_path, "approve", "cap1") == 0
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "cap1")["color"] == canvas.APROBADA
+    assert canvas.find_card(data, "cap1")["color"] == canvas.APPROVED
     assert canvas.find_card(data, "cap2")["color"] == canvas.BACKLOG  # se desbloqueo sola
 
     body = (tmp_path / "content" / "cap1.md").read_text(encoding="utf-8")
@@ -216,7 +216,7 @@ def test_link_adds_dependency_to_existing_card(tmp_path, monkeypatch):
     assert run(monkeypatch, tmp_path, "link", "cap2", "--depends-on", "cap1", "--authorized") == 0
 
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOCKED
     assert any(e["fromNode"] == "cap1" and e["toNode"] == "cap2" for e in data["edges"])
 
 
@@ -247,7 +247,7 @@ def test_link_blocks_already_assigned_card(tmp_path, monkeypatch, capsys):
     run(monkeypatch, tmp_path, "add-card", "diseno-expansion", "--title", "Diseno expansion")
 
     run(monkeypatch, tmp_path, "assign", "diseno-expansion")
-    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.EN_PROGRESO
+    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.IN_PROGRESS
 
     assert run(
         monkeypatch, tmp_path, "link", "diseno-expansion",
@@ -256,7 +256,7 @@ def test_link_blocks_already_assigned_card(tmp_path, monkeypatch, capsys):
 
     # el cambio de estado se persiste ya en el propio 'link'...
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BLOCKED
 
     # ...y 'status' lo confirma (era el sintoma original del bug: seguia listada
     # bajo "En progreso" en el siguiente 'histos status').
@@ -276,7 +276,7 @@ def test_link_blocked_card_returns_to_backlog_once_dependency_approved(tmp_path,
         monkeypatch, tmp_path, "link", "diseno-expansion",
         "--depends-on", "fuentes-apis", "--authorized",
     )
-    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.BLOCKED
 
     run(monkeypatch, tmp_path, "assign", "fuentes-apis")
     draft = tmp_path / "borrador.md"
@@ -285,7 +285,7 @@ def test_link_blocked_card_returns_to_backlog_once_dependency_approved(tmp_path,
     assert run(monkeypatch, tmp_path, "approve", "fuentes-apis") == 0
 
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "fuentes-apis")["color"] == canvas.APROBADA
+    assert canvas.find_card(data, "fuentes-apis")["color"] == canvas.APPROVED
     # vuelve a un estado trabajable (Backlog) solo, sin que nadie mueva el color a mano
     assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BACKLOG
 

@@ -60,7 +60,7 @@ def test_passing_goes_to_review(vault, monkeypatch, capsys):
     capsys.readouterr()
     assert propose(vault, monkeypatch, GOOD) == 0
     assert "evals: 2 of 2 passed  (attempt 1 of 3)" in capsys.readouterr().out
-    assert color(vault) == canvas.PROPUESTA_PENDIENTE
+    assert color(vault) == canvas.PENDING_REVIEW
     r = results(vault)
     assert r["passed"] is True and r["attempt"] == 1 and len(r["checks"]) == 2
     assert validation.validate_frontmatter(vault, canvas.load(vault)) == []
@@ -71,7 +71,7 @@ def test_failing_stays_in_progress(vault, monkeypatch, capsys):
     assert propose(vault, monkeypatch, BAD) == 1
     out = capsys.readouterr()
     assert "FAIL  min_word_count" in out.out and "2 attempts left" in out.err
-    assert color(vault) == canvas.EN_PROGRESO
+    assert color(vault) == canvas.IN_PROGRESS
     assert not (vault / "proposals" / "cap3.md").exists()
     assert results(vault)["passed"] is False
 
@@ -81,7 +81,7 @@ def test_attempts_count_up_and_a_pass_ends_the_cycle(vault, monkeypatch):
     propose(vault, monkeypatch, BAD)
     assert results(vault)["attempt"] == 2
     assert propose(vault, monkeypatch, GOOD) == 0
-    assert results(vault)["attempt"] == 3 and color(vault) == canvas.PROPUESTA_PENDIENTE
+    assert results(vault)["attempt"] == 3 and color(vault) == canvas.PENDING_REVIEW
 
 
 def test_three_failures_stop_it_until_the_human_retries(vault, monkeypatch, capsys):
@@ -115,7 +115,7 @@ def test_after_a_reject_the_count_starts_over(vault, monkeypatch):
 def test_without_config_it_is_v2(vault, monkeypatch):
     (vault / config.CONFIG_FILENAME).unlink()
     assert propose(vault, monkeypatch, BAD) == 0
-    assert color(vault) == canvas.PROPUESTA_PENDIENTE and results(vault) is None
+    assert color(vault) == canvas.PENDING_REVIEW and results(vault) is None
 
 
 def test_evals_disabled_is_v2(vault, monkeypatch):
@@ -140,4 +140,4 @@ def test_broken_config_or_evals_block_without_spending_an_attempt(vault, monkeyp
     capsys.readouterr()
     assert propose(vault, monkeypatch, GOOD) == 1
     assert "not valid" in capsys.readouterr().err
-    assert results(vault)["attempt"] == 1 and color(vault) == canvas.EN_PROGRESO
+    assert results(vault)["attempt"] == 1 and color(vault) == canvas.IN_PROGRESS

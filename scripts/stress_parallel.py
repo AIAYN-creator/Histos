@@ -99,35 +99,35 @@ def worker(vault: Path, name: str, cards: list[str], contested: list[str], round
         possible = ["read", "contest"]
         if exp.color == canvas.BACKLOG:
             possible += ["assign", "assign"]
-        if exp.color != canvas.PROPUESTA_PENDIENTE:
+        if exp.color != canvas.PENDING_REVIEW:
             possible += ["describe", "model", "classify"]
-        if exp.color == canvas.EN_PROGRESO:
+        if exp.color == canvas.IN_PROGRESS:
             possible += ["propose", "propose"]
         op = rng.choice(possible)
         if op == "assign" and exp.color == canvas.BACKLOG:
             if call("assign", "assign", card, "--worker", name).returncode == 0:
-                exp.color = canvas.EN_PROGRESO
-        elif op == "describe" and exp.color != canvas.PROPUESTA_PENDIENTE:
+                exp.color = canvas.IN_PROGRESS
+        elif op == "describe" and exp.color != canvas.PENDING_REVIEW:
             text = f"{name} round {round_no}"
             if call("describe", "describe", card, "--text", text).returncode == 0:
                 exp.description = text
-        elif op == "model" and exp.color != canvas.PROPUESTA_PENDIENTE:
+        elif op == "model" and exp.color != canvas.PENDING_REVIEW:
             model = f"model-{name}-{round_no}"
             if call("model", "model", card, "--proposed", model).returncode == 0:
                 exp.proposed_model = model
-        elif op == "classify" and exp.color != canvas.PROPUESTA_PENDIENTE:
+        elif op == "classify" and exp.color != canvas.PENDING_REVIEW:
             result = call("classify", "classify", card)
             if result.returncode == 0 and "tier changed" in result.stderr:
                 exp.proposed_model = None  # a tier change legitimately clears the models
-        elif op == "propose" and exp.color == canvas.EN_PROGRESO:
+        elif op == "propose" and exp.color == canvas.IN_PROGRESS:
             draft = bad if rng.random() < 0.4 else good
             result = call("propose", "propose", card, "--file", str(draft))
             if result.returncode == 0:
-                exp.color = canvas.PROPUESTA_PENDIENTE
+                exp.color = canvas.PENDING_REVIEW
             elif "not proposed" in result.stderr:
                 exp.failures += 1
         elif op == "read":
-            call("context", "context", card, "--for-subagent") if exp.color == canvas.EN_PROGRESO \
+            call("context", "context", card, "--for-subagent") if exp.color == canvas.IN_PROGRESS \
                 else call("status", "status")
         elif op == "contest":
             target = rng.choice(contested)
@@ -159,7 +159,7 @@ def check(vault: Path, owned: dict[str, list[str]], contested: list[str], expect
                 problems.append(f"{card_id}: description {meta.get('description')!r}, expected {exp.description!r}")
             if meta.get("proposed_model") != exp.proposed_model:
                 problems.append(f"{card_id}: proposed_model {meta.get('proposed_model')!r}, expected {exp.proposed_model!r}")
-            if card["color"] == canvas.EN_PROGRESO and meta.get("worker") != name:
+            if card["color"] == canvas.IN_PROGRESS and meta.get("worker") != name:
                 problems.append(f"{card_id}: worker {meta.get('worker')!r}, expected {name}")
 
     for card_id in contested:

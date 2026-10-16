@@ -122,5 +122,5 @@ def test_parallel_processes_never_lose_each_others_changes(initialized_vault, mo
         assert p.returncode == 0, err.decode()
 
     data = canvas.load(initialized_vault)
-    assert [canvas.find_card(data, i)["color"] for i in ids] == [canvas.EN_PROGRESO] * len(ids)
+    assert [canvas.find_card(data, i)["color"] for i in ids] == [canvas.IN_PROGRESS] * len(ids)
     assert lock.read_holder(initialized_vault) is None
