@@ -2,7 +2,7 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
-## [3.0.0] - Unreleased
+## [3.0.0] - 2026-10-17
 
 Model routing by tier, subagents with an isolated context, and deterministic evals as a filter before human review. The core rule doesn't change: the agent proposes, the human approves.
 
@@ -92,7 +92,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
-[3.0.0]: https://github.com/AIAYN-creator/Histos/compare/v2.1.1...v3
+[3.0.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.0.0
 [2.1.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v2.1.1
 [2.1.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v2.1.0
 [2.0.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v2.0.0
