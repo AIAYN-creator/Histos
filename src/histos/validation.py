@@ -8,7 +8,6 @@ import json
 from importlib import resources
 from pathlib import Path
 
-import yaml
 from jsonschema import Draft202012Validator
 
 from . import canvas, frontmatter
@@ -61,13 +60,14 @@ def validate_frontmatter(vault_root: Path, data: dict) -> list[str]:
     validator = Draft202012Validator(_load_named_schema("histos-frontmatter.schema.json"))
     errors = []
     for card in canvas.cards(data):
-        md_path = canvas.card_file_path(vault_root, card)
-        if not md_path.exists():
-            continue
         try:
+            md_path = canvas.card_file_path(vault_root, card)
+            if not md_path.exists():
+                errors.append(f"frontmatter: {card['id']}: its file {card['file']} doesn't exist")
+                continue
             meta, _ = frontmatter.read(md_path)
-        except yaml.YAMLError as e:
-            errors.append(f"frontmatter: {card['id']}: can't parse it as YAML: {e}")
+        except canvas.HistosError as e:
+            errors.append(f"frontmatter: {card['id']}: {e}")
             continue
         for e in validator.iter_errors(meta):
             where = "/".join(str(p) for p in e.path) or "(root)"

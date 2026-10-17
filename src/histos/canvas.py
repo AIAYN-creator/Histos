@@ -119,7 +119,13 @@ def incoming_edges(data: dict, card_id: str) -> list[dict]:
 
 
 def card_file_path(vault_root: Path, card: dict) -> Path:
-    return vault_root / card["file"]
+    """The card's .md -- always inside content/, whatever a hand-edited canvas says (the schema
+    already refuses separators in the name; this is the second line of defense)."""
+    path = vault_root / card["file"]
+    content_dir = (vault_root / "content").resolve()
+    if path.resolve().parent != content_dir:
+        raise HistosError(f"card '{card.get('id')}' points outside content/ ({card['file']!r}) -- fix project.canvas")
+    return path
 
 
 _VALID_CARD_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")

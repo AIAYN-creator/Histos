@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from .errors import HistosError
 from .fsutil import write_text_atomic
 
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
@@ -31,11 +32,21 @@ def body_hash(body: str) -> str:
 
 
 def read(path: Path) -> tuple[dict, str]:
-    text = path.read_text(encoding="utf-8")
+    """(frontmatter, body). Raises HistosError -- a clear message, never a traceback -- when the
+    file is missing or its frontmatter isn't a YAML mapping."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise HistosError(f"can't find {path}") from None
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}, text
-    meta = yaml.safe_load(m.group(1)) or {}
+    try:
+        meta = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError as e:
+        raise HistosError(f"{path.name}: its frontmatter can't be parsed as YAML: {e}") from None
+    if not isinstance(meta, dict):
+        raise HistosError(f"{path.name}: its frontmatter must be a set of 'key: value' fields")
     return meta, text[m.end():]
 
 

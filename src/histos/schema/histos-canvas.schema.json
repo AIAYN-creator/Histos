@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AIAYN-creator/Histos/blob/main/src/histos/schema/histos-canvas.schema.json",
   "title": "Histos canvas",
-  "description": "JSON Canvas 1.0 (https://jsoncanvas.org) restringido a las convenciones de Histos. No valida integridad referencial entre nodes/edges ni aciclicidad del grafo de dependencias -- eso es responsabilidad del CLI. Ver docs/canvas-schema.md.",
+  "description": "JSON Canvas 1.0 (https://jsoncanvas.org) restricted to Histos's conventions. It doesn't check that edges point to existing nodes, nor that the dependency graph is acyclic -- the CLI does. See docs/canvas-schema.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -19,12 +19,12 @@
   },
   "$defs": {
     "statusColor": {
-      "description": "Leyenda de estado de Histos: 1=Bloqueada, 2=En progreso, 3=Propuesta pendiente de revision, 4=Aprobada, 5=Solicitud cambio de dependencia, 6=Backlog.",
+      "description": "Histos status legend: 1=Blocked, 2=In progress, 3=Proposal pending review, 4=Approved, 5=Dependency change request, 6=Backlog.",
       "type": "string",
       "enum": ["1", "2", "3", "4", "5", "6"]
     },
     "canvasColor": {
-      "description": "Color JSON Canvas nativo (hex o preset 1-6), sin restriccion semantica de Histos. Se usa solo en group.color y edge.color.",
+      "description": "Native JSON Canvas color (hex or preset 1-6), with no Histos meaning. Only used in group.color and edge.color.",
       "type": "string",
       "pattern": "^(#[0-9A-Fa-f]{6}|[1-6])$"
     },
@@ -40,13 +40,13 @@
       ]
     },
     "cardNode": {
-      "description": "Una tarjeta de tarea. Apunta a un fichero .md real en content/ -- nunca contiene prosa embebida.",
+      "description": "A task card. Points to a real .md file in content/ -- never holds embedded text.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "type", "x", "y", "width", "height", "file", "color"],
       "properties": {
         "id": {
-          "description": "Slug estable, igual al nombre de fichero sin extension (id 'cap3' -> content/cap3.md).",
+          "description": "Stable slug, the same as the file name without its extension (id 'cap3' -> content/cap3.md).",
           "type": "string",
           "pattern": "^[A-Za-z0-9_-]+$"
         },
@@ -56,11 +56,12 @@
         "width": { "type": "integer", "exclusiveMinimum": 0 },
         "height": { "type": "integer", "exclusiveMinimum": 0 },
         "file": {
+          "description": "A file directly in content/. No '/', '\\' or ':' in the name: on Windows a backslash is a path separator too, and 'content/..\\..\\x.md' would point outside the vault.",
           "type": "string",
-          "pattern": "^content/[^/]+\\.md$"
+          "pattern": "^content/[^/\\\\:]+\\.md$"
         },
         "subpath": {
-          "description": "Referencia opcional a un heading dentro del .md.",
+          "description": "Optional reference to a heading inside the .md.",
           "type": "string",
           "pattern": "^#"
         },
@@ -68,7 +69,7 @@
       }
     },
     "groupNode": {
-      "description": "Agrupacion puramente geometrica (p.ej. un capitulo). Un nodo 'pertenece' al grupo si sus coordenadas caen dentro del rectangulo -- no hay parent_id en los datos. No lleva estado.",
+      "description": "A purely geometric grouping (e.g. a chapter). A node 'belongs' to a group if its coordinates fall inside the group's rectangle -- there's no parent_id in the data. Carries no status.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "type", "x", "y", "width", "height"],
@@ -86,7 +87,7 @@
       }
     },
     "textNode": {
-      "description": "Texto decorativo/documentacion (p.ej. la leyenda de colores que 'histos init' coloca en cada canvas nuevo). No es una tarjeta: el CLI lo ignora por completo, solo filtra por type=='file' para todo lo que es logica de estado/dependencias.",
+      "description": "Decorative/documentation text (e.g. the color legend 'histos init' puts on every new canvas). Not a card: the CLI ignores it entirely, all status/dependency logic filters on type=='file'.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "type", "x", "y", "width", "height", "text"],
@@ -102,7 +103,7 @@
       }
     },
     "edge": {
-      "description": "fromNode -> toNode significa 'toNode depende de fromNode'. fromNode debe estar Aprobada (color 4) para que toNode pueda salir de Bloqueada.",
+      "description": "fromNode -> toNode means 'toNode depends on fromNode'. fromNode must be Approved (color 4) before toNode can leave Blocked.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "fromNode", "toNode"],

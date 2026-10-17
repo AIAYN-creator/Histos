@@ -72,7 +72,7 @@ def test_broken_yaml_is_reported_not_raised(vault):
     md = vault / "content" / "cap1.md"
     md.write_text("---\ndescription: [unclosed\n---\nbody\n", encoding="utf-8")
     errs = errors(vault)
-    assert len(errs) == 1 and "can't parse it as YAML" in errs[0]
+    assert len(errs) == 1 and "can't be parsed as YAML" in errs[0]
 
 
 def test_validate_command_reports_it(vault, monkeypatch, capsys):
