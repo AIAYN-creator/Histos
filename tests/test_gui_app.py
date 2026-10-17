@@ -138,12 +138,12 @@ def test_open_in_obsidian_error_shape_when_startfile_fails(monkeypatch):
     assert "error" in result
 
 
-def test_open_folder_calls_startfile_with_raw_path(monkeypatch):
+def test_open_folder_calls_startfile_with_raw_path(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(app.os, "startfile", lambda path: calls.append(path))
-    result = app.Api().open_folder("C:\\some\\vault")
+    result = app.Api().open_folder(str(tmp_path))
     assert result == {"ok": True}
-    assert calls == ["C:\\some\\vault"]
+    assert calls == [str(tmp_path)]
 
 
 def test_get_diff_success_and_error_shape(tmp_path):
@@ -184,3 +184,15 @@ def test_reject_success_and_error_shape(tmp_path):
     bad = app.Api().reject(str(tmp_path), "cap1")  # back in Backlog, no longer pending
     assert bad["ok"] is False
     assert "error" in bad
+
+
+def test_open_folder_never_starts_a_file(tmp_path, monkeypatch):
+    started = []
+    monkeypatch.setattr(app.os, "startfile", lambda p: started.append(p), raising=False)
+    program = tmp_path / "not-a-folder.exe"
+    program.write_bytes(b"")
+    result = app.Api().open_folder(str(program))
+    assert result["ok"] is False and "not a folder" in result["error"]
+    assert started == []
+    assert app.Api().open_folder(str(tmp_path))["ok"] is True
+    assert started == [str(tmp_path)]

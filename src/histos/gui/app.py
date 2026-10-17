@@ -110,6 +110,9 @@ class Api:
         return {"ok": True}
 
     def open_folder(self, vault_path: str) -> dict:
+        # os.startfile runs whatever it's given: only ever hand it a folder, never a file.
+        if not Path(vault_path).is_dir():
+            return {"ok": False, "error": f"not a folder: {vault_path}"}
         try:
             os.startfile(vault_path)
         except OSError as e:
