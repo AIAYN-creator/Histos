@@ -1,6 +1,7 @@
 """Hardening found in the v3 audit: a hand-edited canvas can't make Histos write outside the
 vault, and broken card files give errors, never tracebacks."""
 import json
+import sys
 
 import pytest
 from conftest import run
@@ -40,12 +41,17 @@ def test_validate_refuses_a_card_file_outside_content(vault, monkeypatch, capsys
     assert "file" in capsys.readouterr().out
 
 
-def test_approve_never_writes_outside_the_vault_even_past_the_schema(vault, monkeypatch):
+TRAVERSALS = ["content/../../escaped.md"]  # "/" separates folders everywhere
+if sys.platform == "win32":
+    TRAVERSALS.append("content/..\\..\\escaped.md")  # "\" only on Windows -- elsewhere it's part of a file name
+
+
+@pytest.mark.parametrize("file_value", TRAVERSALS)
+def test_approve_never_writes_outside_the_vault_even_past_the_schema(vault, file_value):
     outside = vault.parent / "escaped.md"
     outside.write_text("---\ndescription: x\n---\noriginal\n", encoding="utf-8")
-    card = {"id": "cap1", "file": "content/..\\..\\escaped.md"}
     with pytest.raises(HistosError, match="outside content/"):
-        canvas.card_file_path(vault, card)
+        canvas.card_file_path(vault, {"id": "cap1", "file": file_value})
     assert outside.read_text(encoding="utf-8").endswith("original\n")
 
 
