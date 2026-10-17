@@ -1,10 +1,14 @@
-"""Lectura/escritura del frontmatter YAML de las tarjetas -- ver docs/canvas-schema.md."""
+"""Reading and writing the cards' YAML frontmatter -- see docs/canvas-schema.md."""
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
 import yaml
+
+from .errors import HistosError
+from .fsutil import write_text_atomic
 
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
 
@@ -18,15 +22,34 @@ DEFAULT_META = {
 }
 
 
+# Fingerprint of the body as Histos last wrote it legitimately (add-card, approve, accept-edit).
+# The content_untouched eval compares against it to catch direct writes to content/.
+CONTENT_HASH_KEY = "content_hash"
+
+
+def body_hash(body: str) -> str:
+    return hashlib.sha256(body.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+
 def read(path: Path) -> tuple[dict, str]:
-    text = path.read_text(encoding="utf-8")
+    """(frontmatter, body). Raises HistosError -- a clear message, never a traceback -- when the
+    file is missing or its frontmatter isn't a YAML mapping."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise HistosError(f"can't find {path}") from None
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}, text
-    meta = yaml.safe_load(m.group(1)) or {}
+    try:
+        meta = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError as e:
+        raise HistosError(f"{path.name}: its frontmatter can't be parsed as YAML: {e}") from None
+    if not isinstance(meta, dict):
+        raise HistosError(f"{path.name}: its frontmatter must be a set of 'key: value' fields")
     return meta, text[m.end():]
 
 
 def write(path: Path, meta: dict, body: str) -> None:
     yaml_block = yaml.safe_dump(meta, sort_keys=False, allow_unicode=True)
-    path.write_text(f"---\n{yaml_block}---\n{body}", encoding="utf-8")
+    write_text_atomic(path, f"---\n{yaml_block}---\n{body}")

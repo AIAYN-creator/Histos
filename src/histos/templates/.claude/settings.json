@@ -4,7 +4,15 @@
       "Write(content/**)",
       "Edit(content/**)",
       "Write(project.canvas)",
-      "Edit(project.canvas)"
+      "Edit(project.canvas)",
+      "Write(PROJECT.md)",
+      "Edit(PROJECT.md)",
+      "Write(ARCHITECTURE.md)",
+      "Edit(ARCHITECTURE.md)",
+      "Write(histos.config.yaml)",
+      "Edit(histos.config.yaml)",
+      "Write(evals/**)",
+      "Edit(evals/**)"
     ]
   }
 }

@@ -10,8 +10,8 @@ def _add_card(vault_root, card_id, *, description=None, depends_on=None):
     """
     data = canvas.load(vault_root)
     depends_on = depends_on or []
-    all_approved = all(canvas.find_card(data, d)["color"] == canvas.APROBADA for d in depends_on)
-    color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOQUEADA
+    all_approved = all(canvas.find_card(data, d)["color"] == canvas.APPROVED for d in depends_on)
+    color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOCKED
     width, height = canvas.estimate_card_size(description)
     node = canvas.add_card_node(data, card_id, color, width=width, height=height)
     for dep in depends_on:
@@ -26,7 +26,7 @@ def _add_card(vault_root, card_id, *, description=None, depends_on=None):
 
 def _assign(vault_root, card_id):
     data = canvas.load(vault_root)
-    canvas.find_card(data, card_id)["color"] = canvas.EN_PROGRESO
+    canvas.find_card(data, card_id)["color"] = canvas.IN_PROGRESS
     canvas.save(vault_root, data)
 
 
@@ -36,7 +36,7 @@ def _propose(vault_root, card_id, body):
     proposal_path = operations._proposal_path(vault_root, card_id)
     proposal_path.parent.mkdir(parents=True, exist_ok=True)
     proposal_path.write_text(body, encoding="utf-8")
-    card["color"] = canvas.PROPUESTA_PENDIENTE
+    card["color"] = canvas.PENDING_REVIEW
     canvas.save(vault_root, data)
 
 
@@ -68,7 +68,7 @@ def test_get_status_groups_cards_by_state_in_order(initialized_vault):
     ]
 
     backlog = next(g for g in result.groups if g.color == canvas.BACKLOG)
-    blocked = next(g for g in result.groups if g.color == canvas.BLOQUEADA)
+    blocked = next(g for g in result.groups if g.color == canvas.BLOCKED)
     assert [c.id for c in backlog.cards] == ["cap1"]
     assert backlog.cards[0].description == "intro"
     assert [c.id for c in blocked.cards] == ["cap2"]
@@ -106,7 +106,7 @@ def test_approve_writes_content_and_archives_proposal(initialized_vault):
     assert result.card_id == "cap1"
 
     data = canvas.load(initialized_vault)
-    assert canvas.find_card(data, "cap1")["color"] == canvas.APROBADA
+    assert canvas.find_card(data, "cap1")["color"] == canvas.APPROVED
     _, body = frontmatter.read(initialized_vault / "content" / "cap1.md")
     assert body == "final text\n"
     assert (initialized_vault / "approved" / "cap1.md").exists()

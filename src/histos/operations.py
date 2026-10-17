@@ -7,26 +7,27 @@ and the desktop app call, so there is exactly one implementation of what each ac
 """
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Optional
 
 from . import canvas, frontmatter, validation
+from .fsutil import copy_file_atomic, write_text_atomic
+from .lock import locked
 
 STATE_NAMES = {
-    canvas.BLOQUEADA: "Blocked",
-    canvas.EN_PROGRESO: "In progress",
-    canvas.PROPUESTA_PENDIENTE: "Proposal pending review",
-    canvas.APROBADA: "Approved",
-    canvas.SOLICITUD_CAMBIO_DEPENDENCIA: "Dependency change request",
+    canvas.BLOCKED: "Blocked",
+    canvas.IN_PROGRESS: "In progress",
+    canvas.PENDING_REVIEW: "Proposal pending review",
+    canvas.APPROVED: "Approved",
+    canvas.DEPENDENCY_CHANGE_REQUEST: "Dependency change request",
     canvas.BACKLOG: "Backlog",
 }
 
 _STATUS_ORDER = [
-    canvas.BACKLOG, canvas.BLOQUEADA, canvas.EN_PROGRESO,
-    canvas.PROPUESTA_PENDIENTE, canvas.SOLICITUD_CAMBIO_DEPENDENCIA, canvas.APROBADA,
+    canvas.BACKLOG, canvas.BLOCKED, canvas.IN_PROGRESS,
+    canvas.PENDING_REVIEW, canvas.DEPENDENCY_CHANGE_REQUEST, canvas.APPROVED,
 ]
 
 PROPOSALS_DIR = "proposals"
@@ -35,6 +36,12 @@ APPROVED_DIR = "approved"
 # only used to keep an existing vault working with the folder names it already has.
 _LEGACY_PROPOSALS_DIR = "propuestas"
 _LEGACY_APPROVED_DIR = "aprobados"
+# Who works an In progress card ('parent', 'sub-cap3'...), set by `assign --worker`.
+WORKER_KEY = "worker"
+# Last evals run on a proposal for the card -- written by propose, see the frontmatter schema.
+EVAL_RESULTS_KEY = "eval_results"
+V3_CONFIG_TEMPLATE = "histos.config.yaml"
+V3_EVALS_TEMPLATES = ["evals/basics.yaml", "evals/examples.yaml"]
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
@@ -84,7 +91,7 @@ def _install_agent_templates(vault_root: Path) -> list[str]:
             continue
         ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(ref.read_text(encoding="utf-8"), encoding="utf-8")
+        write_text_atomic(target, ref.read_text(encoding="utf-8"))
     return warnings
 
 
@@ -94,6 +101,7 @@ class InitResult:
     template_warnings: list[str]
 
 
+@locked("init")
 def init_vault(vault_root: Path) -> InitResult:
     canvas_path = canvas.vault_canvas_path(vault_root)
     if canvas_path.exists():
@@ -102,8 +110,38 @@ def init_vault(vault_root: Path) -> InitResult:
     (vault_root / PROPOSALS_DIR).mkdir(parents=True, exist_ok=True)
     (vault_root / APPROVED_DIR).mkdir(parents=True, exist_ok=True)
     canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
-    warnings = _install_agent_templates(vault_root)
+    warnings = _install_agent_templates(vault_root) + _install_v3_config(vault_root)
     return InitResult(vault_root=vault_root, template_warnings=warnings)
+
+
+def _install_v3_config(vault_root: Path) -> list[str]:
+    """histos.config.yaml and an evals/ folder, each only if it isn't there yet. The bundled
+    evals go in only when there's no evals/ folder at all, so they never add active evals
+    next to ones the human already wrote."""
+    to_install = []
+    warnings = []
+    if (vault_root / V3_CONFIG_TEMPLATE).exists():
+        warnings.append(f"{V3_CONFIG_TEMPLATE} already exists, leaving it alone")
+    else:
+        to_install.append(V3_CONFIG_TEMPLATE)
+    if (vault_root / "evals").exists():
+        warnings.append("evals/ already exists, leaving it alone")
+    else:
+        to_install += V3_EVALS_TEMPLATES
+    for rel_path in to_install:
+        ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
+        target = vault_root / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(target, ref.read_text(encoding="utf-8"))
+    return warnings
+
+
+@locked("init --add-config")
+def add_config(vault_root: Path) -> list[str]:
+    """Brings an existing vault to v3: adds histos.config.yaml and evals/ if missing, nothing else."""
+    if not canvas.vault_canvas_path(vault_root).exists():
+        raise canvas.HistosError(f"no {canvas.CANVAS_FILENAME} here -- use plain 'histos init' for a new vault")
+    return _install_v3_config(vault_root)
 
 
 @dataclass
@@ -111,6 +149,10 @@ class CardSummary:
     id: str
     file: str
     description: Optional[str]
+    worker: Optional[str] = None
+    tier: Optional[str] = None  # proposed_tier
+    approved_model: Optional[str] = None
+    proposed_model: Optional[str] = None
 
 
 @dataclass
@@ -125,6 +167,7 @@ class StatusResult:
     groups: list[StatusGroup] = field(default_factory=list)  # in the fixed display order
 
 
+@locked("status")  # recomputing Blocked can save the canvas
 def get_status(vault_root: Path) -> StatusResult:
     data = _load_valid(vault_root)
     if canvas.recompute_blocked(data):
@@ -138,12 +181,16 @@ def get_status(vault_root: Path) -> StatusResult:
     for color in _STATUS_ORDER:
         summaries = []
         for card in by_color.get(color, []):
-            description = None
+            meta = {}
             md_path = canvas.card_file_path(vault_root, card)
             if md_path.exists():
                 meta, _ = frontmatter.read(md_path)
-                description = meta.get("description")
-            summaries.append(CardSummary(id=card["id"], file=card["file"], description=description))
+            worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
+            summaries.append(CardSummary(
+                id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
+                tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
+                proposed_model=meta.get("proposed_model"),
+            ))
         groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
     return StatusResult(groups=groups)
 
@@ -176,12 +223,13 @@ class ApproveResult:
     card_id: str
 
 
+@locked("approve")
 def approve(vault_root: Path, card_id: str) -> ApproveResult:
     data = _load_valid(vault_root)
     card = canvas.find_card(data, card_id)
     if card is None:
         raise canvas.HistosError(f"card '{card_id}' doesn't exist")
-    if card["color"] != canvas.PROPUESTA_PENDIENTE:
+    if card["color"] != canvas.PENDING_REVIEW:
         raise canvas.HistosError(
             f"'{card_id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})"
         )
@@ -195,16 +243,50 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
         meta, _ = frontmatter.read(md_path)
     else:
         meta = dict(frontmatter.DEFAULT_META)
-    frontmatter.write(md_path, meta, proposal_path.read_text(encoding="utf-8"))
+    body = proposal_path.read_text(encoding="utf-8")
+    meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+    frontmatter.write(md_path, meta, body)
 
     approved_path = _approved_path(vault_root, card_id)
     approved_path.parent.mkdir(parents=True, exist_ok=True)
     proposal_path.replace(approved_path)
 
-    card["color"] = canvas.APROBADA
+    card["color"] = canvas.APPROVED
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
     return ApproveResult(card_id=card_id)
+
+
+@locked("accept-edit")
+def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
+    """(Human) bless hand edits to content/<id>.md: the current body becomes the legitimate
+    one, so the content_untouched eval stops flagging it."""
+    data = _load_valid(vault_root)
+    missing = [i for i in card_ids if canvas.find_card(data, i) is None]
+    if missing:
+        raise canvas.HistosError(f"card(s) not found: {', '.join(missing)}")
+    for card_id in card_ids:
+        md_path = canvas.card_file_path(vault_root, canvas.find_card(data, card_id))
+        meta, body = frontmatter.read(md_path)
+        meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+        frontmatter.write(md_path, meta, body)
+    return card_ids
+
+
+@locked("retry")
+def retry(vault_root: Path, card_id: str) -> None:
+    """(Human) give a card whose proposals kept failing the evals a fresh set of attempts."""
+    data = _load_valid(vault_root)
+    card = canvas.find_card(data, card_id)
+    if card is None:
+        raise canvas.HistosError(f"card '{card_id}' doesn't exist")
+    md_path = canvas.card_file_path(vault_root, card)
+    meta, body = frontmatter.read(md_path)
+    last = meta.get(EVAL_RESULTS_KEY) or {}
+    if card["color"] != canvas.IN_PROGRESS or last.get("passed") is not False:
+        raise canvas.HistosError(f"'{card_id}' has no failed evals to retry")
+    del meta[EVAL_RESULTS_KEY]
+    frontmatter.write(md_path, meta, body)
 
 
 @dataclass
@@ -212,12 +294,13 @@ class RejectResult:
     card_id: str
 
 
+@locked("reject")
 def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> RejectResult:
     data = _load_valid(vault_root)
     card = canvas.find_card(data, card_id)
     if card is None:
         raise canvas.HistosError(f"card '{card_id}' doesn't exist")
-    if card["color"] != canvas.PROPUESTA_PENDIENTE:
+    if card["color"] != canvas.PENDING_REVIEW:
         raise canvas.HistosError(
             f"'{card_id}' doesn't have a pending proposal (current state: {STATE_NAMES[card['color']]})"
         )
@@ -227,11 +310,14 @@ def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> Re
         proposal_path.unlink()
 
     card["color"] = canvas.BACKLOG
-    if feedback:
-        md_path = canvas.card_file_path(vault_root, card)
+    md_path = canvas.card_file_path(vault_root, card)
+    if md_path.exists():
         meta, body = frontmatter.read(md_path)
-        meta["status_note"] = feedback
-        frontmatter.write(md_path, meta, body)
+        if feedback or WORKER_KEY in meta:
+            if feedback:
+                meta["status_note"] = feedback
+            meta.pop(WORKER_KEY, None)  # back in the backlog: anyone can take it next
+            frontmatter.write(md_path, meta, body)
 
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
@@ -251,11 +337,12 @@ class ArrangeResult:
     backup_path: Path
 
 
+@locked("arrange")
 def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) -> ArrangeResult:
     data = _load_valid(vault_root)
     canvas_path = canvas.vault_canvas_path(vault_root)
     backup_path = canvas_path.with_name(canvas_path.name + ".bak")
-    shutil.copyfile(canvas_path, backup_path)
+    copy_file_atomic(canvas_path, backup_path)
 
     summary = canvas.arrange(data, set_aside_done=set_aside_done, prune_redundant=prune_redundant)
     _remember_pruned_dependencies(vault_root, data, summary.pruned)

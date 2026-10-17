@@ -1,0 +1,150 @@
+{
+  "nodes": [
+    {
+      "id": "histos:done",
+      "type": "group",
+      "x": -60,
+      "y": 912,
+      "width": 400,
+      "height": 264,
+      "label": "Done: approved, and everything that depends on them too"
+    },
+    {
+      "id": "legend",
+      "type": "text",
+      "x": 0,
+      "y": -320,
+      "width": 520,
+      "height": 260,
+      "text": "## Status legend (Histos)\n\n| Color | Status |\n|---|---|\n| 🟣 purple | Backlog |\n| 🟠 orange | In progress |\n| 🔴 red | Blocked (derived, don't assign by hand) |\n| 🟡 yellow | Proposal pending review |\n| 🔵 cyan | Dependency change request |\n| 🟢 green | Approved |\n\nDetail: docs/canvas-schema.md in the Histos repo.\n"
+    },
+    {
+      "id": "scope",
+      "type": "file",
+      "x": 0,
+      "y": 972,
+      "width": 280,
+      "height": 144,
+      "file": "content/scope.md",
+      "color": "4"
+    },
+    {
+      "id": "outline",
+      "type": "file",
+      "x": 600,
+      "y": 395,
+      "width": 280,
+      "height": 144,
+      "file": "content/outline.md",
+      "color": "4"
+    },
+    {
+      "id": "related",
+      "type": "file",
+      "x": 1200,
+      "y": 384,
+      "width": 280,
+      "height": 144,
+      "file": "content/related.md",
+      "color": "3"
+    },
+    {
+      "id": "intro",
+      "type": "file",
+      "x": 1200,
+      "y": 200,
+      "width": 280,
+      "height": 144,
+      "file": "content/intro.md",
+      "color": "2"
+    },
+    {
+      "id": "method",
+      "type": "file",
+      "x": 1200,
+      "y": 568,
+      "width": 280,
+      "height": 144,
+      "file": "content/method.md",
+      "color": "6"
+    },
+    {
+      "id": "results",
+      "type": "file",
+      "x": 1800,
+      "y": 393,
+      "width": 280,
+      "height": 116,
+      "file": "content/results.md",
+      "color": "1"
+    },
+    {
+      "id": "abstract",
+      "type": "file",
+      "x": 2400,
+      "y": 391,
+      "width": 280,
+      "height": 116,
+      "file": "content/abstract.md",
+      "color": "1"
+    }
+  ],
+  "edges": [
+    {
+      "id": "scope->outline",
+      "fromNode": "scope",
+      "toNode": "outline",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "outline->related",
+      "fromNode": "outline",
+      "toNode": "related",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "outline->intro",
+      "fromNode": "outline",
+      "toNode": "intro",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "outline->method",
+      "fromNode": "outline",
+      "toNode": "method",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "related->results",
+      "fromNode": "related",
+      "toNode": "results",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "intro->results",
+      "fromNode": "intro",
+      "toNode": "results",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "method->results",
+      "fromNode": "method",
+      "toNode": "results",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "results->abstract",
+      "fromNode": "results",
+      "toNode": "abstract",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ]
+}

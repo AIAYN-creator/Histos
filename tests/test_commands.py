@@ -4,15 +4,11 @@ import shutil
 import sys
 from pathlib import Path
 
+import pytest
+from conftest import run
+
 from histos import canvas, frontmatter
-from histos.cli import build_parser, main
-
-
-def run(monkeypatch, tmp_path, *argv):
-    monkeypatch.chdir(tmp_path)
-    parser = build_parser()
-    args = parser.parse_args(list(argv))
-    return args.func(args)
+from histos.cli import main
 
 
 def test_full_loop(tmp_path, monkeypatch):
@@ -26,21 +22,21 @@ def test_full_loop(tmp_path, monkeypatch):
 
     data = canvas.load(tmp_path)
     assert canvas.find_card(data, "cap1")["color"] == canvas.BACKLOG
-    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOCKED
 
     assert run(monkeypatch, tmp_path, "assign", "cap1") == 0
-    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.EN_PROGRESO
+    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.IN_PROGRESS
 
     draft = tmp_path / "borrador.md"
     draft.write_text("# Intro\n\nContenido propuesto.\n", encoding="utf-8")
     assert run(monkeypatch, tmp_path, "propose", "cap1", "--file", str(draft)) == 0
-    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.PROPUESTA_PENDIENTE
+    assert canvas.find_card(canvas.load(tmp_path), "cap1")["color"] == canvas.PENDING_REVIEW
 
     assert run(monkeypatch, tmp_path, "diff", "cap1") == 0
 
     assert run(monkeypatch, tmp_path, "approve", "cap1") == 0
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "cap1")["color"] == canvas.APROBADA
+    assert canvas.find_card(data, "cap1")["color"] == canvas.APPROVED
     assert canvas.find_card(data, "cap2")["color"] == canvas.BACKLOG  # se desbloqueo sola
 
     body = (tmp_path / "content" / "cap1.md").read_text(encoding="utf-8")
@@ -154,10 +150,12 @@ def test_reject_records_feedback_and_returns_to_backlog(tmp_path, monkeypatch):
     assert not (tmp_path / "proposals" / "cap1.md").exists()
 
 
-def test_validate_command_on_example_canvas(tmp_path, monkeypatch):
+def test_the_example_vault_is_valid(tmp_path, monkeypatch):
     repo_root = Path(__file__).resolve().parents[1]
-    shutil.copy(repo_root / "examples" / "example.canvas", tmp_path / "project.canvas")
-    assert run(monkeypatch, tmp_path, "validate") == 0
+    vault = tmp_path / "sample-paper"
+    shutil.copytree(repo_root / "examples" / "sample-paper", vault)
+    assert run(monkeypatch, vault, "validate") == 0
+    assert run(monkeypatch, vault, "status") == 0
 
 
 def test_init_installs_agent_templates(tmp_path, monkeypatch):
@@ -191,7 +189,7 @@ def test_init_adds_legend_text_node(tmp_path, monkeypatch):
     assert len(legend) == 1
     assert legend[0]["type"] == "text"
     assert "Backlog" in legend[0]["text"]
-    # el legend no cuenta como tarjeta para nada de la logica de estado
+    # the legend never counts as a card in any status logic
     assert canvas.cards(data) == []
 
 
@@ -216,7 +214,7 @@ def test_link_adds_dependency_to_existing_card(tmp_path, monkeypatch):
     assert run(monkeypatch, tmp_path, "link", "cap2", "--depends-on", "cap1", "--authorized") == 0
 
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "cap2")["color"] == canvas.BLOCKED
     assert any(e["fromNode"] == "cap1" and e["toNode"] == "cap2" for e in data["edges"])
 
 
@@ -247,19 +245,19 @@ def test_link_blocks_already_assigned_card(tmp_path, monkeypatch, capsys):
     run(monkeypatch, tmp_path, "add-card", "diseno-expansion", "--title", "Diseno expansion")
 
     run(monkeypatch, tmp_path, "assign", "diseno-expansion")
-    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.EN_PROGRESO
+    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.IN_PROGRESS
 
     assert run(
         monkeypatch, tmp_path, "link", "diseno-expansion",
         "--depends-on", "fuentes-apis", "--authorized",
     ) == 0
 
-    # el cambio de estado se persiste ya en el propio 'link'...
+    # the state change is already saved by 'link' itself...
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BLOCKED
 
-    # ...y 'status' lo confirma (era el sintoma original del bug: seguia listada
-    # bajo "En progreso" en el siguiente 'histos status').
+    # ...and 'status' confirms it (the original bug's symptom: it was still listed
+    # under "In progress" in the next 'histos status').
     capsys.readouterr()
     run(monkeypatch, tmp_path, "status")
     output = capsys.readouterr().out
@@ -276,7 +274,7 @@ def test_link_blocked_card_returns_to_backlog_once_dependency_approved(tmp_path,
         monkeypatch, tmp_path, "link", "diseno-expansion",
         "--depends-on", "fuentes-apis", "--authorized",
     )
-    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(canvas.load(tmp_path), "diseno-expansion")["color"] == canvas.BLOCKED
 
     run(monkeypatch, tmp_path, "assign", "fuentes-apis")
     draft = tmp_path / "borrador.md"
@@ -285,8 +283,8 @@ def test_link_blocked_card_returns_to_backlog_once_dependency_approved(tmp_path,
     assert run(monkeypatch, tmp_path, "approve", "fuentes-apis") == 0
 
     data = canvas.load(tmp_path)
-    assert canvas.find_card(data, "fuentes-apis")["color"] == canvas.APROBADA
-    # vuelve a un estado trabajable (Backlog) solo, sin que nadie mueva el color a mano
+    assert canvas.find_card(data, "fuentes-apis")["color"] == canvas.APPROVED
+    # back to a workable state (Backlog) on its own, without anyone recoloring it by hand
     assert canvas.find_card(data, "diseno-expansion")["color"] == canvas.BACKLOG
 
 
@@ -515,6 +513,55 @@ def test_context_includes_project_md(tmp_path, monkeypatch, capsys):
     assert "Brief: un TFG sobre pruebas." in output
 
 
+def test_context_includes_architecture_md_after_project_md(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    (tmp_path / "PROJECT.md").write_text("Brief del proyecto.\n", encoding="utf-8")
+    (tmp_path / "ARCHITECTURE.md").write_text("Citas en formato APA.\n", encoding="utf-8")
+
+    capsys.readouterr()
+    assert run(monkeypatch, tmp_path, "context", "cap1") == 0
+    output = capsys.readouterr().out
+
+    assert "## Architecture (ARCHITECTURE.md)\n\nCitas en formato APA." in output
+    assert output.index("Brief del proyecto.") < output.index("Citas en formato APA.")
+
+
+def test_context_includes_architecture_md_without_project_md(tmp_path, monkeypatch, capsys):
+    run(monkeypatch, tmp_path, "init")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+    (tmp_path / "ARCHITECTURE.md").write_text("Stack: Python 3.12.\n", encoding="utf-8")
+
+    capsys.readouterr()
+    assert run(monkeypatch, tmp_path, "context", "cap1") == 0
+    output = capsys.readouterr().out
+
+    assert "Stack: Python 3.12." in output
+    assert "PROJECT.md" not in output
+
+
+def test_guidance_files_are_denied_to_the_agent(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    deny = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
+    for name in ("PROJECT.md", "ARCHITECTURE.md"):
+        assert f"Write({name})" in deny
+        assert f"Edit({name})" in deny
+
+
+def test_describe_adds_guidance_deny_rules_to_an_older_vault(tmp_path, monkeypatch):
+    run(monkeypatch, tmp_path, "init")
+    settings_path = tmp_path / ".claude" / "settings.json"
+    old = {"permissions": {"deny": ["Write(content/**)", "Edit(content/**)", "Write(mine/**)"]}}
+    settings_path.write_text(json.dumps(old), encoding="utf-8")
+    run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
+
+    assert run(monkeypatch, tmp_path, "describe", "cap1", "--text", "x") == 0
+    deny = json.loads(settings_path.read_text(encoding="utf-8"))["permissions"]["deny"]
+    assert "Write(ARCHITECTURE.md)" in deny
+    assert "Edit(PROJECT.md)" in deny
+    assert "Write(mine/**)" in deny
+
+
 def _reject_with_feedback(monkeypatch, tmp_path, card_id, feedback):
     run(monkeypatch, tmp_path, "assign", card_id)
     draft = tmp_path / f"{card_id}-draft.md"
@@ -608,3 +655,11 @@ def test_main_prints_utf8_even_when_stdout_is_cp1252(tmp_path, monkeypatch):
 
     sys.stdout.flush()
     assert "x ← y" in buffer.getvalue().decode("utf-8")
+
+
+def test_version_matches_the_package(capsys):
+    import histos
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert capsys.readouterr().out.strip() == f"histos {histos.__version__}"
+    assert histos.__version__ == "3.0.0"

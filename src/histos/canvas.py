@@ -1,4 +1,4 @@
-"""Carga, mutacion y guardado del project.canvas -- ver docs/canvas-schema.md."""
+"""Loading, changing and saving project.canvas -- see docs/canvas-schema.md."""
 from __future__ import annotations
 
 import json
@@ -9,23 +9,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
+from .errors import HistosError
+from .fsutil import write_text_atomic
+
 CANVAS_FILENAME = "project.canvas"
 
 # Leyenda de estado (docs/canvas-schema.md)
-BLOQUEADA = "1"
-EN_PROGRESO = "2"
-PROPUESTA_PENDIENTE = "3"
-APROBADA = "4"
-SOLICITUD_CAMBIO_DEPENDENCIA = "5"
+BLOCKED = "1"
+IN_PROGRESS = "2"
+PENDING_REVIEW = "3"
+APPROVED = "4"
+DEPENDENCY_CHANGE_REQUEST = "5"
 BACKLOG = "6"
 
-# Backlog/Bloqueada se recalculan libremente en las dos direcciones segun el grafo.
-# En progreso solo se degrada a Bloqueada (nunca se auto-restaura desde aqui: una
-# tarjeta desbloqueada aterriza en Backlog y hace falta 'assign' de nuevo para
-# retomarla). Propuesta/Solicitud/Aprobada quedan fuera del todo: son estados con una
-# accion humana de por medio, no derivables solo del grafo.
-_FREELY_DERIVED_COLORS = {BLOQUEADA, BACKLOG}
-_DEMOTABLE_TO_BLOQUEADA = _FREELY_DERIVED_COLORS | {EN_PROGRESO}
+# Backlog/Blocked are recomputed freely in both directions from the graph. In progress
+# only ever drops to Blocked (it's never restored from here: an unblocked card lands in
+# Backlog and needs 'assign' again). Pending review/Change request/Approved are left
+# alone entirely: a human action sits behind them, the graph alone can't derive them.
+_FREELY_DERIVED_COLORS = {BLOCKED, BACKLOG}
+_DEMOTABLE_TO_BLOQUEADA = _FREELY_DERIVED_COLORS | {IN_PROGRESS}
 
 CARD_WIDTH = 280
 CARD_HEIGHT = 100
@@ -63,7 +65,7 @@ _ARROW_END_OFFSET = 7
 _ARROW_HANDLE_MIN = 70
 _ARROW_HANDLE_MAX = 150
 _CURVE_SAMPLES = 40
-_GRID_STATUS_ORDER = [EN_PROGRESO, PROPUESTA_PENDIENTE, SOLICITUD_CAMBIO_DEPENDENCIA, BLOQUEADA, BACKLOG, APROBADA]
+_GRID_STATUS_ORDER = [IN_PROGRESS, PENDING_REVIEW, DEPENDENCY_CHANGE_REQUEST, BLOCKED, BACKLOG, APPROVED]
 
 LEGEND_ID = "legend"
 _LEGEND_TEXT = """## Status legend (Histos)
@@ -79,10 +81,6 @@ _LEGEND_TEXT = """## Status legend (Histos)
 
 Detail: docs/canvas-schema.md in the Histos repo.
 """
-
-
-class HistosError(Exception):
-    """Errores esperables (vault no encontrado, id duplicado, etc.) -- mensaje ya listo para el usuario."""
 
 
 def vault_canvas_path(vault_root: Path) -> Path:
@@ -102,10 +100,7 @@ def load(vault_root: Path) -> dict:
 def save(vault_root: Path, data: dict) -> None:
     # Obsidian freezes whatever side it guesses for a side-less edge (often top/bottom) on its next save.
     normalize_edge_sides(data)
-    path = vault_canvas_path(vault_root)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        f.write("\n")
+    write_text_atomic(vault_canvas_path(vault_root), json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
 def cards(data: dict) -> list[dict]:
@@ -124,15 +119,21 @@ def incoming_edges(data: dict, card_id: str) -> list[dict]:
 
 
 def card_file_path(vault_root: Path, card: dict) -> Path:
-    return vault_root / card["file"]
+    """The card's .md -- always inside content/, whatever a hand-edited canvas says (the schema
+    already refuses separators in the name; this is the second line of defense)."""
+    path = vault_root / card["file"]
+    content_dir = (vault_root / "content").resolve()
+    if path.resolve().parent != content_dir:
+        raise HistosError(f"card '{card.get('id')}' points outside content/ ({card['file']!r}) -- fix project.canvas")
+    return path
 
 
 _VALID_CARD_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def is_valid_card_id(card_id: str) -> bool:
-    """El id se usa tal cual como nombre de fichero (content/{id}.md): sin esta
-    restriccion, un id como '../../etc/algo' escribiria fuera del vault.
+    """The id is used as-is as a file name (content/{id}.md): without this check, an id
+    like '../../etc/something' would write outside the vault.
     """
     return bool(_VALID_CARD_ID_RE.match(card_id))
 
@@ -154,13 +155,13 @@ def add_card_node(data: dict, card_id: str, color: str, width: int = CARD_WIDTH,
 
 
 def estimate_card_size(description: Optional[str]) -> tuple[int, int]:
-    """Heuristica de tamano a partir de la longitud de la descripcion (ancho fijo, para que
-    las columnas queden alineadas). Aproximado -- Obsidian decide el wrap real -- pero
-    muchisimo mejor que un 250x100 fijo para toda tarjeta sea cual sea su contenido.
+    """Card size guessed from the description's length (fixed width, so columns line up).
+    Approximate -- Obsidian decides the real wrapping -- but far better than one fixed
+    250x100 for every card whatever its content.
     """
     desc = description or ""
     desc_lines = -(-len(desc) // _CHARS_PER_LINE) if desc else 0  # ceil division
-    total_lines = 1 + desc_lines  # +1 por el titulo (heading)
+    total_lines = 1 + desc_lines  # +1 for the title (heading)
     height = max(CARD_HEIGHT, 40 + total_lines * _LINE_HEIGHT + 20)
     return CARD_WIDTH, height
 
@@ -265,7 +266,7 @@ def arrange(data: dict, set_aside_done: bool = False, prune_redundant: bool = Fa
             dependents[u].append(v)
         done = {
             cid for cid, c in by_id.items()
-            if c["color"] == APROBADA and all(by_id[d]["color"] == APROBADA for d in dependents[cid])
+            if c["color"] == APPROVED and all(by_id[d]["color"] == APPROVED for d in dependents[cid])
         }
     loose_open = [c for cid, c in by_id.items() if cid not in connected and cid not in done]
     loose_done = [c for cid, c in by_id.items() if cid not in connected and cid in done]
@@ -692,9 +693,9 @@ def _mean(values: Iterable[float]) -> float:
 
 
 def build_legend_node() -> dict:
-    """Nodo de texto decorativo con la leyenda de colores. Ignorado por toda la logica
-    de estado/dependencias (que filtra por type=='file'); solo sirve para que la leyenda
-    sea visible directamente en el canvas al abrirlo en Obsidian.
+    """Decorative text node with the color legend. Ignored by all status/dependency logic
+    (which filters on type=='file'); it's only there so the legend is visible right on the
+    canvas when it's opened in Obsidian.
     """
     return {
         "id": LEGEND_ID,
@@ -719,7 +720,7 @@ def add_edge(data: dict, from_id: str, to_id: str) -> None:
 
 
 def detect_cycle(data: dict) -> Optional[list[str]]:
-    """DFS con pila de recursion. Devuelve la lista de ids del ciclo (cerrado, primero==ultimo) o None."""
+    """DFS with a recursion stack. Returns the cycle's ids (closed, first == last) or None."""
     adjacency: dict[str, list[str]] = {}
     for e in data.get("edges", []):
         adjacency.setdefault(e["fromNode"], []).append(e["toNode"])
@@ -757,16 +758,14 @@ def detect_cycle(data: dict) -> Optional[list[str]]:
 
 
 def recompute_blocked(data: dict) -> bool:
-    """Bloqueada es un estado derivado del grafo (docs/canvas-schema.md): una tarjeta
-    esta Bloqueada si le falta alguna dependencia por Aprobar, sea cual sea su estado
-    previo -- incluida una ya asignada (En progreso), p.ej. tras 'histos link' anadirle
-    una dependencia nueva sin aprobar todavia.
-    Backlog/Bloqueada alternan libremente en las dos direcciones. En progreso solo se
-    degrada a Bloqueada; nunca se auto-restaura desde aqui (una tarjeta que se
-    desbloquea aterriza en Backlog, hace falta 'assign' de nuevo para retomarla).
-    Propuesta/Solicitud/Aprobada no se tocan: son estados con una accion humana de por
-    medio, no derivables solo del grafo.
-    Devuelve True si cambio algo.
+    """Blocked is derived from the graph (docs/canvas-schema.md): a card is Blocked while
+    any dependency isn't Approved yet, whatever its previous state -- including one already
+    assigned (In progress), e.g. after 'histos link' gave it a new, unapproved dependency.
+    Backlog/Blocked switch freely both ways. In progress only drops to Blocked; it's never
+    restored from here (a card that gets unblocked lands in Backlog and needs 'assign'
+    again). Pending review/Change request/Approved are left alone: a human action sits
+    behind them, the graph alone can't derive them.
+    Returns True if anything changed.
     """
     changed = False
     by_id = {c["id"]: c for c in cards(data)}
@@ -776,10 +775,10 @@ def recompute_blocked(data: dict) -> bool:
             continue
         deps = incoming_edges(data, card["id"])
         all_approved = all(
-            by_id.get(e["fromNode"], {}).get("color") == APROBADA for e in deps
+            by_id.get(e["fromNode"], {}).get("color") == APPROVED for e in deps
         )
         if not all_approved:
-            target = BLOQUEADA
+            target = BLOCKED
         elif color in _FREELY_DERIVED_COLORS:
             target = BACKLOG
         else:

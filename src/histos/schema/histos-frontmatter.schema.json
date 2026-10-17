@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AIAYN-creator/Histos/schema/histos-frontmatter.schema.json",
+  "title": "Histos card frontmatter",
+  "description": "Types of the frontmatter fields Histos reads or writes in content/<id>.md. Fields Histos doesn't know (your own Obsidian properties) are allowed and never touched. See docs/canvas-schema.md.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "description": { "type": ["string", "null"] },
+    "sources": {
+      "type": ["array", "null"],
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "estimated_duration_hours": { "type": ["number", "null"] },
+    "actual_duration_hours": { "type": ["number", "null"] },
+    "assigned_to": { "enum": ["agent", "human", null] },
+    "worker": { "type": "string", "minLength": 1 },
+    "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "status_note": { "type": ["string", "null"] },
+    "implied_dependencies": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" }
+    },
+    "proposed_tier": { "enum": ["fast", "exec", "reasoning"] },
+    "proposed_model": { "type": "string", "minLength": 1 },
+    "approved_model": { "type": "string", "minLength": 1 },
+    "eval_results": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "checks"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "at": { "type": "string" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "passed"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "passed": { "type": "boolean" },
+              "error": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

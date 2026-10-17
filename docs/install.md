@@ -34,10 +34,22 @@ No `git` installed? Download the ZIP instead — the green **Code** button on th
 Check it worked:
 
 ```bash
-histos --help
+histos --version
 ```
 
-If that prints a list of commands, you're done.
+If that prints `histos` and a version number, you're done; `histos --help` lists every command.
+
+## Updating, and coming from v2
+
+Pull the new code (`git pull` in the folder you cloned, or download the ZIP again) — with `pip install -e .` there's nothing else to reinstall. For the desktop app, download the `.exe` again from step 2.
+
+Your existing vaults keep working as they are: without the v3 files, Histos behaves exactly like v2. To use tiers, model approval and evals in a vault, run this once in it:
+
+```bash
+histos init --add-config
+```
+
+and copy the new [`AGENTS.md`](../src/histos/templates/AGENTS.md) over the vault's old one (`init` never overwrites it). Details: [usage.md](usage.md#upgrading-a-vault-from-v2).
 
 ## Running the desktop app from source instead of the downloaded `.exe`
 

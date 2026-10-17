@@ -49,23 +49,23 @@ def test_load_missing_raises(tmp_path):
 
 
 def test_save_and_load_roundtrip(tmp_path):
-    data = {"nodes": [_card("a", canvas.APROBADA)], "edges": []}
+    data = {"nodes": [_card("a", canvas.APPROVED)], "edges": []}
     canvas.save(tmp_path, data)
     assert canvas.load(tmp_path) == data
 
 
 def test_recompute_blocked_marks_bloqueada_when_dep_not_approved():
     data = {
-        "nodes": [_card("a", canvas.EN_PROGRESO), _card("b", canvas.BACKLOG)],
+        "nodes": [_card("a", canvas.IN_PROGRESS), _card("b", canvas.BACKLOG)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
     }
     assert canvas.recompute_blocked(data) is True
-    assert canvas.find_card(data, "b")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "b")["color"] == canvas.BLOCKED
 
 
 def test_recompute_blocked_unblocks_when_dep_approved():
     data = {
-        "nodes": [_card("a", canvas.APROBADA), _card("b", canvas.BLOQUEADA)],
+        "nodes": [_card("a", canvas.APPROVED), _card("b", canvas.BLOCKED)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
     }
     assert canvas.recompute_blocked(data) is True
@@ -73,33 +73,33 @@ def test_recompute_blocked_unblocks_when_dep_approved():
 
 
 def test_recompute_blocked_demotes_en_progreso_when_dep_not_approved():
-    # p.ej. 'histos link' anade una dependencia sin aprobar a una tarjeta ya asignada:
-    # Bloqueada es derivada del grafo, no algo que solo se fija al crear/asignar.
+    # e.g. 'histos link' adds an unapproved dependency to a card already assigned:
+    # Blocked is derived from the graph, not something set only on create/assign.
     data = {
-        "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.EN_PROGRESO)],
+        "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.IN_PROGRESS)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
     }
     assert canvas.recompute_blocked(data) is True
-    assert canvas.find_card(data, "b")["color"] == canvas.BLOQUEADA
+    assert canvas.find_card(data, "b")["color"] == canvas.BLOCKED
 
 
 def test_recompute_blocked_leaves_en_progreso_alone_when_deps_satisfied():
     data = {
-        "nodes": [_card("a", canvas.APROBADA), _card("b", canvas.EN_PROGRESO)],
+        "nodes": [_card("a", canvas.APPROVED), _card("b", canvas.IN_PROGRESS)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
     }
     assert canvas.recompute_blocked(data) is False
-    assert canvas.find_card(data, "b")["color"] == canvas.EN_PROGRESO
+    assert canvas.find_card(data, "b")["color"] == canvas.IN_PROGRESS
 
 
 def test_recompute_blocked_does_not_auto_restore_en_progreso():
-    # Una tarjeta degradada a Bloqueada no vuelve sola a En progreso al aprobarse la
-    # dependencia -- aterriza en Backlog, hace falta 'assign' de nuevo para retomarla.
+    # A card dropped to Blocked doesn't go back to In progress by itself once its
+    # dependency is approved -- it lands in Backlog and needs 'assign' again.
     data = {
-        "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.BLOQUEADA)],
+        "nodes": [_card("a", canvas.BACKLOG), _card("b", canvas.BLOCKED)],
         "edges": [{"id": "e1", "fromNode": "a", "toNode": "b"}],
     }
-    canvas.find_card(data, "a")["color"] = canvas.APROBADA
+    canvas.find_card(data, "a")["color"] = canvas.APPROVED
     assert canvas.recompute_blocked(data) is True
     assert canvas.find_card(data, "b")["color"] == canvas.BACKLOG
 
@@ -108,8 +108,8 @@ def test_recompute_blocked_does_not_touch_review_or_approved_states():
     data = {
         "nodes": [
             _card("a", canvas.BACKLOG),
-            _card("b", canvas.PROPUESTA_PENDIENTE),
-            _card("c", canvas.APROBADA),
+            _card("b", canvas.PENDING_REVIEW),
+            _card("c", canvas.APPROVED),
         ],
         "edges": [
             {"id": "e1", "fromNode": "a", "toNode": "b"},
@@ -117,8 +117,8 @@ def test_recompute_blocked_does_not_touch_review_or_approved_states():
         ],
     }
     assert canvas.recompute_blocked(data) is False
-    assert canvas.find_card(data, "b")["color"] == canvas.PROPUESTA_PENDIENTE
-    assert canvas.find_card(data, "c")["color"] == canvas.APROBADA
+    assert canvas.find_card(data, "b")["color"] == canvas.PENDING_REVIEW
+    assert canvas.find_card(data, "c")["color"] == canvas.APPROVED
 
 
 def test_detect_cycle_finds_cycle():
@@ -248,8 +248,8 @@ def test_save_fixes_the_sides_obsidian_froze_on_dependency_arrows(tmp_path):
 
 
 def test_place_new_card_goes_right_of_its_dependencies_at_their_height():
-    a = dict(_card("a", canvas.APROBADA), x=0, y=200)
-    b = dict(_card("b", canvas.APROBADA), x=600, y=600)
+    a = dict(_card("a", canvas.APPROVED), x=0, y=200)
+    b = dict(_card("b", canvas.APPROVED), x=600, y=600)
     new = _card("new", canvas.BACKLOG)
     data = {"nodes": [a, b, new], "edges": [_edge("a", "new"), _edge("b", "new")]}
 
@@ -303,10 +303,10 @@ def test_pack_in_order_moves_items_as_little_as_possible():
 def _project():
     """A spine of work, a side branch, finished history, and two cards with no arrows at all."""
     colors = {
-        "old-a": canvas.APROBADA, "old-b": canvas.APROBADA, "spec": canvas.APROBADA,
-        "design": canvas.APROBADA, "build": canvas.EN_PROGRESO, "test": canvas.BLOQUEADA,
-        "docs": canvas.BACKLOG, "release": canvas.BLOQUEADA, "idea": canvas.BACKLOG,
-        "archived": canvas.APROBADA,
+        "old-a": canvas.APPROVED, "old-b": canvas.APPROVED, "spec": canvas.APPROVED,
+        "design": canvas.APPROVED, "build": canvas.IN_PROGRESS, "test": canvas.BLOCKED,
+        "docs": canvas.BACKLOG, "release": canvas.BLOCKED, "idea": canvas.BACKLOG,
+        "archived": canvas.APPROVED,
     }
     edges = [
         ("old-a", "old-b"), ("old-b", "design"), ("spec", "design"), ("design", "build"), ("build", "test"),

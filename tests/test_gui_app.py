@@ -21,7 +21,7 @@ def _add_pending_card(vault_root, card_id, *, description=None):
     """
     data = canvas.load(vault_root)
     width, height = canvas.estimate_card_size(description)
-    node = canvas.add_card_node(data, card_id, canvas.PROPUESTA_PENDIENTE, width=width, height=height)
+    node = canvas.add_card_node(data, card_id, canvas.PENDING_REVIEW, width=width, height=height)
     canvas.place_new_card(data, node)
     meta = dict(frontmatter.DEFAULT_META)
     if description:
@@ -109,7 +109,7 @@ def test_get_status_returns_all_groups_in_order(tmp_path):
         "Backlog", "Blocked", "In progress",
         "Proposal pending review", "Dependency change request", "Approved",
     ]
-    pending = next(g for g in result["data"]["groups"] if g["color"] == canvas.PROPUESTA_PENDIENTE)
+    pending = next(g for g in result["data"]["groups"] if g["color"] == canvas.PENDING_REVIEW)
     assert [c["id"] for c in pending["cards"]] == ["cap1"]
     assert pending["cards"][0]["description"] == "a thing to review"
 
@@ -138,12 +138,12 @@ def test_open_in_obsidian_error_shape_when_startfile_fails(monkeypatch):
     assert "error" in result
 
 
-def test_open_folder_calls_startfile_with_raw_path(monkeypatch):
+def test_open_folder_calls_startfile_with_raw_path(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(app.os, "startfile", lambda path: calls.append(path))
-    result = app.Api().open_folder("C:\\some\\vault")
+    result = app.Api().open_folder(str(tmp_path))
     assert result == {"ok": True}
-    assert calls == ["C:\\some\\vault"]
+    assert calls == [str(tmp_path)]
 
 
 def test_get_diff_success_and_error_shape(tmp_path):
@@ -184,3 +184,21 @@ def test_reject_success_and_error_shape(tmp_path):
     bad = app.Api().reject(str(tmp_path), "cap1")  # back in Backlog, no longer pending
     assert bad["ok"] is False
     assert "error" in bad
+
+
+def test_open_folder_never_starts_a_file(tmp_path, monkeypatch):
+    started = []
+    monkeypatch.setattr(app.os, "startfile", lambda p: started.append(p), raising=False)
+    program = tmp_path / "not-a-folder.exe"
+    program.write_bytes(b"")
+    result = app.Api().open_folder(str(program))
+    assert result["ok"] is False and "not a folder" in result["error"]
+    assert started == []
+    assert app.Api().open_folder(str(tmp_path))["ok"] is True
+    assert started == [str(tmp_path)]
+
+
+def test_the_packaged_selftest_passes(capsys):
+    """What `HISTOS_GUI_SELFTEST=1 histos-gui.exe` runs to check a PyInstaller build."""
+    assert app._selftest() == 0
+    assert "SELFTEST PASS" in capsys.readouterr().out
