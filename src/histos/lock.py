@@ -63,10 +63,18 @@ def lock_path(vault_root: Path) -> Path:
 @contextmanager
 def vault_lock(vault_root: Path, command: str) -> Iterator[None]:
     path = lock_path(vault_root)
+    # The holder info is written into this file (and truncated on release): if it were a symlink,
+    # that would clobber whatever it points to. O_NOFOLLOW closes the race where it exists (POSIX).
+    if path.is_symlink():
+        raise HistosError(f"{path} is a symbolic link -- remove it; histos only uses a plain file there")
     try:
-        fd = os.open(path, os.O_RDWR | os.O_CREAT)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0))
     except FileNotFoundError:
         raise HistosError(f"can't find the folder {vault_root}") from None
+    except OSError as e:
+        if path.is_symlink():
+            raise HistosError(f"{path} is a symbolic link -- remove it; histos only uses a plain file there") from None
+        raise HistosError(f"can't open {path}: {e}") from None
     try:
         deadline = time.monotonic() + _WAIT_TIMEOUT
         while not _try_lock(fd):

@@ -63,3 +63,19 @@ def test_a_frontmatter_that_isnt_a_mapping_is_an_error(vault, monkeypatch, capsy
     capsys.readouterr()
     assert run(monkeypatch, vault, "assign", "cap1") == 1
     assert "key: value" in capsys.readouterr().err
+
+
+def test_a_symlinked_lock_file_is_refused_not_followed(tmp_path, monkeypatch, capsys):
+    import os
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    precious = tmp_path / "precious.txt"
+    precious.write_text("precious data\n", encoding="utf-8")
+    try:
+        os.symlink(precious, vault / ".histos.lock")
+    except OSError:
+        pytest.skip("creating symlinks needs privileges here (Windows without developer mode)")
+    capsys.readouterr()
+    assert run(monkeypatch, vault, "init") == 1
+    assert "symbolic link" in capsys.readouterr().err
+    assert precious.read_text(encoding="utf-8") == "precious data\n"
