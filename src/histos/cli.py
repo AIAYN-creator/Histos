@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import context
+from . import __version__, context
 from .commands._shared import _permission_path  # noqa: F401  (tests and the docs refer to it here)
 from .commands.board import (
     cmd_add_card,
@@ -30,6 +30,7 @@ from .commands.routing import cmd_classify, cmd_context, cmd_guide, cmd_model
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="histos", description="Histos CLI (see docs/canvas-schema.md)")
+    parser.add_argument("--version", action="version", version=f"histos {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("init", help="creates project.canvas + content/ in the current directory")

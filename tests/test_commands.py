@@ -4,6 +4,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import pytest
 from conftest import run
 
 from histos import canvas, frontmatter
@@ -654,3 +655,11 @@ def test_main_prints_utf8_even_when_stdout_is_cp1252(tmp_path, monkeypatch):
 
     sys.stdout.flush()
     assert "x ← y" in buffer.getvalue().decode("utf-8")
+
+
+def test_version_matches_the_package(capsys):
+    import histos
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert capsys.readouterr().out.strip() == f"histos {histos.__version__}"
+    assert histos.__version__ == "3.0.0"
