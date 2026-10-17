@@ -29,9 +29,22 @@ Model routing by tier, subagents with an isolated context, and deterministic eva
 - `AGENTS.md` describes the v3 workflow; `histos.config.yaml`, `evals/`, `PROJECT.md` and `ARCHITECTURE.md` are added to Claude Code's deny list. `init` never overwrites an existing `AGENTS.md`: copy the new one by hand into older vaults.
 - The command implementations moved from `cli.py` into `histos/commands/`; the code and its comments are now English throughout.
 
+- `histos --version`; the version now lives only in `histos/__init__.py` (it said `0.1.0` there since v1).
+- `histos validate` reports cards whose `.md` file is missing; a missing or malformed card file is a clear error in every command, never a traceback.
+
 ### Fixed
 
 - Term conditions now match plurals ("trade-offs" for "trade-off").
+- A failed eval no longer repeats its detail twice on the same line.
+
+### Security
+
+Found in the v3 audit (dependency scan, static analysis, manual review of every path and file the CLI touches):
+
+- **A card's file could point outside the vault on Windows.** The schema only forbade `/` in the file name, but a backslash is a separator on Windows too: a hand-edited canvas with `content/..\..\x.md` passed `validate`, and `approve` wrote the draft there. The schema now refuses `/`, `\` and `:`, and every command checks that a card's resolved path is directly inside `content/`.
+- **The vault lock file is never followed through a symbolic link** — a symlinked `.histos.lock` would have had its target truncated and overwritten. It's refused, and opened with `O_NOFOLLOW` where available.
+- **The desktop app only ever passes folders to `os.startfile`**, which would run a file if given one. (The app inserts all agent-written text with `textContent`, never as HTML, so there was no injection path to it; this is defense in depth.)
+- Dependencies: no known vulnerabilities (`pip-audit`).
 
 ## [2.1.1] - 2026-10-15
 
