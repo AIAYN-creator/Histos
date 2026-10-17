@@ -196,3 +196,9 @@ def test_open_folder_never_starts_a_file(tmp_path, monkeypatch):
     assert started == []
     assert app.Api().open_folder(str(tmp_path))["ok"] is True
     assert started == [str(tmp_path)]
+
+
+def test_the_packaged_selftest_passes(capsys):
+    """What `HISTOS_GUI_SELFTEST=1 histos-gui.exe` runs to check a PyInstaller build."""
+    assert app._selftest() == 0
+    assert "SELFTEST PASS" in capsys.readouterr().out
