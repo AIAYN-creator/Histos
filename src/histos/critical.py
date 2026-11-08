@@ -199,6 +199,21 @@ def _weights(vault_root: Path, data: dict, review_clock: str) -> tuple[dict[str,
     return weights, False
 
 
+def current_path(vault_root: Path, data: dict | None = None) -> CriticalPath | None:
+    """The critical path of the board as it is now, without painting anything (read-only; the
+    same weights `refresh` uses). None when the vault has no critical path (no config, or off)."""
+    try:
+        cfg = config.load(vault_root)
+    except Exception:  # a broken config is reported by validate; it never blocks a command
+        return None
+    if cfg is None or not cfg.critical_path.enabled or not canvas.vault_canvas_path(vault_root).exists():
+        return None
+    if data is None:
+        data = canvas.load(vault_root)
+    weights, by_count = _weights(vault_root, data, cfg.critical_path.review)
+    return compute(data, weights, vault_root, by_count=by_count)
+
+
 def refresh(vault_root: Path) -> CriticalPath | None:
     """Recomputes and repaints the critical path; saves the canvas only if an arrow changed.
     The caller holds the vault lock. None when the vault has no critical path (no config, or off)."""

@@ -144,3 +144,17 @@ def test_with_history_the_path_is_in_hours_and_follows_the_review_clock(initiali
     cfg.write_text(cfg.read_text(encoding="utf-8").replace("review: active", "review: calendar"), encoding="utf-8")
     run(monkeypatch, v, "status")
     assert "Critical path (~22 h · 2 cards): cod-a -> cod-b" in capsys.readouterr().out  # 1 + 10, twice
+
+def test_current_path_is_what_refresh_paints_and_paints_nothing(initialized_vault, monkeypatch):
+    chain(initialized_vault, monkeypatch, "a", "b", "c")
+    run(monkeypatch, initialized_vault, "add-card", "x", "--title", "X")
+    data = canvas.load(initialized_vault)
+    for e in data["edges"]:
+        e.pop("color", None)
+    canvas.save(initialized_vault, data)
+    before = (initialized_vault / "project.canvas").read_bytes()
+    path = critical.current_path(initialized_vault)
+    assert path.cards == ["a", "b", "c"]
+    assert (initialized_vault / "project.canvas").read_bytes() == before  # read-only
+    assert critical.refresh(initialized_vault).cards == path.cards
+    assert set(critical._read_ledger(initialized_vault)) == {"a->b", "b->c"}
