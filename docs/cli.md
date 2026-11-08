@@ -47,6 +47,8 @@ histos guide approve|reject PROJECT.md [--feedback ".."]
                                                         # a rejection's feedback goes to PROJECT.md's decisions
 histos plan approve                                     # creates every card of the plan, all or nothing
 histos plan reject [--feedback "..."]                   # discards it; the feedback goes to PROJECT.md's decisions
+histos pause                                            # you're away: the review clock stops in every vault
+                                                        # until your next decision (no resume command)
 histos arrange [--no-set-aside-done] [--no-prune-redundant]
                                                         # re-lays out the WHOLE board: dependency columns, no
                                                         # arrow across a card, "Not connected" and "Done" groups,

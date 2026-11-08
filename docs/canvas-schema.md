@@ -294,7 +294,7 @@ Read-only commands (`status` when nothing changed, `context`, `diff`, `validate`
 
 **Reliability:** a session's events are appended in one write with `fsync`. If the machine dies mid-line, the cut-off last line is ignored and `validate` warns about it; any other broken line is a `validate` error. If recording fails (a full disk), the command warns and still succeeds: the vault change already happened.
 
-**The rest of `.histos/`:** `vault.json` holds the vault's id (a UUID, so its history stays recognizable if the folder moves) and `colors.json` each card's color as of the last recorded command (how changes made in Obsidian are noticed). Outside the vault, `~/.histos/vaults.json` lists every vault that recorded an event, so later versions can learn from all your projects without asking where they are; set `HISTOS_HOME` to keep it somewhere else.
+**The rest of `.histos/`:** `vault.json` holds the vault's id (a UUID, so its history stays recognizable if the folder moves) and `colors.json` each card's color as of the last recorded command (how changes made in Obsidian are noticed). Outside the vault, `~/.histos/vaults.json` lists every vault that recorded an event, so later versions can learn from all your projects without asking where they are; set `HISTOS_HOME` to keep it somewhere else. Next to it, `~/.histos/pauses.jsonl` records `histos pause` (`{"event": "pause", "ts": ...}`) and the decision that ended it (`{"event": "resume", "ts": ..., "by": "approve"}`): one pause per person, for every vault, so review time can leave out the hours you were away.
 
 If you keep a vault in git, commit `.histos/` with it — it's the project's history.
 

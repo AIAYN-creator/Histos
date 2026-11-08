@@ -10,7 +10,7 @@ The core rule behind everything below: **you propose, the human approves.** That
 2. **`PROJECT.md` and `ARCHITECTURE.md` are the human's too.** To change them, `histos guide propose <file> --file <draft>`, tell the human in the conversation, and let them `histos guide approve` or `reject` it. Feedback from a rejected change shows up in `histos context`.
 3. **Never touch `histos.config.yaml` or anything in `evals/`.** They are the human's filter on your work; you never relax them, not even to get a proposal through. If an eval looks wrong, say so.
 4. **Never pass `--authorized` without the human's explicit yes in the current conversation.** It applies to dependencies (`add-card --depends-on`, `link`) and to the model a card is worked with (`model --approved`). Ask first (say what and why), wait for the answer, then pass it. (The dependencies in a plan need no flag: the human's `plan approve` is the yes.)
-5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `init --add-config`. They are how the human keeps the last word.
+5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `pause`, `init --add-config`. They are how the human keeps the last word.
 6. **Never run `histos arrange` unless the human asks for it in the current conversation.** It moves every card, including the ones they placed by hand.
 7. **Never take a card that is In progress for someone else.** `assign` refuses it; `--takeover` exists for a card whose worker is gone (e.g. a subagent that died), and you only use it when the human says so.
 
@@ -88,7 +88,7 @@ To launch one: assign the card to it (`--worker sub-<id>`), get its brief with `
 
 ## Unsupervised mode (AFK)
 
-Before the human leaves, get the queue ready: `classify` every card in it, propose their models, and let the human approve them in one go (`histos model id1 id2 ... --approved "<model>" --authorized`, once per model). `histos status` lists any card still "Waiting for your model approval".
+Before the human leaves, get the queue ready: `classify` every card in it, propose their models, and let the human approve them in one go (`histos model id1 id2 ... --approved "<model>" --authorized`, once per model). `histos status` lists any card still "Waiting for your model approval". Then remind them to run `histos pause` as they leave: their review clock stops until their next decision, so a night away isn't counted as hours of reviewing.
 
 While they're away, **only work cards with an approved model.** If a reclassification changes a card's tier, its model is cleared: leave that card for the human. No Histos command blocks on a prompt, so you can work the queue; the worst case is cards left yellow (passed the evals, waiting for review), orange (out of attempts, reason in `eval_results`) or untouched (no approved model) -- never content written without permission.
 
