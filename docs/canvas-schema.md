@@ -1,6 +1,6 @@
 # Vault format
 
-This document formalizes what a Histos vault contains, on top of the [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/) format: the canvas, the cards' frontmatter, `histos.config.yaml` and the evals. Each has a machine-checkable JSON Schema, packaged with the CLI — [canvas](../src/histos/schema/histos-canvas.schema.json), [frontmatter](../src/histos/schema/histos-frontmatter.schema.json), [config](../src/histos/schema/histos-config.schema.json) — and `histos validate` checks all of them; here's the why.
+This document formalizes what a Histos vault contains, on top of the [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/) format: the canvas, the cards' frontmatter, `histos.config.yaml`, the evals and the event log. Each has a machine-checkable JSON Schema, packaged with the CLI — [canvas](../src/histos/schema/histos-canvas.schema.json), [frontmatter](../src/histos/schema/histos-frontmatter.schema.json), [config](../src/histos/schema/histos-config.schema.json), [events](../src/histos/schema/histos-events.schema.json) — and `histos validate` checks all of them; here's the why.
 
 What a schema **can't** check on its own — that each edge's `fromNode`/`toNode` point to an `id` that exists, and that the dependency graph is acyclic — the CLI checks too (`histos status` / `histos validate`).
 
@@ -25,6 +25,7 @@ A complete vault to look at: [`examples/sample-paper/`](../examples/sample-paper
 ├── ARCHITECTURE.md          # optional: how it's written (style, conventions, stack)
 ├── AGENTS.md / CLAUDE.md    # instructions for the agent
 ├── .claude/settings.json    # Claude Code's deny list
+├── .histos/                 # the event log (v3.1, see "Event log" below)
 └── .histos.lock             # the vault lock (see below)
 ```
 
@@ -207,6 +208,55 @@ Each `.yaml`/`.yml` file in `evals/` is a list of evals; `histos propose` runs e
 ## Guidance files
 
 `PROJECT.md` (what the project is) and `ARCHITECTURE.md` (how it's written: style, conventions, stack) are optional; when they exist, `histos context` appends both, in that order. Only the human changes them: the agent proposes a new version with `histos guide propose <file> --file <draft>`, and the human runs `histos guide approve` (the previous version goes to `approved/guides/<name>-<date-time>.md`) or `histos guide reject --feedback "..."` (which `histos context` then shows).
+
+## Event log
+
+Every command that changes the vault records what it did in `.histos/events.jsonl`: one JSON object per line, append-only, written inside the vault lock. It's the history that estimates, the critical path with real durations and the project report are built from, so it records generously — including how long a card waited for the human's review. Nothing leaves your machine.
+
+```json
+{"v": 1, "ts": "2026-11-08T16:42:07.312Z", "event": "approved", "card": "cod-plan",
+ "actor": "human", "worker": "parent", "data": {"words": 812, "lines": 96},
+ "transitions": [{"card": "cod-plan", "from": "Proposal pending review", "to": "Approved"},
+                 {"card": "pru-plan", "from": "Blocked", "to": "Backlog"}]}
+```
+
+| Field | What it is |
+|---|---|
+| `v` | format version (1) |
+| `ts` | when, in UTC with milliseconds — durations are differences between events |
+| `event` | what happened (table below) |
+| `card` | the card, or `null` for vault-wide events |
+| `actor` | `human` for the human's commands (`approve`, `reject`, `retry`, `accept-edit`, `guide approve/reject`, `init`, `arrange`, `status`) and everything the desktop app does; `agent` for the rest |
+| `worker` | the card's `worker` at that moment, if any — tells the parent's time from a subagent's |
+| `data` | what's specific to the event |
+| `transitions` | every card whose status the command changed — this one *or any other*: approving a card records the dependents it unblocked. On the command's last event |
+
+| `event` | Recorded by | `data` |
+|---|---|---|
+| `vault_created` | `init` | `version` |
+| `config_added` | `init --add-config`, when it added something | `files` |
+| `card_created` | `add-card` | `title`, `depends_on` |
+| `dependency_added` | `link` | `depends_on` |
+| `described` | `describe` | `fields` (names only) |
+| `assigned` | `assign`, one per card | `by`, `takeover`, `previous_worker` |
+| `classified` | `classify` (not `--dry-run`) | `tier`, `previous_tier`, `model_cleared` |
+| `model_proposed` / `model_approved` / `model_cleared` | `model` | `model` |
+| `proposed` | `propose` that passed the evals | `attempt` (or `null` without evals), `words`, `lines` |
+| `proposal_refused` | `propose` that failed the evals | `attempt`, `failed` (eval names), `words`, `lines` |
+| `approved` / `rejected` | `approve` / `reject` | `words`, `lines` of the approved text / `feedback` |
+| `retry` / `edit_accepted` | `retry` / `accept-edit` | — |
+| `guide_proposed` / `guide_approved` / `guide_rejected` | `guide ...` | `file`, plus `words`/`lines` or `feedback` |
+| `plan_proposed` / `plan_approved` / `plan_rejected` | `plan ...` | reserved for the plan commands |
+| `arranged` | `arrange` | `pruned` |
+| `state_recomputed` | any command whose only effect was a status change — e.g. `status` unblocking cards. With `seen_outside_histos: true`: colors changed by hand in Obsidian since the last recorded command, recorded with the time Histos saw them | — / `seen_outside_histos` |
+
+Read-only commands (`status` when nothing changed, `context`, `diff`, `validate`, `eval`) record nothing, and the text of proposals isn't copied into the log — it's already in `approved/`.
+
+**Reliability:** a session's events are appended in one write with `fsync`. If the machine dies mid-line, the cut-off last line is ignored and `validate` warns about it; any other broken line is a `validate` error. If recording fails (a full disk), the command warns and still succeeds: the vault change already happened.
+
+**The rest of `.histos/`:** `vault.json` holds the vault's id (a UUID, so its history stays recognizable if the folder moves) and `colors.json` each card's color as of the last recorded command (how changes made in Obsidian are noticed). Outside the vault, `~/.histos/vaults.json` lists every vault that recorded an event, so later versions can learn from all your projects without asking where they are; set `HISTOS_HOME` to keep it somewhere else.
+
+If you keep a vault in git, commit `.histos/` with it — it's the project's history.
 
 ## Minimal canvas
 
