@@ -6,11 +6,10 @@ what it measured, and a default message for when the eval doesn't set its own `e
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import canvas, frontmatter, operations
+from . import canvas, frontmatter, headings, operations
 
 
 @dataclass
@@ -62,28 +61,10 @@ def no_placeholders(i: CheckInput) -> CheckOutcome:
     return CheckOutcome(True, "no placeholders", "")
 
 
-_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
-
-
-def _normalize_heading(text: str) -> str:
-    """'## Qué no es' and 'que NO es' compare equal: level, case, spacing and accents don't count."""
-    text = " ".join(text.strip().lstrip("#").split()).lower()
-    return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
-
-
-def _alternatives(heading: str | list[str]) -> list[str]:
-    """A required heading is a text, or a list of acceptable spellings (e.g. one per language)."""
-    return [heading] if isinstance(heading, str) else list(heading)
-
-
-def _headings_in(draft: str) -> set[str]:
-    return {_normalize_heading(m.group(1)) for line in draft.splitlines() if (m := _HEADING_RE.match(line))}
-
-
 def required_headings(i: CheckInput) -> CheckOutcome:
-    present = _headings_in(i.draft)
-    missing = [_alternatives(h)[0] for h in i.params["headings"]
-               if not any(_normalize_heading(alt) in present for alt in _alternatives(h))]
+    present = headings.present(i.draft)
+    missing = [headings.alternatives(h)[0] for h in i.params["headings"]
+               if not any(headings.normalize(alt) in present for alt in headings.alternatives(h))]
     if missing:
         detail = "missing: " + ", ".join(f'"{h}"' for h in missing)
         return CheckOutcome(False, detail, f"the draft lacks required headings -- {detail}")
@@ -92,27 +73,17 @@ def required_headings(i: CheckInput) -> CheckOutcome:
 
 def _section_words(draft: str, heading: str | list[str]) -> int | None:
     """Words between the heading and the next heading of the same or a higher level; None if absent."""
-    wanted = {_normalize_heading(alt) for alt in _alternatives(heading)}
     lines = draft.splitlines()
-    for n, line in enumerate(lines):
-        m = _HEADING_RE.match(line)
-        if not m or _normalize_heading(m.group(1)) not in wanted:
-            continue
-        level = len(line.strip()) - len(line.strip().lstrip("#"))
-        body = []
-        for following in lines[n + 1:]:
-            nm = _HEADING_RE.match(following)
-            if nm and len(following.strip()) - len(following.strip().lstrip("#")) <= level:
-                break
-            body.append(following)
-        return len(re.findall(r"\w+", "\n".join(body)))
-    return None
+    span = headings.section_span(lines, heading)
+    if span is None:
+        return None
+    return len(re.findall(r"\w+", "\n".join(lines[span[0] + 1:span[1]])))
 
 
 def min_section_words(i: CheckInput) -> CheckOutcome:
     short, details = [], []
     for section in i.params["sections"]:
-        name = _alternatives(section["heading"])[0].lstrip("#").strip()
+        name = headings.alternatives(section["heading"])[0].lstrip("#").strip()
         count = _section_words(i.draft, section["heading"]) or 0
         details.append(f'"{name}": {count} of {section["min"]} words')
         if count < section["min"]:
