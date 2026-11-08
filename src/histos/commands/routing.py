@@ -6,7 +6,7 @@ import difflib
 import sys
 from pathlib import Path
 
-from .. import canvas, config, context, frontmatter, guides, heuristics, operations, tiers
+from .. import canvas, config, context, events, frontmatter, guides, heuristics, operations, tiers
 from ._shared import _vault_root, _with_vault_lock
 
 
@@ -52,6 +52,7 @@ def cmd_classify(args: argparse.Namespace) -> int:
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path)
         previous = meta.get("proposed_tier")
+        cleared = []
         if previous and previous != result.tier:
             cleared = [f"{k} '{meta.pop(k)}'" for k in ("proposed_model", "approved_model") if k in meta]
             if cleared:
@@ -62,6 +63,8 @@ def cmd_classify(args: argparse.Namespace) -> int:
                 )
         meta["proposed_tier"] = result.tier
         frontmatter.write(md_path, meta, body)
+        events.emit("classified", card=card["id"], tier=result.tier, previous_tier=previous,
+                    model_cleared=bool(cleared))
 
     if len(targets) > 1 or args.dry_run:
         summary = " · ".join(f"{name} {counts[name]}" for name in ("fast", "exec", "reasoning"))
@@ -115,8 +118,11 @@ def cmd_model(args: argparse.Namespace) -> int:
             meta["proposed_model" if args.proposed else "approved_model"] = args.proposed or args.approved
         frontmatter.write(md_path, meta, body)
         if args.clear:
+            events.emit("model_cleared", card=card["id"])
             print(f"{card['id']}: models cleared")
             continue
+        events.emit("model_proposed" if args.proposed else "model_approved", card=card["id"],
+                    model=args.proposed or args.approved)
         notes = [f"{k}: {meta[v]}" for k, v in (("proposed", "proposed_model"), ("tier", "proposed_tier"))
                  if args.approved and meta.get(v)]
         field_name = "proposed_model" if args.proposed else "approved_model"

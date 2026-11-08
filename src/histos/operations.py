@@ -12,7 +12,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import canvas, frontmatter, validation
+from . import __version__, canvas, events, frontmatter, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -111,6 +111,7 @@ def init_vault(vault_root: Path) -> InitResult:
     (vault_root / APPROVED_DIR).mkdir(parents=True, exist_ok=True)
     canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
     warnings = _install_agent_templates(vault_root) + _install_v3_config(vault_root)
+    events.emit("vault_created", version=__version__)
     return InitResult(vault_root=vault_root, template_warnings=warnings)
 
 
@@ -141,7 +142,13 @@ def add_config(vault_root: Path) -> list[str]:
     """Brings an existing vault to v3: adds histos.config.yaml and evals/ if missing, nothing else."""
     if not canvas.vault_canvas_path(vault_root).exists():
         raise canvas.HistosError(f"no {canvas.CANVAS_FILENAME} here -- use plain 'histos init' for a new vault")
-    return _install_v3_config(vault_root)
+    templates = [V3_CONFIG_TEMPLATE, *V3_EVALS_TEMPLATES]
+    missing = [t for t in templates if not (vault_root / t).exists()]
+    warnings = _install_v3_config(vault_root)
+    added = [t for t in missing if (vault_root / t).exists()]
+    if added:
+        events.emit("config_added", files=added)
+    return warnings
 
 
 @dataclass
@@ -254,6 +261,7 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
     card["color"] = canvas.APPROVED
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
+    events.emit("approved", card=card_id, **events.size_of(body))
     return ApproveResult(card_id=card_id)
 
 
@@ -270,6 +278,7 @@ def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
         meta, body = frontmatter.read(md_path)
         meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
         frontmatter.write(md_path, meta, body)
+        events.emit("edit_accepted", card=card_id)
     return card_ids
 
 
@@ -287,6 +296,7 @@ def retry(vault_root: Path, card_id: str) -> None:
         raise canvas.HistosError(f"'{card_id}' has no failed evals to retry")
     del meta[EVAL_RESULTS_KEY]
     frontmatter.write(md_path, meta, body)
+    events.emit("retry", card=card_id)
 
 
 @dataclass
@@ -309,6 +319,7 @@ def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> Re
     if proposal_path.exists():
         proposal_path.unlink()
 
+    events.emit("rejected", card=card_id, feedback=feedback)  # before the worker is cleared below
     card["color"] = canvas.BACKLOG
     md_path = canvas.card_file_path(vault_root, card)
     if md_path.exists():
@@ -347,6 +358,7 @@ def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) ->
     summary = canvas.arrange(data, set_aside_done=set_aside_done, prune_redundant=prune_redundant)
     _remember_pruned_dependencies(vault_root, data, summary.pruned)
     canvas.save(vault_root, data)
+    events.emit("arranged", pruned=len(summary.pruned))
     return ArrangeResult(
         cards=len(canvas.cards(data)),
         columns=summary.columns,

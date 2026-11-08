@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import operations
+from . import events, operations
 from .errors import HistosError
 from .fsutil import write_text_atomic
 from .lock import locked
@@ -80,7 +80,7 @@ class ProposeResult:
     replaced_pending: bool
 
 
-@locked("guide propose")
+@locked("guide propose", actor="agent")
 def propose(vault_root: Path, name: str, draft_text: str) -> ProposeResult:
     name = canonical_name(name)
     path = proposal_path(vault_root, name)
@@ -88,6 +88,7 @@ def propose(vault_root: Path, name: str, draft_text: str) -> ProposeResult:
     path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(path, draft_text)
     _set_feedback(vault_root, name, None)  # a new proposal answers the old feedback
+    events.emit("guide_proposed", file=name, **events.size_of(draft_text))
     return ProposeResult(name=name, replaced_pending=replaced)
 
 
@@ -127,9 +128,11 @@ def approve(vault_root: Path, name: str) -> ApproveResult:
         archived = _approved_dir(vault_root) / f"{Path(name).stem}-{stamp}.md"
         archived.parent.mkdir(parents=True, exist_ok=True)
         write_text_atomic(archived, target.read_text(encoding="utf-8"))
-    write_text_atomic(target, path.read_text(encoding="utf-8"))
+    text = path.read_text(encoding="utf-8")
+    write_text_atomic(target, text)
     path.unlink()
     _set_feedback(vault_root, name, None)
+    events.emit("guide_approved", file=name, **events.size_of(text))
     return ApproveResult(name=name, archived_previous=archived)
 
 
@@ -141,4 +144,5 @@ def reject(vault_root: Path, name: str, feedback_text: str | None = None) -> str
         raise HistosError(f"no pending change for {name}")
     path.unlink()
     _set_feedback(vault_root, name, feedback_text)
+    events.emit("guide_rejected", file=name, feedback=feedback_text)
     return name

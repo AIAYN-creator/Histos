@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .. import canvas, config, evals, frontmatter, guides, operations, validation
+from .. import canvas, config, evals, events, frontmatter, guides, operations, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -98,6 +98,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
 
     canvas.place_new_card(data, node)
     canvas.save(vault_root, data)
+    events.emit("card_created", card=args.id, title=args.title, depends_on=list(depends_on))
 
     print(f"card '{args.id}' created ({operations.STATE_NAMES[initial_color]}) -> {node['file']}")
     return 0
@@ -146,6 +147,7 @@ def cmd_link(args: argparse.Namespace) -> int:
 
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
+    events.emit("dependency_added", card=args.id, depends_on=list(args.depends_on))
     print(f"'{args.id}' now depends on: {', '.join(args.depends_on)}")
     return 0
 
@@ -196,6 +198,7 @@ def cmd_assign(args: argparse.Namespace) -> int:
         else:
             meta.pop(operations.WORKER_KEY, None)
         frontmatter.write(md_path, meta, body)
+        events.emit("assigned", card=card_id, by=args.by, takeover=previous is not None, previous_worker=previous)
         worker = f", worker={args.worker}" if args.worker else ""
         taken = f" -- taken over from {previous}" if previous else ""
         print(f"'{card_id}' -> In progress (assigned_to={args.by}{worker}){taken}")
@@ -245,6 +248,8 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
     card["width"], card["height"] = canvas.estimate_card_size(meta.get("description"))
     canvas.save(vault_root, data)
+    events.emit("described", card=args.id,
+                fields=[f for f, given in (("description", args.text), ("sources", args.sources)) if given is not None])
     _sync_permissions_deny(vault_root, _all_registered_sources(vault_root, data))
 
     print(f"'{args.id}': updated")
@@ -328,6 +333,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
     errors += [f"config: {e}" for e in config_errors]
     if not config_errors:  # where evals/ lives comes from the config
         errors += [f"evals: {e}" for e in evals.validate(vault_root, config.load(vault_root))]
+    log_errors, log_warnings = events.check_log(vault_root)
+    errors += log_errors
+    for warning in log_warnings:
+        print(f"warning: {warning}", file=sys.stderr)
     if errors:
         for e in errors:
             print(f"  - {e}")

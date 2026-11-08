@@ -50,8 +50,9 @@ def test_add_config_brings_a_v2_vault_up_and_touches_nothing_else(tmp_path, monk
     after = _tree(tmp_path)
     added = set(after) - set(before)
     assert {a.replace("\\", "/") for a in added} == {"histos.config.yaml", "evals/basics.yaml", "evals/examples.yaml"}
-    changed = {k for k in before if before[k] != after[k]}
-    assert {c.replace("\\", "/") for c in changed} <= {".claude/settings.json"}  # only the deny rules
+    changed = {k.replace("\\", "/") for k in before if before[k] != after[k]}
+    # only the deny rules -- and histos's own event log, which records the config_added
+    assert changed - {".histos/events.jsonl", ".histos/colors.json"} <= {".claude/settings.json"}
 
 
 def test_add_config_leaves_existing_files_alone(tmp_path, monkeypatch, capsys):
