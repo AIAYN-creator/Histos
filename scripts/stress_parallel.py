@@ -15,7 +15,12 @@ for project.canvas and the vault lock. Then it checks the invariants:
 - the log is in time order (50 ms of tolerance: events are stamped when emitted, a bit before
   the write), and its `transitions`, applied in file order to the colors right after setup, give
   exactly the final colors of project.canvas;
-- each contested card has as many non-takeover `assigned` events as winners the script tracked.
+- each contested card has as many non-takeover `assigned` events as winners the script tracked;
+- the critical path (cod-camino) is the right one: recomputed on the final board, the arrows
+  carrying the Histos color are exactly those of the path that nobody else colored, and they
+  are the ones noted in .histos/critical-path.json (every noted arrow exists with the Histos
+  color, no arrow has it without being noted);
+- repainting is not an event: the log has no event of a type outside events.EVENTS.
 
 It sets HISTOS_HOME to a temp folder, so it never writes to the real ~/.histos.
 
@@ -41,7 +46,7 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
-from histos import canvas, events, frontmatter, operations  # noqa: E402
+from histos import canvas, config, critical, events, frontmatter, operations  # noqa: E402
 
 CARDS_PER_WORKER = 4
 CONTESTED = 3
@@ -84,8 +89,19 @@ def make_vault(root: Path, workers: int) -> tuple[Path, dict[str, list[str]], li
     assert histos(vault, "init").returncode == 0
     owned = {f"w{w}": [f"w{w}-c{i}" for i in range(CARDS_PER_WORKER)] for w in range(workers)}
     contested = [f"shared{i}" for i in range(CONTESTED)]
+    # Dependencies, so there is a critical path: even workers get one chain of all their cards,
+    # odd ones two pairs. A card with an open dependency starts Blocked (and stays so: the
+    # script never approves), so only the head of each chain moves.
+    after: dict[str, str] = {}
+    for w, cards in enumerate(owned.values()):
+        for i in range(1, len(cards)):
+            if w % 2 == 0 or i % 2 == 1:
+                after[cards[i]] = cards[i - 1]
     for card_id in [c for cards in owned.values() for c in cards] + contested:
-        assert histos(vault, "add-card", card_id, "--title", card_id).returncode == 0
+        argv = ["add-card", card_id, "--title", card_id]
+        if card_id in after:
+            argv += ["--depends-on", after[card_id], "--authorized"]
+        assert histos(vault, *argv).returncode == 0
     return vault, owned, contested
 
 
@@ -231,6 +247,42 @@ def check_events(vault: Path, report: Report, setup_events: int, initial: dict[s
     return problems
 
 
+def check_critical(vault: Path) -> list[str]:
+    """The critical path against the final board: what Histos painted is the path, minus the arrows
+    somebody else colored, and the ledger says the same; and repainting left no event."""
+    problems = []
+    data = canvas.load(vault)
+    cfg = config.load(vault)
+    path = critical.current_path(vault, data)
+    if cfg is None or path is None or len(path.cards) < 2:
+        return ["critical: the stress vault has no critical path to check (config missing/off, or no dependencies)"]
+    color = cfg.critical_path.color.upper()
+    edges = {e["id"]: e for e in data["edges"]}
+    by_pair = {(e["fromNode"], e["toNode"]): e["id"] for e in edges.values()}
+    on_path = {by_pair[pair] for pair in zip(path.cards, path.cards[1:]) if pair in by_pair}
+    ours = lambda e: (e.get("color") or "").upper() == color  # noqa: E731
+    expected = {eid for eid in on_path if not edges[eid].get("color") or ours(edges[eid])}
+    painted = {eid for eid, e in edges.items() if ours(e)}
+    if painted != expected:
+        problems.append(f"critical: arrows with the Histos color {sorted(painted)}, but the path "
+                        f"{path.cards} calls for {sorted(expected)}")
+    ledger = critical._read_ledger(vault)
+    if ledger is None:
+        problems.append("critical: .histos/critical-path.json is missing or unreadable")
+    else:
+        for eid in sorted(set(ledger) - set(edges)):
+            problems.append(f"critical: the ledger notes {eid}, which is not on the canvas")
+        for eid in sorted(set(ledger) & set(edges)):
+            if not ours(edges[eid]):
+                problems.append(f"critical: the ledger notes {eid}, but its color is {edges[eid].get('color')!r}")
+        for eid in sorted(painted - set(ledger)):
+            problems.append(f"critical: {eid} has the Histos color but is not in the ledger")
+    unknown = sorted({e["event"] for e in events.read(vault)} - events.EVENTS)
+    if unknown:
+        problems.append(f"critical: events of types outside events.EVENTS (a repaint recorded?): {unknown}")
+    return problems
+
+
 def check(vault: Path, owned: dict[str, list[str]], contested: list[str], expected: dict[str, Expected],
           wins: dict[str, list[str]], report: Report, setup_events: int = 0,
           initial: dict[str, str] | None = None) -> list[str]:
@@ -266,6 +318,7 @@ def check(vault: Path, owned: dict[str, list[str]], contested: list[str], expect
             problems.append(f"{card_id}: worker {meta.get('worker')!r}, but {winners[0]} won it")
 
     problems += check_events(vault, report, setup_events, initial or {}, contested, wins)
+    problems += check_critical(vault)
 
     leftovers = [str(p.relative_to(vault)) for p in vault.rglob("*.tmp")]
     if leftovers:
@@ -287,7 +340,7 @@ def run(workers: int, rounds: int, seed: int, keep: bool = False, quiet: bool = 
         initial = {c["id"]: c.get("color") for c in canvas.cards(canvas.load(vault)) if "id" in c}
         drafts = root / "drafts"
         drafts.mkdir()
-        expected = {c: Expected() for cards in owned.values() for c in cards}
+        expected = {c: Expected(color=initial[c]) for cards in owned.values() for c in cards}
         wins: dict[str, list[str]] = {}
         report = Report()
         start = time.monotonic()
