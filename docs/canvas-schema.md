@@ -194,7 +194,8 @@ Each `.yaml`/`.yml` file in `evals/` is a list of evals; `histos propose` runs e
 |---|---|---|
 | `word_count` | `min`, `max` (at least one) | the draft's word count is within bounds |
 | `no_placeholders` | `patterns` (optional) | no leftover markers: by default `TODO`, `TBD`, `FIXME`, `XXX`, `lorem ipsum`, `[...]`, `[citation needed]`, `[cita requerida]`. ALL-CAPS markers match case-sensitively as whole words ("todo" is ordinary Spanish), the rest anywhere |
-| `required_headings` | `headings` | the draft has every one of these headings, at any level |
+| `required_headings` | `headings` | the draft has every one of these headings, at any level. Each can be a list of acceptable spellings (`["## Objetivo", "## Goal"]`, any one counts); case, spacing and accents don't matter |
+| `min_section_words` | `sections`: a list of `{heading, min}` | each of these sections (from its heading to the next one of the same or a higher level) has at least `min` words; a missing section counts as 0. `heading` takes alternatives like above |
 | `content_untouched` | — | nothing changed `content/` behind Histos's back: each card's body still matches its `content_hash` (cards from before v3 are compared with their copy in `approved/`, or pass with "no baseline") |
 
 **On `propose`:** every applicable eval runs — no stopping at the first failure, so the agent fixes everything in one retry. If any fails, there's no proposal, the card stays In progress, and the output says what to fix. A check that crashes counts as a failure, never as a silent pass. An invalid `evals/` folder or config blocks `propose` with its error, without spending an attempt.
@@ -203,7 +204,9 @@ Each `.yaml`/`.yml` file in `evals/` is a list of evals; `histos propose` runs e
 
 **Hand edits:** if you edit a card's body yourself in Obsidian, `content_untouched` flags it — run `histos accept-edit <id>` to make your version the legitimate one.
 
-`histos init` creates `evals/basics.yaml` (`content_untouched` and `no_placeholders`, active) and `evals/examples.yaml` (a word minimum and required headings, commented out: they depend on each project).
+**Guide files:** `histos guide propose` runs the evals whose `only` names the file (`only: ["PROJECT.md"]`) — an eval without `only` never applies to a guide, so a vault's card evals don't start checking `PROJECT.md` by surprise. A failing draft isn't saved; there's no attempt limit, since a guide change is proposed with the human in the conversation. `histos guide diff` shows what the evals said, and `histos eval PROJECT.md --file <draft>` is the dry run.
+
+`histos init` creates `evals/basics.yaml` (`content_untouched` and `no_placeholders`, active), `evals/examples.yaml` (a word minimum and required headings, commented out: they depend on each project) and `evals/guides.yaml`: the required sections of `PROJECT.md` (in Spanish or English — goal, deliverable, audience, out of scope, done when, constraints, *what I understood*, *what I'd change and why*, decisions), at least 60 and 30 words in the two sections the agent writes itself, and no placeholders in either guide. `histos init --add-config` adds `evals/guides.yaml` to an existing vault too: it only applies to the guides, so it can't change how any card is checked.
 
 ## Guidance files
 
