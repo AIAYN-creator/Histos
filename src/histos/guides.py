@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import canvas, config, evals, events, operations
 from .errors import HistosError
-from .fsutil import write_text_atomic
+from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
 GUIDE_FILES = ("PROJECT.md", "ARCHITECTURE.md")
@@ -182,7 +182,7 @@ def archive_current(vault_root: Path, name: str) -> Path | None:
         archived = archived.with_name(f"{Path(name).stem}-{stamp}-{n}.md")
         n += 1
     archived.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(archived, target.read_text(encoding="utf-8"))
+    copy_file_atomic(target, archived)  # byte for byte: the version as the human left it
     return archived
 
 

@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import guides, headings
-from .fsutil import write_text_atomic
+from .fsutil import read_text_exact, write_text_atomic, write_text_exact
 
 SECTION = ["## Decisiones", "## Decisions"]
 FALLBACK_FILE = Path(".histos") / "decisions.md"
@@ -37,7 +37,7 @@ def record(vault_root: Path, what: str, feedback: str | None) -> str | None:
     line = f"- {datetime.now().strftime('%Y-%m-%d')} · {what}: {' '.join(feedback.split())}"
 
     project = vault_root / "PROJECT.md"
-    text = project.read_text(encoding="utf-8") if project.exists() else None
+    text = read_text_exact(project) if project.exists() else None
     updated = _append_to_section(text, line) if text is not None else None
     if updated is None:
         path = vault_root / FALLBACK_FILE
@@ -47,13 +47,13 @@ def record(vault_root: Path, what: str, feedback: str | None) -> str | None:
         return FALLBACK_FILE.as_posix()
 
     guides.archive_current(vault_root, "PROJECT.md")
-    write_text_atomic(project, updated)
+    write_text_exact(project, updated)
     where = "PROJECT.md"
     pending = guides.proposal_path(vault_root, "PROJECT.md")
     if pending.exists():
-        updated_pending = _append_to_section(pending.read_text(encoding="utf-8"), line)
+        updated_pending = _append_to_section(read_text_exact(pending), line)
         if updated_pending is not None:
-            write_text_atomic(pending, updated_pending)
+            write_text_exact(pending, updated_pending)
             where += "+pending"
     return where
 

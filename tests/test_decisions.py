@@ -67,11 +67,17 @@ def test_a_section_at_the_end_without_a_final_newline(vault, monkeypatch):
         f"# P\n\n## Decisions\n- old\n- {TODAY} · plan rejected: Split it in two\n")
 
 
-def test_crlf_files_stay_crlf(vault, monkeypatch):
-    (vault / "PROJECT.md").write_bytes(PROJECT_ES.replace("\n", "\r\n").encode("utf-8"))
+@pytest.mark.parametrize("newline", ["\r\n", "\n"])
+def test_the_file_keeps_its_line_endings_byte_for_byte(vault, monkeypatch, newline):
+    """On any OS: a Windows-made PROJECT.md stays CRLF, a Unix-made one stays LF."""
+    original = PROJECT_ES.replace("\n", newline).encode("utf-8")
+    (vault / "PROJECT.md").write_bytes(original)
     reject_a_plan(vault, monkeypatch)
-    raw = (vault / "PROJECT.md").read_bytes().decode("utf-8")
-    assert "\n" not in raw.replace("\r\n", "") and f"plan rejected: Split it in two\r\n" in raw
+    added = f"- {TODAY} · plan rejected: Split it in two{newline}".encode("utf-8")
+    anchor = f"- 2026-11-01 · una decisión anterior{newline}".encode("utf-8")
+    assert (vault / "PROJECT.md").read_bytes() == original.replace(anchor, anchor + added)
+    [kept] = (vault / "approved" / "guides").iterdir()
+    assert kept.read_bytes() == original
 
 
 def test_a_pending_project_md_gets_it_too(vault, monkeypatch):
