@@ -11,7 +11,11 @@ for project.canvas and the vault lock. Then it checks the invariants:
 - no *.tmp left in the vault, the lock file is empty, and no command crashed (traceback);
 - the event log (.histos/events.jsonl) matches what really happened: no broken line, exactly
   one event per successful operation (a refused one records nothing -- except a draft that fails
-  the evals, which records `proposal_refused`).
+  the evals, which records `proposal_refused`);
+- the log is in time order (50 ms of tolerance: events are stamped when emitted, a bit before
+  the write), and its `transitions`, applied in file order to the colors right after setup, give
+  exactly the final colors of project.canvas;
+- each contested card has as many non-takeover `assigned` events as winners the script tracked.
 
 It sets HISTOS_HOME to a temp folder, so it never writes to the real ~/.histos.
 
@@ -31,15 +35,17 @@ import threading
 import time
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
-from histos import canvas, events, frontmatter  # noqa: E402
+from histos import canvas, events, frontmatter, operations  # noqa: E402
 
 CARDS_PER_WORKER = 4
 CONTESTED = 3
+TS_TOLERANCE_S = 0.05
 # Events one successful operation records each (the script's ops -> these names). `classify` is
 # not counted: it only records when something changed.
 COUNTED_EVENTS = frozenset({"assigned", "described", "model_proposed", "proposed", "proposal_refused"})
@@ -156,7 +162,12 @@ def worker(vault: Path, name: str, cards: list[str], contested: list[str], round
                     wins.setdefault(target, []).append(name)
 
 
-def check_events(vault: Path, report: Report, setup_events: int) -> list[str]:
+def _parse_ts(ts: str) -> datetime:
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def check_events(vault: Path, report: Report, setup_events: int, initial: dict[str, str],
+                 contested: list[str], wins: dict[str, list[str]]) -> list[str]:
     """The event log against what the workers really did. `setup_events` is how many events the
     setup (init, add-card) recorded: only what comes after belongs to the workers' phase."""
     problems = []
@@ -187,11 +198,42 @@ def check_events(vault: Path, report: Report, setup_events: int) -> list[str]:
     if outside:
         problems.append(f"events: {len(outside)} state_recomputed 'seen outside histos', but nothing "
                         f"touched the vault outside histos")
+
+    # Time order: file order is the order the vault lock granted the writes.
+    for before, after in zip(log, log[1:]):
+        if (_parse_ts(before["ts"]) - _parse_ts(after["ts"])).total_seconds() > TS_TOLERANCE_S:
+            problems.append(f"events: out of order: {before['ts']} ({before['event']}) is followed by "
+                            f"{after['ts']} ({after['event']})")
+            break
+
+    # The transitions rebuild the board: from the colors after setup to the final ones.
+    by_name = {name: color for color, name in operations.STATE_NAMES.items()}
+    board = dict(initial)
+    for n, e in enumerate(ours, start=setup_events + 1):
+        for t in e.get("transitions", []):
+            if board.get(t["card"]) != by_name.get(t["from"]):
+                problems.append(f"events: event {n} ({e['event']}) says {t['card']} went from {t['from']}, "
+                                f"but the log had it at {operations.STATE_NAMES.get(board.get(t['card']))}")
+            board[t["card"]] = by_name.get(t["to"])
+    final = {c["id"]: c.get("color") for c in canvas.cards(canvas.load(vault)) if "id" in c}
+    for card_id in sorted(set(board) | set(final)):
+        if board.get(card_id) != final.get(card_id):
+            problems.append(f"events: {card_id}: the transitions leave it {operations.STATE_NAMES.get(board.get(card_id))}, "
+                            f"project.canvas has {operations.STATE_NAMES.get(final.get(card_id))}")
+
+    # Contested cards: one non-takeover assignment per winner (a loser records nothing).
+    for card_id in contested:
+        won = [e for e in ours if e["event"] == "assigned" and e["card"] == card_id]
+        fresh = [e for e in won if not e["data"]["takeover"]]
+        if len(fresh) != len(wins.get(card_id, [])) or len(won) != len(fresh):
+            problems.append(f"events: {card_id}: {len(fresh)} assignments without takeover ({len(won) - len(fresh)} "
+                            f"with), but {len(wins.get(card_id, []))} winners")
     return problems
 
 
 def check(vault: Path, owned: dict[str, list[str]], contested: list[str], expected: dict[str, Expected],
-          wins: dict[str, list[str]], report: Report, setup_events: int = 0) -> list[str]:
+          wins: dict[str, list[str]], report: Report, setup_events: int = 0,
+          initial: dict[str, str] | None = None) -> list[str]:
     problems = []
     validate = histos(vault, "validate")
     if validate.returncode != 0:
@@ -223,7 +265,7 @@ def check(vault: Path, owned: dict[str, list[str]], contested: list[str], expect
         if winners and meta.get("worker") != winners[0]:
             problems.append(f"{card_id}: worker {meta.get('worker')!r}, but {winners[0]} won it")
 
-    problems += check_events(vault, report, setup_events)
+    problems += check_events(vault, report, setup_events, initial or {}, contested, wins)
 
     leftovers = [str(p.relative_to(vault)) for p in vault.rglob("*.tmp")]
     if leftovers:
@@ -242,6 +284,7 @@ def run(workers: int, rounds: int, seed: int, keep: bool = False, quiet: bool = 
     try:
         vault, owned, contested = make_vault(root, workers)
         setup_events = len(events.read(vault))
+        initial = {c["id"]: c.get("color") for c in canvas.cards(canvas.load(vault)) if "id" in c}
         drafts = root / "drafts"
         drafts.mkdir()
         expected = {c: Expected() for cards in owned.values() for c in cards}
@@ -258,7 +301,7 @@ def run(workers: int, rounds: int, seed: int, keep: bool = False, quiet: bool = 
         for t in threads:
             t.join()
         elapsed = time.monotonic() - start
-        problems = check(vault, owned, contested, expected, wins, report, setup_events)
+        problems = check(vault, owned, contested, expected, wins, report, setup_events, initial)
         if not quiet:
             print(f"{workers} workers x {rounds} rounds, {sum(report.ops.values())} commands in {elapsed:.1f} s")
             for op in sorted(report.ops):
