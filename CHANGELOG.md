@@ -2,6 +2,12 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.1.1] - 2026-11-08
+
+### Fixed
+
+- **`histos model <id> --approved ... --authorized` now works on a card that's already Approved, as long as it has no approved model yet.** The human often says yes to the model and approves the card in the same message, so the card could turn green before the agent recorded that yes -- and the model was lost. Now it's recorded (with its `model_approved` event), so the history v3.2 learns from knows which model did each card. Once a card has an approved model, it stays as it is; `--proposed` and `--clear` are still refused on approved cards. `AGENTS.md` says so in step 5 of "Working a card".
+
 ## [3.1.0] - 2026-11-08
 
 A stricter start to every project, and history recorded from day one. Projects went back and forth because the idea never got across well at the start: the agent now interviews like a consultant, the brief has a required structure, and the cards are proposed as one plan you approve or reject as a whole. And the estimates, critical path and reports planned for the next versions need history, so every change to the vault is now recorded.
@@ -121,6 +127,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.1.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.1
 [3.1.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.0
 [3.0.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.0.0
 [2.1.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v2.1.1
