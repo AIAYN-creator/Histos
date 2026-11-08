@@ -265,6 +265,11 @@ def cmd_status(args: argparse.Namespace) -> int:
     if awaiting:
         listed = ", ".join(f"{c.id} ({c.tier + ', ' if c.tier else ''}proposed {c.proposed_model})" for c in awaiting)
         print(f"Waiting for your model approval: {listed}")
+    path = result.critical_path
+    if path is not None and path.cards:
+        size = f"{len(path.cards)} card{'s' if len(path.cards) != 1 else ''}"
+        how = f"{size}, no estimates yet" if path.by_count else f"{estimates.format_hours(path.hours)} · {size}"
+        print(f"Critical path ({how}): {' -> '.join(path.cards)}")
     paused = pauses.current()
     if paused:
         since = paused.start.astimezone().strftime("%Y-%m-%d %H:%M")

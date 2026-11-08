@@ -218,6 +218,7 @@ class StatusGroup:
 @dataclass
 class StatusResult:
     groups: list[StatusGroup] = field(default_factory=list)  # in the fixed display order
+    critical_path: Optional[object] = None  # critical.CriticalPath, or None when the vault has none
 
 
 ESTIMATE_KEY = "estimate"
@@ -364,7 +365,13 @@ def get_status(vault_root: Path) -> StatusResult:
                 proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
             ))
         groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
-    return StatusResult(groups=groups)
+    from . import critical  # critical reaches back into this module
+
+    try:
+        path = critical.refresh(vault_root)  # status repaints too, and shows the chain
+    except Exception:
+        path = None  # the critical path never keeps the human from seeing the board
+    return StatusResult(groups=groups, critical_path=path)
 
 
 @dataclass
