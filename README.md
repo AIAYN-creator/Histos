@@ -27,11 +27,11 @@
 
 Working with an agent on something long goes wrong in quiet ways: it rewrites a chapter you'd already settled, it loses track of what depends on what, and after an afternoon away you can't tell what it changed. Histos puts a board between you and the agent:
 
-- 🗺️ **The plan is visible.** Every piece of work is a card in an Obsidian canvas, with arrows for what depends on what. The color tells you where it stands.
-- ✋ **Nothing is written without you.** The agent never edits your content: it proposes a draft, and the change only happens when you approve it.
-- 🧪 **Junk is filtered before you see it.** Each draft passes your evals first (no leftover `TODO`, the required sections, nothing edited behind Histos's back).
-- 🧠 **The right model for each card.** Every card gets a tier (`fast`, `exec`, `reasoning`) with the reason, and you approve which model does it — or let a subagent take it with a clean context.
-- 💻 **Local and agent-agnostic.** A plain folder and a CLI any agent can run (Claude Code, Codex, Gemini CLI...). No server, no plugin, no account.
+- **The plan is visible.** Every piece of work is a card in an Obsidian canvas, with arrows for what depends on what. The color tells you where it stands.
+- **Nothing is written without you.** The agent never edits your content: it proposes a draft, and the change only happens when you approve it.
+- **Junk is filtered before you see it.** Each draft passes your evals first (no leftover `TODO`, the required sections, nothing edited behind Histos's back).
+- **The right model for each card.** Every card gets a tier (`fast`, `exec`, `reasoning`) with the reason, and you approve which model does it — or let a subagent take it with a clean context.
+- **Local and agent-agnostic.** A plain folder and a CLI any agent can run (Claude Code, Codex, Gemini CLI...). No server, no plugin, no account.
 
 ## How it works
 
