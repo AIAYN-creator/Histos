@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .. import canvas, config, evals, events, frontmatter, guides, operations, validation
+from .. import canvas, config, evals, events, frontmatter, guides, operations, plans, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -268,6 +268,12 @@ def cmd_status(args: argparse.Namespace) -> int:
     waiting = guides.pending(vault_root)
     if waiting:
         print(f"Guides pending review: {', '.join(waiting)}  ('histos guide diff <file>' to review)")
+    if plans.plan_path(vault_root).exists():
+        try:
+            size = f" ({len(plans.pending(vault_root).cards)} cards)"
+        except canvas.HistosError:
+            size = ""
+        print(f"Plan pending review{size}  ('histos plan diff' to review)")
     return 0
 
 
