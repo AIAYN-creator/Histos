@@ -28,7 +28,7 @@ A stricter start to every project, and history recorded from day one. Projects w
 
 - **What Histos writes outside the vault:** `~/.histos/vaults.json`, the list of vaults that recorded events, so later versions can learn from all your projects. Set `HISTOS_HOME` to keep it elsewhere. Nothing leaves your machine. If a vault is in git, commit its `.histos/` folder: it's the project's history.
 - Concurrency stress test with the new event-log invariants, on Windows: 8 agents × 20 rounds, 160 commands, nothing lost, duplicated or interleaved, and the logged transitions rebuild the final board exactly.
-- The tests on Linux caught a bug before it shipped: on Linux, recording a decision would have rewritten a `PROJECT.md` made on Windows with Unix line endings. `PROJECT.md` is now edited byte for byte on every OS. And the end-to-end test of the whole start cycle -- brief, rejections, plans, approval -- caught `histos context` showing a decision twice once the agent had carried it into `PROJECT.md`; fixed before release too.
+- The tests on Linux caught a bug before it shipped: on Linux, recording a decision would have rewritten a `PROJECT.md` made on Windows with Unix line endings. `PROJECT.md` is now edited byte for byte on every OS. And the end-to-end test of the whole start cycle -- brief, rejections, plans, approval -- caught `histos context` showing a decision twice once the agent had carried it into `PROJECT.md`; fixed before release too. And the packaged desktop app's selftest caught a circular import that only appeared when `histos.config` was imported first, as the app does; every module is now tested importing on its own.
 - Like v3, this release was specified, reviewed and approved card by card in a Histos vault.
 
 ## [3.0.0] - 2026-10-17
