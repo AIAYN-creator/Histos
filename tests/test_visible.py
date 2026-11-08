@@ -26,9 +26,10 @@ def status(vault, monkeypatch, capsys):
     return capsys.readouterr().out
 
 
-def test_nothing_classified_looks_like_v2(vault, monkeypatch, capsys):
+def test_nothing_classified_has_no_routing_summary(vault, monkeypatch, capsys):
     out = status(vault, monkeypatch, capsys)
-    assert "{" not in out and "Tiers:" not in out and "Waiting for your model approval" not in out
+    assert "Tiers:" not in out and "Waiting for your model approval" not in out
+    assert "  - cap6  (content/cap6.md)  {unclassified · review no data (5 more needed)}" in out
 
 
 def test_the_four_routing_labels(vault, monkeypatch, capsys):
@@ -36,10 +37,11 @@ def test_the_four_routing_labels(vault, monkeypatch, capsys):
     set_meta(vault, "cap4", proposed_tier="reasoning", proposed_model="Opus 5.5")
     set_meta(vault, "cap5", proposed_tier="fast")
     out = status(vault, monkeypatch, capsys)
-    assert "  - cap3  (content/cap3.md)  {exec · Sonnet 5.5}" in out
-    assert "  - cap4  (content/cap4.md)  {reasoning · proposed Opus 5.5?}" in out
-    assert "  - cap5  (content/cap5.md)  {fast}" in out
-    assert "  - cap6  (content/cap6.md)\n" in out
+    no_data = "agent no data (5 more needed) · review no data (5 more needed)"
+    assert f"  - cap3  (content/cap3.md)  {{exec · Sonnet 5.5 · {no_data}}}" in out
+    assert f"  - cap4  (content/cap4.md)  {{reasoning · proposed Opus 5.5? · {no_data}}}" in out
+    assert f"  - cap5  (content/cap5.md)  {{fast · {no_data}}}" in out
+    assert "  - cap6  (content/cap6.md)  {unclassified · review no data (5 more needed)}\n" in out
 
 
 def test_summary_lines(vault, monkeypatch, capsys):

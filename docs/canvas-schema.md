@@ -95,7 +95,9 @@ Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatt
 | `approved_model` | string | `model --approved --authorized` | the human's choice, which may differ from the proposed one. A `classify` that changes the tier clears both models |
 | `eval_results` | mapping | `propose` | the last evals run: `passed`, `attempt` (for the 3-attempt cap), `at`, and `checks` (each with `name`, `passed`, and `error`/`detail`) |
 | `content_hash` | 64 hex characters | `add-card`, `approve`, `accept-edit` | SHA-256 of the body as Histos last wrote it legitimately; the `content_untouched` eval compares against it |
-| `estimated_duration_hours`, `actual_duration_hours` | number | — | reserved; no command sets them yet |
+| `estimate` | mapping | `status`, `classify` | the card's estimate while it is open: `agent_hours` and `review_hours`, each `{median, p80, basis}` (hours, 2 decimals; `null` when there isn't enough history), plus `at`, the date. `p80` is "if it goes badly": 4 in 5 similar cards finished sooner. **`review_hours` is computed from the human's *active* review time** -- the calendar time a card waited, minus the stretches the human was away between `histos pause` and their next decision -- not from the calendar time. Only rewritten when the rounded numbers change |
+| `estimated_duration_hours` | number | `status`, `classify` | agent median + review median (the active review time above); `null` when either is missing |
+| `actual_duration_hours` | number | — | reserved; no command sets it yet |
 
 `status` is deliberately not here: it lives as `color` on the canvas so the same data doesn't have two sources of truth.
 
