@@ -7,18 +7,19 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from .. import canvas, config, context, evals, frontmatter, operations
+from .. import canvas, config, context, evals, events, frontmatter, guides, operations
 from ..fsutil import write_text_atomic
 from ._shared import _vault_root, _with_vault_lock
 
 
-def _gate_on_evals(vault_root: Path, data: dict, card: dict, draft: str) -> bool:
-    """Runs the vault's evals on the draft and records eval_results. True if the proposal may
-    go ahead. Without a config or with evals off, does nothing (v2 behaviour). Raises
-    HistosError on a broken config or evals/ folder, before counting an attempt."""
+def _gate_on_evals(vault_root: Path, data: dict, card: dict, draft: str) -> tuple[bool, int | None]:
+    """Runs the vault's evals on the draft and records eval_results. (may the proposal go ahead,
+    the attempt it was -- None when no evals ran). Without a config or with evals off, does
+    nothing (v2 behaviour). Raises HistosError on a broken config or evals/ folder, before
+    counting an attempt."""
     cfg = config.load(vault_root)
     if cfg is None or not cfg.evals.enabled:
-        return True
+        return True, None
 
     md_path = canvas.card_file_path(vault_root, card)
     meta, body = frontmatter.read(md_path)
@@ -31,7 +32,7 @@ def _gate_on_evals(vault_root: Path, data: dict, card: dict, draft: str) -> bool
             f"(last failures in its eval_results; 'histos retry {card['id']}' gives it {context.MAX_ATTEMPTS} more)",
             file=sys.stderr,
         )
-        return False
+        return False, None
 
     result = evals.run_all(vault_root, cfg, data, card, draft)
     attempt = used + 1
@@ -47,12 +48,14 @@ def _gate_on_evals(vault_root: Path, data: dict, card: dict, draft: str) -> bool
     lines[0] += f"  (attempt {attempt} of {context.MAX_ATTEMPTS})"
     print("\n".join(lines))
     if result.passed:
-        return True
+        return True, attempt
+    events.emit("proposal_refused", card=card["id"], attempt=attempt,
+                failed=[c["name"] for c in result.checks if not c["passed"]], **events.size_of(draft))
     left = context.MAX_ATTEMPTS - attempt
     hint = f"fix the draft and propose again ({left} attempt{'s' if left != 1 else ''} left)" if left \
         else "no attempts left -- it stays In progress for the human"
     print(f"error: '{card['id']}' not proposed -- {hint}", file=sys.stderr)
-    return False
+    return False, attempt
 
 
 @_with_vault_lock
@@ -83,7 +86,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     draft = draft_path.read_text(encoding="utf-8")
 
     try:
-        passed = _gate_on_evals(vault_root, data, card, draft)
+        passed, attempt = _gate_on_evals(vault_root, data, card, draft)
     except canvas.HistosError as e:  # broken config/evals: not the draft's fault, no attempt spent
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -96,6 +99,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
 
     card["color"] = canvas.PENDING_REVIEW
     canvas.save(vault_root, data)
+    events.emit("proposed", card=args.id, attempt=attempt, **events.size_of(draft))
     print(f"'{args.id}' -> Proposal pending review ('histos diff {args.id}' to review it)")
     return 0
 
@@ -104,18 +108,27 @@ def cmd_eval(args: argparse.Namespace) -> int:
     """Read-only dry run of what propose's evals would say about a draft."""
     vault_root = _vault_root()
     draft_path = Path(args.file)
+    target = args.id
     try:
-        data = operations._load_valid(vault_root)
-        card = canvas.find_card(data, args.id)
-        if card is None:
-            raise canvas.HistosError(f"card '{args.id}' doesn't exist")
         if not draft_path.exists():
             raise canvas.HistosError(f"can't find the draft '{draft_path}'")
-        result = evals.run_all(vault_root, config.load(vault_root), data, card, draft_path.read_text(encoding="utf-8"))
+        draft = draft_path.read_text(encoding="utf-8")
+        if guides.is_guide_name(args.id):  # card ids can't contain '.', so no clash
+            target = guides.canonical_name(args.id)
+            result = guides.run_evals(vault_root, target, draft)
+            if result is None:
+                print(f"evals: this vault has no evals for {target} (no histos.config.yaml, or evals are off)")
+                return 0
+        else:
+            data = operations._load_valid(vault_root)
+            card = canvas.find_card(data, args.id)
+            if card is None:
+                raise canvas.HistosError(f"card '{args.id}' doesn't exist")
+            result = evals.run_all(vault_root, config.load(vault_root), data, card, draft)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    print(result.render(args.id))
+    print(result.render(target))
     return 0 if result.passed else 1
 
 

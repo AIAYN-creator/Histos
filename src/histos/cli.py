@@ -25,6 +25,7 @@ from .commands.review import (
     cmd_reject,
     cmd_retry,
 )
+from .commands.plans import cmd_plan
 from .commands.routing import cmd_classify, cmd_context, cmd_guide, cmd_model
 
 
@@ -44,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.add_argument("--title", required=True)
     p.add_argument("--description", default=None, help="one line, goes into the frontmatter and the initial body")
+    p.add_argument("--done-when", default=None, help="one line: a checkable criterion for when the card is done")
     p.add_argument("--depends-on", nargs="+", default=[], metavar="ID")
     p.add_argument(
         "--authorized", action="store_true",
@@ -107,7 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
         "eval",
         help="runs the vault's evals on a draft without proposing it -- no state change, no attempt spent",
     )
-    p.add_argument("id")
+    p.add_argument("id", help="a card id, or PROJECT.md / ARCHITECTURE.md for a guide draft")
     p.add_argument("--file", required=True, help="the draft to check")
     p.set_defaults(func=cmd_eval)
 
@@ -161,6 +163,19 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("name", help="PROJECT.md or ARCHITECTURE.md")
     g.add_argument("--feedback", help="why -- the agent sees it in 'histos context'")
     p.set_defaults(func=cmd_guide)
+
+    p = sub.add_parser(
+        "plan",
+        help="the whole card table as one plan: the agent proposes it, the human approves it, then the cards exist",
+    )
+    plan_sub = p.add_subparsers(dest="plan_action", required=True)
+    g = plan_sub.add_parser("propose", help="the agent proposes a plan (YAML: summary + cards)")
+    g.add_argument("--file", required=True, help="the plan, see docs/canvas-schema.md")
+    plan_sub.add_parser("diff", help="what the pending plan would create")
+    plan_sub.add_parser("approve", help="(human) create every card of the pending plan, all or nothing")
+    g = plan_sub.add_parser("reject", help="(human) discard the pending plan")
+    g.add_argument("--feedback", help="why -- the agent sees it in 'histos plan diff'")
+    p.set_defaults(func=cmd_plan)
 
     p = sub.add_parser("validate", help="validates project.canvas against the formal schema")
     p.set_defaults(func=cmd_validate)

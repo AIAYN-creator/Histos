@@ -4,14 +4,6 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.1 — in development: a stricter start, and measuring from day one
-
-Two problems from real use. Projects went back and forth because the idea never got across well at the start. And estimates, metrics and unattended work all need history that Histos doesn't record yet. Since data only exists from the day the recording ships, recording goes first.
-
-- **Event log.** Every command that changes the vault appends an event to a per-vault log, inside the vault lock and atomically: assign, propose, each eval attempt, approve, reject (with its reason), takeover, model and tier changes. It records everything, including how long a card waits for human review: the time that matters is time until approved. The data stays on the user's machine, with no telemetry; the format is documented so it can be exported.
-- **An interviewer that pushes back.** `PROJECT.md` gets required sections: goal, deliverable, audience, what the project is *not*, when it's done, constraints, *what I understood* (the agent restates the project in its own words), *what I'd change and why* (objections and alternatives with their reasons — a better approach, a broken pipeline, a better-suited language), and decisions. The evals now run on `guide propose` too, so a vague brief never reaches the human. The agent acts as a consultant, not a stenographer: it asks about gaps instead of filling them, and argues against what it thinks is badly framed.
-- **Planning as one reviewable plan.** `histos plan propose/diff/approve/reject`: the agent proposes the whole card table (cards, dependencies, a "done when" line per card) and no card exists until the human approves it. `plan diff` warns about loose cards, cards without a real done criterion and very long chains. Rejection reasons for the plan and the guides go into the decisions section, which every agent then sees in `histos context`.
-
 ### v3.2 — planned: estimates and the critical path
 
 - **Estimates from your own history, never from the agent's guess** (models are bad at estimating how long their own work takes). Each card is estimated from the median and percentiles of similar closed cards (same tier, type and size), using a history kept across all your vaults. With no history it says "no data" instead of inventing a number.
@@ -55,6 +47,15 @@ Ideas for later versions, none committed yet — roughly from most to least like
 
 ## Shipped
 
+### v3.1 ([v3.1.0](https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.0))
+
+A stricter start, and history recorded from day one — projects went back and forth because the idea never got across at the start, and the estimates and reports planned next need data that only exists once something records it.
+
+- **The interview:** on an empty vault the agent asks in short rounds, pushes back with reasons and alternatives, and writes a `PROJECT.md` with a required structure — including the project in its own words — that the evals check before it reaches the human.
+- **Plans:** `histos plan propose/diff/approve/reject` — the whole card table reviewed as one, with levels and warnings in `plan diff`, a checkable `done_when` per card, and nothing created until it's approved.
+- **Decisions:** rejection reasons for plans and guides are kept, dated, in `PROJECT.md`, so no agent proposes the same thing again.
+- **Event log:** every change to the vault, from the terminal or the desktop app, recorded in `.histos/events.jsonl` with every status change it caused — the history v3.2 and v3.3 are built from.
+
 ### v3 ([v3.0.0](https://github.com/AIAYN-creator/Histos/releases/tag/v3.0.0))
 
 Model routing by tier, subagents with an isolated context, and deterministic evals as a filter before human review — the agent still proposes, the human still approves. Planned, specified and reviewed card by card in a Histos vault.
@@ -92,7 +93,7 @@ Model routing by tier, subagents with an isolated context, and deterministic eva
 ## Open questions
 
 - **How much signal the tier heuristics can get from one-line card descriptions.** The calibration shows a reasonable split with visible misses; richer descriptions help, and calibrating from real outcomes (see [v3.3](#v33--planned-project-metrics-and-the-final-report)) is the likely next step.
-- **Project brief format — mostly resolved:** `PROJECT.md` (what) and `ARCHITECTURE.md` (how) are both included as-is, and change only through `histos guide`. v3.1 gives `PROJECT.md` a required structure; whether `ARCHITECTURE.md` needs one too is still open.
+- **Project brief format — mostly resolved:** `PROJECT.md` (what) and `ARCHITECTURE.md` (how) change only through `histos guide`, and since v3.1 `PROJECT.md` has a required structure; whether `ARCHITECTURE.md` needs one too is still open.
 - **Folder structure — partially resolved:** cards live in `content/<id>.md` (see [canvas-schema.md](canvas-schema.md)); additional subfolders like `content/drafts/` remain open.
 
 ## Scope and prior art

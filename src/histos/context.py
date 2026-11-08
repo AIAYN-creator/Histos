@@ -46,6 +46,8 @@ def render_card(vault_root: Path, card: dict, label: str, with_feedback: bool = 
     parts = [f"## {label}: {card['id']} ({operations.STATE_NAMES[card['color']]})"]
     if meta.get("description"):
         parts.append(f"Description: {meta['description']}")
+    if meta.get(operations.DONE_WHEN_KEY):
+        parts.append(f"Done when: {meta[operations.DONE_WHEN_KEY]}")
     routing = _routing_line(meta) if with_feedback else None  # only the card itself, not its dependencies
     if routing:
         parts.append(routing)
@@ -100,6 +102,14 @@ def guidance_sections(vault_root: Path) -> list[str]:
             parts.append(f"Feedback on a rejected {filename} change: {rejected[filename]}")
         if parts:
             sections.append(f"## {label} ({filename})\n\n" + "\n\n".join(parts))
+    from . import decisions  # it builds on guides, which this module imports
+
+    outside = decisions.pending_text(vault_root)
+    if outside:
+        sections.append(
+            "## Decisions not yet in PROJECT.md (.histos/decisions.md)\n\n" + outside
+            + "\n\nCarry these into PROJECT.md's decisions section the next time you propose it."
+        )
     return sections
 
 

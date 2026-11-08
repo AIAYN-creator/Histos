@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .. import canvas, config, evals, frontmatter, guides, operations, validation
+from .. import canvas, config, evals, events, frontmatter, guides, operations, plans, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -73,33 +73,17 @@ def cmd_add_card(args: argparse.Namespace) -> int:
             print(f"error: dependency '{dep}' doesn't exist", file=sys.stderr)
             return 1
 
-    all_approved = all(by_id[dep]["color"] == canvas.APPROVED for dep in depends_on)
-    initial_color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOCKED
-
-    width, height = canvas.estimate_card_size(args.description)
-    node = canvas.add_card_node(data, args.id, initial_color, width=width, height=height)
-    for dep in depends_on:
-        canvas.add_edge(data, dep, args.id)
-
-    cycle = canvas.detect_cycle(data)
-    if cycle:
-        print(f"error: that dependency would form a cycle: {' -> '.join(cycle)}", file=sys.stderr)
+    try:
+        node = operations.create_card(
+            vault_root, data, args.id, args.title, description=args.description, depends_on=depends_on,
+            done_when=args.done_when,
+        )
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
         return 1
-
-    md_path = canvas.card_file_path(vault_root, node)
-    md_path.parent.mkdir(parents=True, exist_ok=True)
-    meta = dict(frontmatter.DEFAULT_META)
-    body = f"# {args.title}\n\n"
-    if args.description:
-        meta["description"] = args.description
-        body += f"{args.description}\n\n"
-    meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
-    frontmatter.write(md_path, meta, body)
-
-    canvas.place_new_card(data, node)
     canvas.save(vault_root, data)
 
-    print(f"card '{args.id}' created ({operations.STATE_NAMES[initial_color]}) -> {node['file']}")
+    print(f"card '{args.id}' created ({operations.STATE_NAMES[node['color']]}) -> {node['file']}")
     return 0
 
 
@@ -146,6 +130,7 @@ def cmd_link(args: argparse.Namespace) -> int:
 
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
+    events.emit("dependency_added", card=args.id, depends_on=list(args.depends_on))
     print(f"'{args.id}' now depends on: {', '.join(args.depends_on)}")
     return 0
 
@@ -196,6 +181,7 @@ def cmd_assign(args: argparse.Namespace) -> int:
         else:
             meta.pop(operations.WORKER_KEY, None)
         frontmatter.write(md_path, meta, body)
+        events.emit("assigned", card=card_id, by=args.by, takeover=previous is not None, previous_worker=previous)
         worker = f", worker={args.worker}" if args.worker else ""
         taken = f" -- taken over from {previous}" if previous else ""
         print(f"'{card_id}' -> In progress (assigned_to={args.by}{worker}){taken}")
@@ -245,6 +231,8 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
     card["width"], card["height"] = canvas.estimate_card_size(meta.get("description"))
     canvas.save(vault_root, data)
+    events.emit("described", card=args.id,
+                fields=[f for f, given in (("description", args.text), ("sources", args.sources)) if given is not None])
     _sync_permissions_deny(vault_root, _all_registered_sources(vault_root, data))
 
     print(f"'{args.id}': updated")
@@ -280,6 +268,12 @@ def cmd_status(args: argparse.Namespace) -> int:
     waiting = guides.pending(vault_root)
     if waiting:
         print(f"Guides pending review: {', '.join(waiting)}  ('histos guide diff <file>' to review)")
+    if plans.plan_path(vault_root).exists():
+        try:
+            size = f" ({len(plans.pending(vault_root).cards)} cards)"
+        except canvas.HistosError:
+            size = ""
+        print(f"Plan pending review{size}  ('histos plan diff' to review)")
     return 0
 
 
@@ -328,6 +322,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
     errors += [f"config: {e}" for e in config_errors]
     if not config_errors:  # where evals/ lives comes from the config
         errors += [f"evals: {e}" for e in evals.validate(vault_root, config.load(vault_root))]
+    log_errors, log_warnings = events.check_log(vault_root)
+    errors += log_errors
+    for warning in log_warnings:
+        print(f"warning: {warning}", file=sys.stderr)
     if errors:
         for e in errors:
             print(f"  - {e}")

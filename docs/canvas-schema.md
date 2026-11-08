@@ -1,6 +1,6 @@
 # Vault format
 
-This document formalizes what a Histos vault contains, on top of the [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/) format: the canvas, the cards' frontmatter, `histos.config.yaml` and the evals. Each has a machine-checkable JSON Schema, packaged with the CLI — [canvas](../src/histos/schema/histos-canvas.schema.json), [frontmatter](../src/histos/schema/histos-frontmatter.schema.json), [config](../src/histos/schema/histos-config.schema.json) — and `histos validate` checks all of them; here's the why.
+This document formalizes what a Histos vault contains, on top of the [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/) format: the canvas, the cards' frontmatter, `histos.config.yaml`, the evals and the event log. Each has a machine-checkable JSON Schema, packaged with the CLI — [canvas](../src/histos/schema/histos-canvas.schema.json), [frontmatter](../src/histos/schema/histos-frontmatter.schema.json), [config](../src/histos/schema/histos-config.schema.json), [events](../src/histos/schema/histos-events.schema.json) — and `histos validate` checks all of them; here's the why.
 
 What a schema **can't** check on its own — that each edge's `fromNode`/`toNode` point to an `id` that exists, and that the dependency graph is acyclic — the CLI checks too (`histos status` / `histos validate`).
 
@@ -15,9 +15,11 @@ A complete vault to look at: [`examples/sample-paper/`](../examples/sample-paper
 │   └── <id>.md              # one card = one file (its current, approved version)
 ├── proposals/
 │   ├── <id>.md              # a draft waiting for approve/reject
+│   ├── plan.yaml            # a pending plan of cards (v3.1)
 │   └── guides/              # a pending change to PROJECT.md or ARCHITECTURE.md
 ├── approved/
 │   ├── <id>.md              # the draft exactly as it was approved (rejected drafts are NOT kept)
+│   ├── plans/               # every approved plan, by date (v3.1)
 │   └── guides/              # each version of PROJECT.md / ARCHITECTURE.md an approval replaced
 ├── histos.config.yaml       # tier rules and evals settings (v3)
 ├── evals/                   # the evals run on every propose (v3)
@@ -25,6 +27,7 @@ A complete vault to look at: [`examples/sample-paper/`](../examples/sample-paper
 ├── ARCHITECTURE.md          # optional: how it's written (style, conventions, stack)
 ├── AGENTS.md / CLAUDE.md    # instructions for the agent
 ├── .claude/settings.json    # Claude Code's deny list
+├── .histos/                 # the event log (v3.1, see "Event log" below)
 └── .histos.lock             # the vault lock (see below)
 ```
 
@@ -193,7 +196,8 @@ Each `.yaml`/`.yml` file in `evals/` is a list of evals; `histos propose` runs e
 |---|---|---|
 | `word_count` | `min`, `max` (at least one) | the draft's word count is within bounds |
 | `no_placeholders` | `patterns` (optional) | no leftover markers: by default `TODO`, `TBD`, `FIXME`, `XXX`, `lorem ipsum`, `[...]`, `[citation needed]`, `[cita requerida]`. ALL-CAPS markers match case-sensitively as whole words ("todo" is ordinary Spanish), the rest anywhere |
-| `required_headings` | `headings` | the draft has every one of these headings, at any level |
+| `required_headings` | `headings` | the draft has every one of these headings, at any level. Each can be a list of acceptable spellings (`["## Objetivo", "## Goal"]`, any one counts); case, spacing and accents don't matter |
+| `min_section_words` | `sections`: a list of `{heading, min}` | each of these sections (from its heading to the next one of the same or a higher level) has at least `min` words; a missing section counts as 0. `heading` takes alternatives like above |
 | `content_untouched` | — | nothing changed `content/` behind Histos's back: each card's body still matches its `content_hash` (cards from before v3 are compared with their copy in `approved/`, or pass with "no baseline") |
 
 **On `propose`:** every applicable eval runs — no stopping at the first failure, so the agent fixes everything in one retry. If any fails, there's no proposal, the card stays In progress, and the output says what to fix. A check that crashes counts as a failure, never as a silent pass. An invalid `evals/` folder or config blocks `propose` with its error, without spending an attempt.
@@ -202,11 +206,97 @@ Each `.yaml`/`.yml` file in `evals/` is a list of evals; `histos propose` runs e
 
 **Hand edits:** if you edit a card's body yourself in Obsidian, `content_untouched` flags it — run `histos accept-edit <id>` to make your version the legitimate one.
 
-`histos init` creates `evals/basics.yaml` (`content_untouched` and `no_placeholders`, active) and `evals/examples.yaml` (a word minimum and required headings, commented out: they depend on each project).
+**Guide files:** `histos guide propose` runs the evals whose `only` names the file (`only: ["PROJECT.md"]`) — an eval without `only` never applies to a guide, so a vault's card evals don't start checking `PROJECT.md` by surprise. A failing draft isn't saved; there's no attempt limit, since a guide change is proposed with the human in the conversation. `histos guide diff` shows what the evals said, and `histos eval PROJECT.md --file <draft>` is the dry run.
+
+`histos init` creates `evals/basics.yaml` (`content_untouched` and `no_placeholders`, active), `evals/examples.yaml` (a word minimum and required headings, commented out: they depend on each project) and `evals/guides.yaml`: the required sections of `PROJECT.md` (in Spanish or English — goal, deliverable, audience, out of scope, done when, constraints, *what I understood*, *what I'd change and why*, decisions), at least 60 and 30 words in the two sections the agent writes itself, and no placeholders in either guide. `histos init --add-config` adds `evals/guides.yaml` to an existing vault too: it only applies to the guides, so it can't change how any card is checked.
 
 ## Guidance files
 
 `PROJECT.md` (what the project is) and `ARCHITECTURE.md` (how it's written: style, conventions, stack) are optional; when they exist, `histos context` appends both, in that order. Only the human changes them: the agent proposes a new version with `histos guide propose <file> --file <draft>`, and the human runs `histos guide approve` (the previous version goes to `approved/guides/<name>-<date-time>.md`) or `histos guide reject --feedback "..."` (which `histos context` then shows).
+
+**Decisions.** When the human rejects a plan or a guide change *with* `--feedback`, Histos keeps that feedback as a decision, so no agent proposes again what was already turned down:
+
+```markdown
+## Decisiones
+- 2026-11-09 · plan rejected: Split cod-a in two; the release can't depend on a card that big.
+- 2026-11-09 · PROJECT.md change rejected: No cambies el alcance: el GUI queda fuera de la v3.1.
+```
+
+It's the one time Histos writes into `PROJECT.md` outside `guide approve`, so it's narrow: only the human's `plan reject` and `guide reject` do it, only with the human's own text, appending one dated line at the end of the decisions section (`## Decisiones` or `## Decisions`, any level) and touching nothing else; the previous version is kept in `approved/guides/`. A pending `PROJECT.md` change with that section gets the line too, so approving it doesn't lose it. If `PROJECT.md` doesn't exist or has no decisions section, the line goes to `.histos/decisions.md` instead, and `histos context` shows it until the agent carries it into `PROJECT.md`. A rejection without feedback records nothing.
+
+## Plans
+
+A plan is a whole card table proposed at once: `histos plan propose --file <plan.yaml>` (agent), `histos plan diff` (anyone), then `histos plan approve` or `histos plan reject --feedback "..."` (human). No card exists until the plan is approved.
+
+```yaml
+summary: >
+  How the work is cut and why -- the first thing the human reads.
+cards:
+  - id: dec-format                  # required; same rules as add-card
+    title: Decide the format        # required
+    description: One line.          # optional
+    done_when: The format is approved and cod-format can implement it without questions.   # required
+  - id: cod-format
+    title: Implement the format
+    done_when: Every command writes it, with tests.
+    depends_on: [dec-format]        # cards in this plan, or already on the board
+```
+
+- **No tier in the plan:** a card is classified right before it's worked (`histos classify`), since its tier depends on the approved content of its dependencies.
+- **Refused on propose** (and checked again on approve, in case the board changed): unknown keys (a typo like `depend_on` never passes silently), a missing `summary`, `id`, `title` or `done_when`, invalid or repeated ids, ids already on the board, dependencies that exist nowhere, and cycles. All errors are listed at once.
+- **`plan approve`** creates every card in dependency order with one canvas save — all or nothing: if anything fails, no card and no file is left behind, and an existing `content/<id>.md` is never overwritten. Approving the plan is the authorization for its dependencies, so no `--authorized` is involved. The plan is kept in `approved/plans/<date-time>.yaml`.
+- **`done_when`** goes into the card's frontmatter and initial body, and `histos context` shows it; `add-card --done-when "..."` sets it on a single card.
+- **Levels and warnings:** `histos plan diff` shows the plan by levels (level 1 can start once the plan is approved; a dependency on an unapproved board card is marked `(waits for <id>)`) and then its warnings, or `No warnings.`. `plan propose` prints the same warnings to stderr without failing. There are three: a loose card (in a plan of more than one card, it depends on nothing and nothing depends on it), a card with more than 5 dependencies, and a vague `done_when` (under 5 words, or an empty phrase like "done" or "funciona"). They never block approval: the human decides.
+- One plan is pending at a time: proposing another replaces it. A rejection's feedback is shown by `histos plan diff` until the next plan is proposed.
+
+## Event log
+
+Every command that changes the vault records what it did in `.histos/events.jsonl`: one JSON object per line, append-only, written inside the vault lock. It's the history that estimates, the critical path with real durations and the project report are built from, so it records generously — including how long a card waited for the human's review. Nothing leaves your machine.
+
+```json
+{"v": 1, "ts": "2026-11-08T16:42:07.312Z", "event": "approved", "card": "cod-plan",
+ "actor": "human", "worker": "parent", "data": {"words": 812, "lines": 96},
+ "transitions": [{"card": "cod-plan", "from": "Proposal pending review", "to": "Approved"},
+                 {"card": "pru-plan", "from": "Blocked", "to": "Backlog"}]}
+```
+
+| Field | What it is |
+|---|---|
+| `v` | format version (1) |
+| `ts` | when, in UTC with milliseconds — durations are differences between events |
+| `event` | what happened (table below) |
+| `card` | the card, or `null` for vault-wide events |
+| `actor` | `human` for the human's commands (`approve`, `reject`, `retry`, `accept-edit`, `guide approve/reject`, `init`, `arrange`, `status`) and everything the desktop app does; `agent` for the rest |
+| `worker` | the card's `worker` at that moment, if any — tells the parent's time from a subagent's |
+| `data` | what's specific to the event |
+| `transitions` | every card whose status the command changed — this one *or any other*: approving a card records the dependents it unblocked. On the command's last event |
+
+| `event` | Recorded by | `data` |
+|---|---|---|
+| `vault_created` | `init` | `version` |
+| `config_added` | `init --add-config`, when it added something | `files` |
+| `card_created` | `add-card` | `title`, `depends_on` |
+| `dependency_added` | `link` | `depends_on` |
+| `described` | `describe` | `fields` (names only) |
+| `assigned` | `assign`, one per card | `by`, `takeover`, `previous_worker` |
+| `classified` | `classify` (not `--dry-run`) | `tier`, `previous_tier`, `model_cleared` |
+| `model_proposed` / `model_approved` / `model_cleared` | `model` | `model` |
+| `proposed` | `propose` that passed the evals | `attempt` (or `null` without evals), `words`, `lines` |
+| `proposal_refused` | `propose` that failed the evals | `attempt`, `failed` (eval names), `words`, `lines` |
+| `approved` / `rejected` | `approve` / `reject` | `words`, `lines` of the approved text / `feedback` |
+| `retry` / `edit_accepted` | `retry` / `accept-edit` | — |
+| `guide_proposed` / `guide_approved` / `guide_rejected` | `guide ...` | `file`, plus `words`/`lines`, or `feedback` and `recorded_in` (where the decision went, or `null`) |
+| `plan_proposed` / `plan_approved` / `plan_rejected` | `plan ...` | `cards`, plus `feedback` and `recorded_in` on a rejection |
+| `arranged` | `arrange` | `pruned` |
+| `state_recomputed` | any command whose only effect was a status change — e.g. `status` unblocking cards. With `seen_outside_histos: true`: colors changed by hand in Obsidian since the last recorded command, recorded with the time Histos saw them | — / `seen_outside_histos` |
+
+Read-only commands (`status` when nothing changed, `context`, `diff`, `validate`, `eval`) record nothing, and the text of proposals isn't copied into the log — it's already in `approved/`.
+
+**Reliability:** a session's events are appended in one write with `fsync`. If the machine dies mid-line, the cut-off last line is ignored and `validate` warns about it; any other broken line is a `validate` error. If recording fails (a full disk), the command warns and still succeeds: the vault change already happened.
+
+**The rest of `.histos/`:** `vault.json` holds the vault's id (a UUID, so its history stays recognizable if the folder moves) and `colors.json` each card's color as of the last recorded command (how changes made in Obsidian are noticed). Outside the vault, `~/.histos/vaults.json` lists every vault that recorded an event, so later versions can learn from all your projects without asking where they are; set `HISTOS_HOME` to keep it somewhere else.
+
+If you keep a vault in git, commit `.histos/` with it — it's the project's history.
 
 ## Minimal canvas
 

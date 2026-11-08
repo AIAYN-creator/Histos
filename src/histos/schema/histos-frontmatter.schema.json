@@ -7,6 +7,7 @@
   "additionalProperties": true,
   "properties": {
     "description": { "type": ["string", "null"] },
+    "done_when": { "type": ["string", "null"], "description": "A checkable criterion for when the card is done (add-card --done-when, or the plan)." },
     "sources": {
       "type": ["array", "null"],
       "items": { "type": "string", "minLength": 1 }

@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import canvas, frontmatter, operations
+from . import canvas, frontmatter, headings, operations
 
 
 @dataclass
@@ -18,7 +18,7 @@ class CheckInput:
     params: dict
     vault_root: Path
     data: dict
-    card: dict
+    card: dict | None  # None for a guide (PROJECT.md / ARCHITECTURE.md) proposal
 
 
 @dataclass
@@ -61,23 +61,42 @@ def no_placeholders(i: CheckInput) -> CheckOutcome:
     return CheckOutcome(True, "no placeholders", "")
 
 
-_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
-
-
-def _normalize_heading(text: str) -> str:
-    return " ".join(text.strip().lstrip("#").split()).lower()
-
-
 def required_headings(i: CheckInput) -> CheckOutcome:
-    present = {_normalize_heading(m.group(1)) for line in i.draft.splitlines() if (m := _HEADING_RE.match(line))}
-    missing = [h for h in i.params["headings"] if _normalize_heading(h) not in present]
+    present = headings.present(i.draft)
+    missing = [headings.alternatives(h)[0] for h in i.params["headings"]
+               if not any(headings.normalize(alt) in present for alt in headings.alternatives(h))]
     if missing:
         detail = "missing: " + ", ".join(f'"{h}"' for h in missing)
         return CheckOutcome(False, detail, f"the draft lacks required headings -- {detail}")
     return CheckOutcome(True, f"all {len(i.params['headings'])} headings present", "")
 
 
+def _section_words(draft: str, heading: str | list[str]) -> int | None:
+    """Words between the heading and the next heading of the same or a higher level; None if absent."""
+    lines = draft.splitlines()
+    span = headings.section_span(lines, heading)
+    if span is None:
+        return None
+    return len(re.findall(r"\w+", "\n".join(lines[span[0] + 1:span[1]])))
+
+
+def min_section_words(i: CheckInput) -> CheckOutcome:
+    short, details = [], []
+    for section in i.params["sections"]:
+        name = headings.alternatives(section["heading"])[0].lstrip("#").strip()
+        count = _section_words(i.draft, section["heading"]) or 0
+        details.append(f'"{name}": {count} of {section["min"]} words')
+        if count < section["min"]:
+            short.append(details[-1])
+    if short:
+        detail = "; ".join(short)
+        return CheckOutcome(False, detail, f"some sections are too short -- {detail}")
+    return CheckOutcome(True, "; ".join(details), "")
+
+
 def content_untouched(i: CheckInput) -> CheckOutcome:
+    if i.card is None:  # a guide proposal: there's no card content to compare
+        return CheckOutcome(True, "not a card", "")
     changed, unknown = [], 0
     for card in canvas.cards(i.data):
         md_path = canvas.card_file_path(i.vault_root, card)
@@ -110,5 +129,6 @@ RUNNERS = {
     "word_count": word_count,
     "no_placeholders": no_placeholders,
     "required_headings": required_headings,
+    "min_section_words": min_section_words,
     "content_untouched": content_untouched,
 }

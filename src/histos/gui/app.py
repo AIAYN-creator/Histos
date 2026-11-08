@@ -163,7 +163,7 @@ def _selftest() -> int:
             vault_root.joinpath("AGENTS.md").exists()
             and len(status_result.groups) == len(operations.STATE_NAMES)
             and cfg is not None
-            and len(loaded_evals) == 2
+            and len(loaded_evals) == 5  # basics (2) + guides (3)
         )
         print("SELFTEST PASS" if ok else "SELFTEST FAIL: unexpected result shape")
         return 0 if ok else 1

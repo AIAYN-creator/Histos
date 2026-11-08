@@ -21,6 +21,17 @@ def write_text_atomic(path: Path, text: str) -> None:
     _write_atomic(path, text, "w", "utf-8")
 
 
+def write_text_exact(path: Path, text: str) -> None:
+    """`text` as UTF-8 with its line endings exactly as given (no CRLF translation on Windows) --
+    for editing a file the human wrote without touching anything but the edit."""
+    _write_atomic(path, text.encode("utf-8"), "wb", None)
+
+
+def read_text_exact(path: Path) -> str:
+    """The file's text with its line endings as they are on disk (no universal-newline translation)."""
+    return path.read_bytes().decode("utf-8")
+
+
 def copy_file_atomic(src: Path, dst: Path) -> None:
     """Byte-for-byte copy, swapped in the same way."""
     _write_atomic(dst, src.read_bytes(), "wb", None)

@@ -2,6 +2,35 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.1.0] - 2026-11-08
+
+A stricter start to every project, and history recorded from day one. Projects went back and forth because the idea never got across well at the start: the agent now interviews like a consultant, the brief has a required structure, and the cards are proposed as one plan you approve or reject as a whole. And the estimates, critical path and reports planned for the next versions need history, so every change to the vault is now recorded.
+
+### Added
+
+- **Event log.** Every command that changes the vault -- from the terminal or the desktop app -- appends what it did to `.histos/events.jsonl`: who, when, which card, and every status change it caused in *any* card (approving a card records the dependents it unblocked). Colors changed by hand in Obsidian are recorded by the next command, with the time Histos saw them. One JSON object per line, written inside the vault lock with `fsync`; the format is in `histos-events.schema.json` and `docs/canvas-schema.md`, and `histos validate` checks it. Read-only commands record nothing.
+- **Plans.** `histos plan propose --file plan.yaml` proposes the whole card table at once -- a summary, and per card its title, dependencies and a `done_when` -- and no card exists until the human runs `histos plan approve`, which creates them all in one canvas save, all or nothing. `histos plan diff` shows the table, the plan by levels (what can run in parallel) and warnings: loose cards, a card depending on more than 5, a `done_when` nobody could check. Plans that can't be created -- cycles, unknown dependencies, repeated or existing ids, a typo in a key -- are refused on propose with every error at once. `histos plan reject --feedback "..."` sends it back.
+- **`done_when`**, a checkable criterion for when a card is done: in the plan, or `add-card --done-when "..."`. It goes into the card's frontmatter and initial body, and `histos context` shows it.
+- **Evals on guide proposals.** `histos guide propose` runs the evals whose `only` names the file (`only: ["PROJECT.md"]`); a failing draft isn't saved, and `guide diff` shows what the evals said. `histos eval PROJECT.md --file <draft>` is the dry run. Evals without `only` never apply to a guide, so existing vaults behave the same.
+- **`evals/guides.yaml`**: the required sections of `PROJECT.md` -- goal, deliverable, audience, out of scope, done when, constraints, *what I understood*, *what I'd change and why*, decisions -- in Spanish or English, with a minimum of words in the two sections the agent writes itself.
+- **The `min_section_words` check**, and alternatives in `required_headings` (`["## Objetivo", "## Goal"]`, any one counts). Headings now compare without accents too.
+- **The decisions log.** Rejecting a plan or a guide change *with* `--feedback` appends a dated line to the decisions section of `PROJECT.md` -- only the human's own text, only appended, the previous version kept in `approved/guides/` -- so no agent proposes again what was already turned down. Without that section, it goes to `.histos/decisions.md`, which `histos context` shows until the agent carries it into `PROJECT.md`.
+- A test that fails if `AGENTS.md` or the command reference name a command or flag that doesn't exist, and the concurrency stress test now checks the event log too.
+
+### Changed
+
+- **`AGENTS.md`: the interview.** On an empty vault the agent listens, asks in rounds of at most five questions (the ones that could sink the project first), pushes back on the approach, pipeline, stack or scope with a reason and a concrete alternative for each objection, writes `PROJECT.md` for the human to approve, and only then proposes the plan. `plan approve` and `plan reject` join the human-only commands. `init` never overwrites an existing `AGENTS.md`: copy the new one into older vaults by hand.
+- `histos guide propose` can now refuse a draft that fails the evals.
+- `histos init --add-config` adds `evals/guides.yaml` to an `evals/` folder that already exists -- it only applies to the guides, so it can't change how any card is checked.
+- The README is now a short front page; the detail moved to `docs/how-it-works.md`, `docs/cli.md`, `docs/trust-model.md` and `docs/roadmap.md`.
+
+### Notes
+
+- **What Histos writes outside the vault:** `~/.histos/vaults.json`, the list of vaults that recorded events, so later versions can learn from all your projects. Set `HISTOS_HOME` to keep it elsewhere. Nothing leaves your machine. If a vault is in git, commit its `.histos/` folder: it's the project's history.
+- Concurrency stress test with the new event-log invariants, on Windows: 8 agents × 20 rounds, 160 commands, nothing lost, duplicated or interleaved, and the logged transitions rebuild the final board exactly.
+- The tests on Linux caught a bug before it shipped: on Linux, recording a decision would have rewritten a `PROJECT.md` made on Windows with Unix line endings. `PROJECT.md` is now edited byte for byte on every OS. And the end-to-end test of the whole start cycle -- brief, rejections, plans, approval -- caught `histos context` showing a decision twice once the agent had carried it into `PROJECT.md`; fixed before release too. And the packaged desktop app's selftest caught a circular import that only appeared when `histos.config` was imported first, as the app does; every module is now tested importing on its own.
+- Like v3, this release was specified, reviewed and approved card by card in a Histos vault.
+
 ## [3.0.0] - 2026-10-17
 
 Model routing by tier, subagents with an isolated context, and deterministic evals as a filter before human review. The core rule doesn't change: the agent proposes, the human approves.
@@ -92,6 +121,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.1.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.0
 [3.0.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.0.0
 [2.1.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v2.1.1
 [2.1.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v2.1.0

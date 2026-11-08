@@ -19,6 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
+from . import events
 from .errors import HistosError
 
 LOCK_FILENAME = ".histos.lock"
@@ -61,8 +62,17 @@ def lock_path(vault_root: Path) -> Path:
 
 
 @contextmanager
-def vault_lock(vault_root: Path, command: str) -> Iterator[None]:
-    path = lock_path(vault_root)
+def vault_lock(vault_root: Path, command: str, actor: str = "agent") -> Iterator[None]:
+    """The vault lock, plus the event log session that records what the command did (events.py).
+    `actor` is who runs the command: 'agent', or 'human' for the human's commands."""
+    with file_lock(lock_path(vault_root), command):
+        with events.recording(vault_root, actor):
+            yield
+
+
+@contextmanager
+def file_lock(path: Path, command: str) -> Iterator[None]:
+    """The bare OS lock on `path`, without event recording -- also used for ~/.histos/vaults.json."""
     # The holder info is written into this file (and truncated on release): if it were a symlink,
     # that would clobber whatever it points to. O_NOFOLLOW closes the race where it exists (POSIX).
     if path.is_symlink():
@@ -70,7 +80,7 @@ def vault_lock(vault_root: Path, command: str) -> Iterator[None]:
     try:
         fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0))
     except FileNotFoundError:
-        raise HistosError(f"can't find the folder {vault_root}") from None
+        raise HistosError(f"can't find the folder {path.parent}") from None
     except OSError as e:
         if path.is_symlink():
             raise HistosError(f"{path} is a symbolic link -- remove it; histos only uses a plain file there") from None
@@ -79,7 +89,7 @@ def vault_lock(vault_root: Path, command: str) -> Iterator[None]:
         deadline = time.monotonic() + _WAIT_TIMEOUT
         while not _try_lock(fd):
             if time.monotonic() >= deadline:
-                raise HistosError(f"the vault is busy ({_describe(read_holder(vault_root))}) -- try again")
+                raise HistosError(f"the vault is busy ({_describe(_read_holder_file(path))}) -- try again")
             time.sleep(_POLL_INTERVAL)
         try:
             _write_holder(fd, {
@@ -95,13 +105,14 @@ def vault_lock(vault_root: Path, command: str) -> Iterator[None]:
         os.close(fd)
 
 
-def locked(command: str) -> Callable:
-    """For operations.py functions taking vault_root first: `@locked("approve")`."""
+def locked(command: str, actor: str = "human") -> Callable:
+    """For operations.py functions taking vault_root first: `@locked("approve")`. They're the
+    human's commands (and the desktop app's), so the actor defaults to 'human'."""
     def decorate(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(vault_root: Path, *args, **kwargs):
             label = f"{command} {args[0]}" if args and isinstance(args[0], str) else command
-            with vault_lock(vault_root, label):
+            with vault_lock(vault_root, label, actor=actor):
                 return func(vault_root, *args, **kwargs)
         return wrapper
     return decorate
@@ -109,8 +120,12 @@ def locked(command: str) -> Callable:
 
 def read_holder(vault_root: Path) -> dict | None:
     """Who holds the lock right now, as far as the file says -- only for messages."""
+    return _read_holder_file(lock_path(vault_root))
+
+
+def _read_holder_file(path: Path) -> dict | None:
     try:
-        with open(lock_path(vault_root), "rb") as f:
+        with open(path, "rb") as f:
             holder = json.loads(f.read(4096).decode("utf-8") or "null")
     except (OSError, ValueError):
         return None

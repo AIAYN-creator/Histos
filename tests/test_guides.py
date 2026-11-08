@@ -7,6 +7,7 @@ def vault(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     run(monkeypatch, tmp_path, "add-card", "cap1", "--title", "Uno")
     (tmp_path / "PROJECT.md").write_text("Version uno.\n", encoding="utf-8")
+    (tmp_path / "evals" / "guides.yaml").unlink()  # the cycle itself; test_guide_evals.py covers its evals
     return tmp_path
 
 

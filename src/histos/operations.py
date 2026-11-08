@@ -12,7 +12,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import canvas, frontmatter, validation
+from . import __version__, canvas, events, frontmatter, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -42,6 +42,9 @@ WORKER_KEY = "worker"
 EVAL_RESULTS_KEY = "eval_results"
 V3_CONFIG_TEMPLATE = "histos.config.yaml"
 V3_EVALS_TEMPLATES = ["evals/basics.yaml", "evals/examples.yaml"]
+# Only applies to the guide files (its evals' `only` names them), so unlike the two above it's
+# added to an evals/ folder that already exists: it can't change how any card is checked.
+GUIDE_EVALS_TEMPLATE = "evals/guides.yaml"
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
@@ -111,6 +114,7 @@ def init_vault(vault_root: Path) -> InitResult:
     (vault_root / APPROVED_DIR).mkdir(parents=True, exist_ok=True)
     canvas.save(vault_root, {"nodes": [canvas.build_legend_node()], "edges": []})
     warnings = _install_agent_templates(vault_root) + _install_v3_config(vault_root)
+    events.emit("vault_created", version=__version__)
     return InitResult(vault_root=vault_root, template_warnings=warnings)
 
 
@@ -125,9 +129,11 @@ def _install_v3_config(vault_root: Path) -> list[str]:
     else:
         to_install.append(V3_CONFIG_TEMPLATE)
     if (vault_root / "evals").exists():
-        warnings.append("evals/ already exists, leaving it alone")
+        warnings.append("evals/ already exists, leaving its files alone")
     else:
         to_install += V3_EVALS_TEMPLATES
+    if not (vault_root / GUIDE_EVALS_TEMPLATE).exists():
+        to_install.append(GUIDE_EVALS_TEMPLATE)
     for rel_path in to_install:
         ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
         target = vault_root / rel_path
@@ -141,7 +147,52 @@ def add_config(vault_root: Path) -> list[str]:
     """Brings an existing vault to v3: adds histos.config.yaml and evals/ if missing, nothing else."""
     if not canvas.vault_canvas_path(vault_root).exists():
         raise canvas.HistosError(f"no {canvas.CANVAS_FILENAME} here -- use plain 'histos init' for a new vault")
-    return _install_v3_config(vault_root)
+    templates = [V3_CONFIG_TEMPLATE, *V3_EVALS_TEMPLATES, GUIDE_EVALS_TEMPLATE]
+    missing = [t for t in templates if not (vault_root / t).exists()]
+    warnings = _install_v3_config(vault_root)
+    added = [t for t in missing if (vault_root / t).exists()]
+    if added:
+        events.emit("config_added", files=added)
+    return warnings
+
+
+DONE_WHEN_KEY = "done_when"
+
+
+def create_card(vault_root: Path, data: dict, card_id: str, title: str, *, description: Optional[str] = None,
+                depends_on: tuple[str, ...] | list[str] = (), done_when: Optional[str] = None) -> dict:
+    """Adds one card to `data` and writes its content/<id>.md -- without saving the canvas, so a
+    caller can create several and save once. The caller checks the id and that the
+    dependencies exist; a cycle raises HistosError before any file is written."""
+    by_id = {c["id"]: c for c in canvas.cards(data)}
+    all_approved = all(by_id[dep]["color"] == canvas.APPROVED for dep in depends_on)
+    initial_color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOCKED
+
+    width, height = canvas.estimate_card_size(description)
+    node = canvas.add_card_node(data, card_id, initial_color, width=width, height=height)
+    for dep in depends_on:
+        canvas.add_edge(data, dep, card_id)
+
+    cycle = canvas.detect_cycle(data)
+    if cycle:
+        raise canvas.HistosError(f"that dependency would form a cycle: {' -> '.join(cycle)}")
+
+    md_path = canvas.card_file_path(vault_root, node)
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    meta = dict(frontmatter.DEFAULT_META)
+    body = f"# {title}\n\n"
+    if description:
+        meta["description"] = description
+        body += f"{description}\n\n"
+    if done_when:
+        meta[DONE_WHEN_KEY] = done_when
+        body += f"**Done when:** {done_when}\n\n"
+    meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+    frontmatter.write(md_path, meta, body)
+
+    canvas.place_new_card(data, node)
+    events.emit("card_created", card=card_id, title=title, depends_on=list(depends_on))
+    return node
 
 
 @dataclass
@@ -254,6 +305,7 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
     card["color"] = canvas.APPROVED
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
+    events.emit("approved", card=card_id, **events.size_of(body))
     return ApproveResult(card_id=card_id)
 
 
@@ -270,6 +322,7 @@ def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
         meta, body = frontmatter.read(md_path)
         meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
         frontmatter.write(md_path, meta, body)
+        events.emit("edit_accepted", card=card_id)
     return card_ids
 
 
@@ -287,6 +340,7 @@ def retry(vault_root: Path, card_id: str) -> None:
         raise canvas.HistosError(f"'{card_id}' has no failed evals to retry")
     del meta[EVAL_RESULTS_KEY]
     frontmatter.write(md_path, meta, body)
+    events.emit("retry", card=card_id)
 
 
 @dataclass
@@ -309,6 +363,7 @@ def reject(vault_root: Path, card_id: str, feedback: Optional[str] = None) -> Re
     if proposal_path.exists():
         proposal_path.unlink()
 
+    events.emit("rejected", card=card_id, feedback=feedback)  # before the worker is cleared below
     card["color"] = canvas.BACKLOG
     md_path = canvas.card_file_path(vault_root, card)
     if md_path.exists():
@@ -347,6 +402,7 @@ def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) ->
     summary = canvas.arrange(data, set_aside_done=set_aside_done, prune_redundant=prune_redundant)
     _remember_pruned_dependencies(vault_root, data, summary.pruned)
     canvas.save(vault_root, data)
+    events.emit("arranged", pruned=len(summary.pruned))
     return ArrangeResult(
         cards=len(canvas.cards(data)),
         columns=summary.columns,
