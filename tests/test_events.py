@@ -1,10 +1,19 @@
 """The event log module: sessions, transitions, the append-only file and the vault registry."""
 import json
 import os
+import shutil
 
 import pytest
 
-from histos import canvas, events, lock
+from histos import canvas, events, lock, operations
+
+
+@pytest.fixture
+def initialized_vault(tmp_path):
+    """A vault with an empty log -- init's own vault_created event wiped, so each test sees only its own."""
+    operations.init_vault(tmp_path)
+    shutil.rmtree(tmp_path / ".histos", ignore_errors=True)
+    return tmp_path
 
 
 def _set_color(vault, card_id, color):
@@ -14,10 +23,12 @@ def _set_color(vault, card_id, color):
 
 
 def _vault_with(vault, *ids):
+    """Cards set up as if a recorded command had created them (so they're not 'outside' changes)."""
     data = canvas.load(vault)
     for card_id in ids:
         canvas.add_card_node(data, card_id, canvas.BACKLOG)
     canvas.save(vault, data)
+    events._save_known_colors(vault, events._colors(vault))
 
 
 def test_nothing_is_written_when_nothing_happened(initialized_vault):
@@ -103,6 +114,30 @@ def test_unknown_events_and_actors_are_refused(initialized_vault):
     with pytest.raises(ValueError):
         with events.recording(initialized_vault, "robot"):
             pass
+
+
+def test_changes_made_outside_histos_are_recorded_by_the_next_command(initialized_vault):
+    _vault_with(initialized_vault, "a", "b")
+    _set_color(initialized_vault, "a", canvas.APPROVED)  # by hand in Obsidian, no lock
+    with lock.vault_lock(initialized_vault, "x"):
+        _set_color(initialized_vault, "b", canvas.IN_PROGRESS)
+        events.emit("assigned", card="b")
+    outside, assigned = events.read(initialized_vault)
+    assert outside["event"] == "state_recomputed" and outside["data"] == {"seen_outside_histos": True}
+    assert outside["transitions"] == [{"card": "a", "from": "Backlog", "to": "Approved"}]
+    assert assigned["transitions"] == [{"card": "b", "from": "Backlog", "to": "In progress"}]
+    with lock.vault_lock(initialized_vault, "x"):
+        pass  # already recorded: not again
+    assert len(events.read(initialized_vault)) == 2
+
+
+def test_without_a_baseline_nothing_counts_as_outside(initialized_vault):
+    data = canvas.load(initialized_vault)
+    canvas.add_card_node(data, "a", canvas.BACKLOG)
+    canvas.save(initialized_vault, data)
+    with lock.vault_lock(initialized_vault, "x"):
+        events.emit("arranged")
+    assert [e["event"] for e in events.read(initialized_vault)] == ["arranged"]
 
 
 def test_the_worker_is_read_from_the_card(initialized_vault):

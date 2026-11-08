@@ -32,6 +32,7 @@ FORMAT_VERSION = 1
 LOG_DIR = ".histos"
 LOG_FILENAME = "events.jsonl"
 VAULT_ID_FILENAME = "vault.json"
+COLORS_FILENAME = "colors.json"  # each card's color as of the last recorded command
 REGISTRY_FILENAME = "vaults.json"
 HOME_ENV = "HISTOS_HOME"
 
@@ -90,6 +91,12 @@ def recording(vault_root: Path, actor: str) -> Iterator[None]:
         raise ValueError(f"unknown actor {actor!r}")
     session = _Session(vault_root=vault_root, actor=actor, before=_colors(vault_root))
     token = _current.set(session)
+    # Colors that changed since the last recorded command happened outside histos (by hand in
+    # Obsidian): recorded now, with the time histos saw them, as their own event.
+    outside = _transitions(_last_known_colors(vault_root), session.before) if _has_baseline(vault_root) else []
+    if outside:
+        emit("state_recomputed", seen_outside_histos=True)
+        session.events[-1]["transitions"] = outside
     try:
         yield
     except BaseException:
@@ -206,16 +213,37 @@ def _transitions(before: dict[str, str], after: dict[str, str]) -> list[dict]:
 
 def _flush(session: _Session) -> None:
     try:
-        transitions = _transitions(session.before, _colors(session.vault_root))
+        after = _colors(session.vault_root)
+        transitions = _transitions(session.before, after)
         if not session.events and not transitions:
             return
-        if not session.events:
-            emit("state_recomputed")
         if transitions:
+            if not session.events or "transitions" in session.events[-1]:
+                emit("state_recomputed")
             session.events[-1]["transitions"] = transitions
         _append(session.vault_root, session.events)
+        _save_known_colors(session.vault_root, after)
     except Exception as e:  # never fail a command that already changed the vault
         print(f"warning: couldn't record the event ({e})", file=sys.stderr)
+
+
+def _has_baseline(vault_root: Path) -> bool:
+    return (vault_root / LOG_DIR / COLORS_FILENAME).exists()
+
+
+def _last_known_colors(vault_root: Path) -> dict[str, str]:
+    try:
+        data = json.loads((vault_root / LOG_DIR / COLORS_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_known_colors(vault_root: Path, colors: dict[str, str]) -> None:
+    from .fsutil import write_text_atomic
+
+    (vault_root / LOG_DIR).mkdir(exist_ok=True)
+    write_text_atomic(vault_root / LOG_DIR / COLORS_FILENAME, json.dumps(colors, sort_keys=True) + "\n")
 
 
 def _append(vault_root: Path, records: list[dict]) -> None:
