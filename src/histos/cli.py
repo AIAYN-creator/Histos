@@ -13,6 +13,7 @@ from .commands.board import (
     cmd_describe,
     cmd_init,
     cmd_link,
+    cmd_pause,
     cmd_status,
     cmd_validate,
 )
@@ -146,6 +147,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("status", help="lists cards grouped by status")
     p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser(
+        "pause",
+        help="(human) you're away: the review clock stops in every vault until your next decision",
+    )
+    p.set_defaults(func=cmd_pause)
 
     p = sub.add_parser(
         "guide",

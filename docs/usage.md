@@ -158,6 +158,8 @@ The evals check proposed guides too: a `PROJECT.md` missing a required section, 
 
 Every command that changes the vault records what it did in `.histos/events.jsonl`: who, when, which card, and every status change it caused — including how long cards wait for your review. Nothing is shown yet; it's the history that time estimates, the critical path and the project report will be built from (see the [roadmap](roadmap.md)), so it starts collecting from day one. It never leaves your machine. Format: [canvas-schema.md](canvas-schema.md#event-log).
 
+**When you're away, `histos pause`.** Going to sleep, off to something else, leaving the agent an AFK queue: run it once, from any vault. Until your next decision — `approve`, `reject`, `retry`, a guide's or a plan's approve/reject, `arrange`, or the same from the desktop app — the time cards spend waiting for your review isn't counted as review time, in any vault. There's no resume command: deciding something means you're back. The agent keeps working meanwhile, and its own time keeps counting. `histos status` shows when you're paused.
+
 ## Keeping the board tidy
 
 **Nothing on the board moves on its own.** Approving a card only changes its color (and turns the cards that were waiting on it from red to purple). A new card lands one column to the right of its dependencies, at their height, without pushing anything else. Cards you dragged somewhere by hand stay exactly there. So as weeks go by, the board slowly drifts out of shape.

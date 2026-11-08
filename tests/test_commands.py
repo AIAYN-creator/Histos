@@ -662,4 +662,4 @@ def test_version_matches_the_package(capsys):
     with pytest.raises(SystemExit):
         main(["--version"])
     assert capsys.readouterr().out.strip() == f"histos {histos.__version__}"
-    assert histos.__version__ == "3.1.1"
+    assert histos.__version__ == "3.1.2"

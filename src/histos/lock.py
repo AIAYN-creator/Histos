@@ -113,7 +113,12 @@ def locked(command: str, actor: str = "human") -> Callable:
         def wrapper(vault_root: Path, *args, **kwargs):
             label = f"{command} {args[0]}" if args and isinstance(args[0], str) else command
             with vault_lock(vault_root, label, actor=actor):
-                return func(vault_root, *args, **kwargs)
+                result = func(vault_root, *args, **kwargs)
+            if actor == "human":
+                from . import pauses  # imported late: pauses uses this module
+
+                pauses.resume_on(command)  # a decision means the human is back
+            return result
         return wrapper
     return decorate
 
