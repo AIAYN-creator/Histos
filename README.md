@@ -106,7 +106,7 @@ The canvas only holds the map — the content lives in `content/<id>.md`, with i
 | Version | | |
 |---|---|---|
 | **v3.0** | ✅ shipped | tiers and model approval, subagents, evals, safe concurrency |
-| **v3.1** | 🔨 in development | a stricter project interview, plans reviewed as a whole, an event log from day one |
+| **v3.1** | ✅ shipped | a stricter project interview, plans reviewed as a whole, an event log from day one |
 | **v3.2** | 📋 planned | time estimates from your own history; the critical path drawn on the canvas |
 | **v3.3** | 📋 planned | project metrics and a final report with a Gantt chart and a PERT |
 | **v4.0** | 📋 planned | yolo mode: agents build *and* review the whole backlog, on a separate branch |
