@@ -14,7 +14,7 @@ from .fsutil import write_text_atomic
 # frontmatter, and the pure-Python parser was the biggest cost of a vault with hundreds of cards.
 _LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
-_FRONTMATTER_RE =re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
+_FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
 
 DEFAULT_META = {
     "description": None,
