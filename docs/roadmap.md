@@ -4,10 +4,14 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.2 — planned: estimates and the critical path
+### v3.2 — in development: estimates and the critical path
 
-- **Estimates from your own history, never from the agent's guess** (models are bad at estimating how long their own work takes). Each card is estimated from the median and percentiles of similar closed cards (same tier, type and size), using a history kept across all your vaults. With no history it says "no data" instead of inventing a number.
-- **The critical path drawn on the canvas.** A card's color is its status, so the critical path goes on the *arrows* (a canvas edge has its own color): one command marks it, another clears it. Before any durations exist it's the longest chain of cards; with them, the longest chain in time until approved, human review included.
+Each user trains their own Histos: estimates come from *your* history — recorded by v3.1 in every vault — never from the agent's guess (models are bad at estimating their own work), and nothing is shared. The design is decided (planned and approved in a Histos vault with v3.1's interview and plans); it ships once your own data is enough.
+
+- **Two estimates per card, kept apart:** the agent's working time and the time it waits for your review. They're grouped differently — the agent's by tier, card type and number of dependencies; the review's by card type only, because review speed depends on you, not on the card. The median is the estimate and the 80th percentile the "if it goes badly", from the 30 most recent similar cards, with at least 5 of them; below that it says "no data" and how many are missing. Shown in `histos status` and in the card's `estimated_duration_hours`; `actual_duration_hours` gets the real figure on approval.
+- **Measured fairly:** an agent works one card at a time, so a batch assigned before you leave isn't counted as parallel work; time waiting for your `retry` counts as review, not as the agent's. Card types come from id prefixes only in vaults that really use them.
+- **The critical path on the arrows**, in magenta — off the status palette, so it can't be mistaken for Blocked. It's the remaining chain that takes longest, repainted after every command that changes the board; with no data at all, it's the longest chain of cards. Histos keeps track of the arrows it painted and never touches one you colored yourself. It can be turned off in `histos.config.yaml`.
+- **`histos estimate --coverage`** shows how many closed cards each group has and which are enough — the measure of when there's enough data to release.
 
 ### v3.3 — planned: project metrics and the final report
 
