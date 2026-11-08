@@ -58,6 +58,7 @@ class Progress:
     agent_hours: float
     review_hours: float
     review_active_hours: float
+    incomplete: bool = False  # it was already under way when the log starts: the figures are partial
 
 
 @dataclass
@@ -96,6 +97,7 @@ class _Replay:
 
     def __init__(self) -> None:
         self.cards: dict[str, _Card] = {}
+        self.created: list[str] = []  # ids of the cards the log saw being created, in order
         self.last_done: dict[str | None, tuple[datetime, str]] = {}  # worker -> (when, which card)
 
     def card(self, card_id: str) -> _Card:
@@ -120,6 +122,7 @@ class _Replay:
         if card_id:
             c = self.card(card_id)
             if name == "card_created":
+                self.created.append(card_id)
                 c.deps |= set(data.get("depends_on") or [])
             elif name == "dependency_added":
                 c.deps |= set(data.get("depends_on") or [])
@@ -216,6 +219,11 @@ def _active_hours(spans: list[tuple[datetime, datetime]], away: list[tuple[datet
 def vault_samples(vault_root: Path, home: Path | None = None) -> list[Sample]:
     """One sample per card approved in this vault whose whole life is in its log. The human's
     pauses come from `home` (default: HISTOS_HOME or ~/.histos)."""
+    return _vault_history(vault_root, home)[0]
+
+
+def _vault_history(vault_root: Path, home: Path | None) -> tuple[list[Sample], list[str]]:
+    """(samples, ids of the cards created in this vault's log), from a single read of the log."""
     replay = _replay(vault_root)
     vault = _vault_id(vault_root)
     away = _pause_spans(home, datetime.now(timezone.utc))
@@ -233,7 +241,7 @@ def vault_samples(vault_root: Path, home: Path | None = None) -> list[Sample]:
             worker_kind="sub" if "sub" in kinds else ("parent" if "parent" in kinds else None),
             approximate=c.approximate,
         ))
-    return sorted(result, key=lambda s: s.approved_at)
+    return sorted(result, key=lambda s: s.approved_at), replay.created
 
 
 def open_progress(vault_root: Path, now: datetime | None = None, home: Path | None = None) -> dict[str, Progress]:
@@ -251,7 +259,7 @@ def open_progress(vault_root: Path, now: datetime | None = None, home: Path | No
         spans = list(c.review_spans)
         spans += [(start, now) for start in (c.wait_open, c.review_open) if start is not None]
         result[card_id] = Progress(state=c.state, agent_hours=agent / 3600, review_hours=_hours(spans),
-                                   review_active_hours=_active_hours(spans, away))
+                                   review_active_hours=_active_hours(spans, away), incomplete=c.incomplete)
     return result
 
 
@@ -268,8 +276,15 @@ def registered_vaults(home: Path | None = None) -> list[Path]:
 def samples(home: Path | None = None, skipped: list[str] | None = None) -> list[Sample]:
     """Samples from every registered vault, each vault once. Vaults that are gone or whose log
     can't be read are left out and named in `skipped` (when given) -- never an error."""
+    return read_all(home, skipped)[0]
+
+
+def read_all(home: Path | None = None, skipped: list[str] | None = None) -> tuple[list[Sample], dict[str, list[str]]]:
+    """`samples()` plus, for each vault id, the ids of the cards its own log saw created -- what
+    estimates.card_types needs to tell which prefixes a vault uses. One read of every log."""
     seen: set[str] = set()
     result: list[Sample] = []
+    card_ids: dict[str, list[str]] = {}
     for vault_root in registered_vaults(home):
         if not events.log_path(vault_root).exists():
             if skipped is not None:
@@ -280,8 +295,10 @@ def samples(home: Path | None = None, skipped: list[str] | None = None) -> list[
             continue
         seen.add(vault)
         try:
-            result += vault_samples(vault_root, home)
+            found, created = _vault_history(vault_root, home)
+            result += found
+            card_ids[vault] = created
         except (OSError, ValueError, KeyError) as e:
             if skipped is not None:
                 skipped.append(f"{vault_root}: {e}")
-    return sorted(result, key=lambda s: s.approved_at)
+    return sorted(result, key=lambda s: s.approved_at), card_ids

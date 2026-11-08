@@ -238,3 +238,15 @@ def test_a_real_cli_log(initialized_vault, monkeypatch, tmp_path):
     assert history.samples() and history.samples()[0].card == "a"  # via the test's HISTOS_HOME registry
     assert set(history.open_progress(v)) == {"b"}
     assert events.read(v)  # sanity: the log is there
+
+
+# 14. Samples and each vault's created card ids come from one read
+def test_read_all_returns_the_created_card_ids(tmp_path):
+    home, v1 = tmp_path / "home", tmp_path / "v1"
+    v1.mkdir()
+    home.mkdir()
+    write_log(v1, [created(at("09:00"), "a"), created(at("09:00"), "b"), assign(at("10:00"), "a"),
+                   propose(at("11:00"), "a"), approve(at("12:00"), "a")], vault_id="one")
+    (home / "vaults.json").write_text(json.dumps({"vaults": [{"id": "one", "path": str(v1)}]}), encoding="utf-8")
+    found, card_ids = history.read_all(home)
+    assert [s.card for s in found] == ["a"] and card_ids == {"one": ["a", "b"]}
