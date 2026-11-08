@@ -20,9 +20,13 @@ v3.2 vault, dec-tiempos):
 from __future__ import annotations
 
 import json
+from bisect import bisect_right
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
 
 from . import events
 
@@ -203,15 +207,32 @@ def _hours(spans: list[tuple[datetime, datetime]]) -> float:
     return sum(max(0.0, (end - start).total_seconds()) for start, end in spans) / 3600
 
 
-def _active_hours(spans: list[tuple[datetime, datetime]], away: list[tuple[datetime, datetime]]) -> float:
+class _Away:
+    """The human's pauses, in order and never overlapping (one pause at a time), so the ones that
+    touch a span are found by bisection instead of by walking all of them -- a long history has
+    hundreds of nights and thousands of review spans."""
+
+    def __init__(self, spans: list[tuple[datetime, datetime]]) -> None:
+        self.spans = sorted(spans)
+        self.ends = [end for _, end in self.spans]
+
+    def overlap_seconds(self, start: datetime, end: datetime) -> float:
+        total = 0.0
+        for a_start, a_end in self.spans[bisect_right(self.ends, start):]:  # from the first one ending after `start`
+            if a_start >= end:
+                break
+            total += (min(end, a_end) - max(start, a_start)).total_seconds()
+        return total
+
+
+def _active_hours(spans: list[tuple[datetime, datetime]], away: "_Away | list[tuple[datetime, datetime]]") -> float:
     """Hours of `spans` that fall outside every `away` span."""
+    if not isinstance(away, _Away):
+        away = _Away(away)
     total = 0.0
     for start, end in spans:
         seconds = max(0.0, (end - start).total_seconds())
-        for a_start, a_end in away:
-            overlap = (min(end, a_end) - max(start, a_start)).total_seconds()
-            if overlap > 0:
-                seconds -= overlap  # pauses never overlap each other: one pause at a time
+        seconds -= away.overlap_seconds(start, end)
         total += max(0.0, seconds)
     return total / 3600
 
@@ -222,11 +243,13 @@ def vault_samples(vault_root: Path, home: Path | None = None) -> list[Sample]:
     return _vault_history(vault_root, home)[0]
 
 
-def _vault_history(vault_root: Path, home: Path | None) -> tuple[list[Sample], list[str]]:
-    """(samples, ids of the cards created in this vault's log), from a single read of the log."""
+def _vault_history(vault_root: Path, home: Path | None, away: "_Away | None" = None) -> tuple[list[Sample], list[str]]:
+    """(samples, ids of the cards created in this vault's log), from a single read of the log.
+    `away` is the human's pauses when the caller already has them (read_all reads them once)."""
     replay = _replay(vault_root)
     vault = _vault_id(vault_root)
-    away = _pause_spans(home, datetime.now(timezone.utc))
+    if away is None:
+        away = _Away(_pause_spans(home, datetime.now(timezone.utc)))
     result = []
     for card_id, c in replay.cards.items():
         if c.approved_at is None or c.incomplete or c.rounds == 0:
@@ -248,7 +271,7 @@ def open_progress(vault_root: Path, now: datetime | None = None, home: Path | No
     """For each card that isn't approved: its state and the agent/review time it has so far."""
     now = now or datetime.now(timezone.utc)
     replay = _replay(vault_root)
-    away = _pause_spans(home, now)
+    away = _Away(_pause_spans(home, now))
     result = {}
     for card_id, c in replay.cards.items():
         if c.state in (None, _APPROVED):
@@ -286,10 +309,45 @@ def samples(home: Path | None = None, skipped: list[str] | None = None) -> list[
 
 def read_all(home: Path | None = None, skipped: list[str] | None = None) -> tuple[list[Sample], dict[str, list[str]]]:
     """`samples()` plus, for each vault id, the ids of the cards its own log saw created -- what
-    estimates.card_types needs to tell which prefixes a vault uses. One read of every log."""
+    estimates.card_types needs to tell which prefixes a vault uses. One read of every log (inside
+    `snapshot()`, one read for the whole block)."""
+    memo = _snapshot.get()
+    if memo is None:
+        return _read_all(home, skipped)
+    key = str(home)
+    if key not in memo:
+        notes: list[str] = []
+        found, ids = _read_all(home, notes)
+        memo[key] = (found, ids, notes)
+    found, ids, notes = memo[key]
+    if skipped is not None:
+        skipped += notes
+    return list(found), {vault: list(cards) for vault, cards in ids.items()}
+
+
+_snapshot: ContextVar[dict | None] = ContextVar("histos_history_snapshot", default=None)
+
+
+@contextmanager
+def snapshot() -> Iterator[None]:
+    """Inside the block `read_all` reads the logs once and repeats the answer. For one command that
+    asks for the history several times (status: the estimates, then the critical path) with nothing
+    writing a log in between. Never keep one open across a write to a log."""
+    if _snapshot.get() is not None:
+        yield
+        return
+    token = _snapshot.set({})
+    try:
+        yield
+    finally:
+        _snapshot.reset(token)
+
+
+def _read_all(home: Path | None, skipped: list[str] | None) -> tuple[list[Sample], dict[str, list[str]]]:
     seen: set[str] = set()
     result: list[Sample] = []
     card_ids: dict[str, list[str]] = {}
+    away = _Away(_pause_spans(home, datetime.now(timezone.utc)))  # one human: the pauses are read once
     for vault_root in registered_vaults(home):
         if not events.log_path(vault_root).exists():
             if skipped is not None:
@@ -300,7 +358,7 @@ def read_all(home: Path | None = None, skipped: list[str] | None = None) -> tupl
             continue
         seen.add(vault)
         try:
-            found, created = _vault_history(vault_root, home)
+            found, created = _vault_history(vault_root, home, away)
             result += found
             card_ids[vault] = created
         except (OSError, ValueError, KeyError) as e:
