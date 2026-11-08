@@ -113,6 +113,19 @@ The canvas only holds the map — the content lives in `content/<id>.md`, with i
 
 Details and the ideas beyond: [docs/roadmap.md](docs/roadmap.md).
 
+### Bugs found in v3.1, and how they were fixed
+
+v3.1 was built and then used to plan v3.2, and both turned up bugs. Each fix came with a test that would have caught it:
+
+| Bug | Caught by | Fix |
+|---|---|---|
+| The desktop app wouldn't start: a circular import, only when `histos.config` was imported first, as the app does | the packaged app's selftest, before release | the import moved inside the function that needs it; a new test imports every module on its own in a fresh interpreter |
+| On Linux, recording a decision rewrote a `PROJECT.md` made on Windows with Unix line endings | CI on Linux, before release | `PROJECT.md` is now edited byte for byte, with tests for both line endings on every OS |
+| `histos context` showed a decision twice once the agent had carried it into `PROJECT.md` | the end-to-end test of the whole start cycle, before release | decisions already in `PROJECT.md` are left out of the "not yet in PROJECT.md" section |
+| Saying yes to a model and approving the card in the same message lost the model: an approved card refused it | using v3.1 to plan v3.2 — **fixed in 3.1.1** | `histos model --approved` now records the model on an approved card that has none yet |
+
+And one gap the v3.2 design work exposed: review time counted the nights you were asleep as hours of reviewing. **3.1.2** adds `histos pause` — the review clock stops in every vault until your next decision. Every release in detail: [CHANGELOG.md](CHANGELOG.md).
+
 ## Development
 
 Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/): `pytest` runs everything, `pytest -m "not slow"` skips the few that start real parallel processes. CI runs on Windows and Linux, Python 3.10 and 3.12. A complete sample vault: [`examples/sample-paper/`](examples/sample-paper/).
