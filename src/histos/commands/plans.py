@@ -19,6 +19,8 @@ def cmd_plan(args: argparse.Namespace) -> int:
             result = plans.propose(vault_root, draft.read_text(encoding="utf-8"))
             if result.replaced_pending:
                 print("warning: replaced the plan that was already pending", file=sys.stderr)
+            for line in plans.warnings(plans.pending(vault_root), operations._load_valid(vault_root)):
+                print(line, file=sys.stderr)
             print(f"plan with {result.cards} cards pending review ('histos plan diff' to review it)")
         elif args.plan_action == "diff":
             return _diff(vault_root)
@@ -58,4 +60,11 @@ def _diff(vault_root: Path) -> int:
         print("  ".join(cell.ljust(widths[i]) if i < 3 else cell for i, cell in enumerate(row)).rstrip())
         if n == 0:
             print("  ".join("-" * w for w in widths) + "  " + "-" * 9)
+    data = operations._load_valid(vault_root)
+    print("\nLevels:")
+    for n, level in enumerate(plans.levels(plan, data), start=1):
+        print(f"  {n}  {', '.join(level)}")
+    found = plans.warnings(plan, data)
+    print()
+    print("\n".join(found) if found else "No warnings.")
     return 0

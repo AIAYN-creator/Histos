@@ -106,3 +106,50 @@ def test_the_real_v31_plan(data):
         ["rel-v31"],
     ]
     assert plans.warnings(plan, data) == []
+
+
+# --- commands -----------------------------------------------------------------------------------
+
+def write(vault, text):
+    path = vault.parent / f"{vault.name}-checks.yaml"
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def test_diff_shows_levels_and_no_warnings(initialized_vault, monkeypatch, capsys):
+    run(monkeypatch, initialized_vault, "plan", "propose", "--file", write(initialized_vault, REAL_PLAN))
+    capsys.readouterr()
+    assert run(monkeypatch, initialized_vault, "plan", "diff") == 0
+    out = capsys.readouterr().out
+    assert ("Levels:\n"
+            "  1  dec-eventos, dec-entrevista, dec-plan\n"
+            "  2  cod-eventos, cod-guia-evals, cod-plan\n"
+            "  3  pru-eventos, cod-plan-checks, cod-decisiones, doc-entrevista\n"
+            "  4  pru-plan\n"
+            "  5  rel-v31\n") in out
+    assert out.rstrip().endswith("No warnings.")
+
+
+def test_diff_lists_warnings_and_waits(initialized_vault, monkeypatch, capsys):
+    run(monkeypatch, initialized_vault, "add-card", "old", "--title", "Old")
+    plan = ("summary: s\ncards:\n"
+            "  - {id: a, title: A, done_when: Funciona., depends_on: [old]}\n"
+            "  - {id: lost, title: L, done_when: This sentence is long enough}\n")
+    run(monkeypatch, initialized_vault, "plan", "propose", "--file", write(initialized_vault, plan))
+    capsys.readouterr()
+    assert run(monkeypatch, initialized_vault, "plan", "diff") == 0
+    out = capsys.readouterr().out
+    assert "  1  a (waits for old), lost" in out
+    assert 'warning: a: done_when "Funciona." can\'t be checked' in out
+    assert "warning: lost is loose" in out
+    assert "No warnings." not in out
+
+
+def test_propose_with_warnings_succeeds_and_warns_on_stderr(initialized_vault, monkeypatch, capsys):
+    plan = "summary: s\ncards:\n  - {id: a, title: A, done_when: done}\n  - {id: b, title: B, done_when: done}\n"
+    assert run(monkeypatch, initialized_vault, "plan", "propose", "--file", write(initialized_vault, plan)) == 0
+    captured = capsys.readouterr()
+    assert "warning: a is loose" in captured.err
+    assert 'warning: b: done_when "done" can\'t be checked' in captured.err
+    assert "pending review" in captured.out
+    assert plans.pending(initialized_vault) is not None
