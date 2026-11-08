@@ -214,6 +214,16 @@ Each `.yaml`/`.yml` file in `evals/` is a list of evals; `histos propose` runs e
 
 `PROJECT.md` (what the project is) and `ARCHITECTURE.md` (how it's written: style, conventions, stack) are optional; when they exist, `histos context` appends both, in that order. Only the human changes them: the agent proposes a new version with `histos guide propose <file> --file <draft>`, and the human runs `histos guide approve` (the previous version goes to `approved/guides/<name>-<date-time>.md`) or `histos guide reject --feedback "..."` (which `histos context` then shows).
 
+**Decisions.** When the human rejects a plan or a guide change *with* `--feedback`, Histos keeps that feedback as a decision, so no agent proposes again what was already turned down:
+
+```markdown
+## Decisiones
+- 2026-11-09 · plan rejected: Split cod-a in two; the release can't depend on a card that big.
+- 2026-11-09 · PROJECT.md change rejected: No cambies el alcance: el GUI queda fuera de la v3.1.
+```
+
+It's the one time Histos writes into `PROJECT.md` outside `guide approve`, so it's narrow: only the human's `plan reject` and `guide reject` do it, only with the human's own text, appending one dated line at the end of the decisions section (`## Decisiones` or `## Decisions`, any level) and touching nothing else; the previous version is kept in `approved/guides/`. A pending `PROJECT.md` change with that section gets the line too, so approving it doesn't lose it. If `PROJECT.md` doesn't exist or has no decisions section, the line goes to `.histos/decisions.md` instead, and `histos context` shows it until the agent carries it into `PROJECT.md`. A rejection without feedback records nothing.
+
 ## Plans
 
 A plan is a whole card table proposed at once: `histos plan propose --file <plan.yaml>` (agent), `histos plan diff` (anyone), then `histos plan approve` or `histos plan reject --feedback "..."` (human). No card exists until the plan is approved.
@@ -274,8 +284,8 @@ Every command that changes the vault records what it did in `.histos/events.json
 | `proposal_refused` | `propose` that failed the evals | `attempt`, `failed` (eval names), `words`, `lines` |
 | `approved` / `rejected` | `approve` / `reject` | `words`, `lines` of the approved text / `feedback` |
 | `retry` / `edit_accepted` | `retry` / `accept-edit` | — |
-| `guide_proposed` / `guide_approved` / `guide_rejected` | `guide ...` | `file`, plus `words`/`lines` or `feedback` |
-| `plan_proposed` / `plan_approved` / `plan_rejected` | `plan ...` | reserved for the plan commands |
+| `guide_proposed` / `guide_approved` / `guide_rejected` | `guide ...` | `file`, plus `words`/`lines`, or `feedback` and `recorded_in` (where the decision went, or `null`) |
+| `plan_proposed` / `plan_approved` / `plan_rejected` | `plan ...` | `cards`, plus `feedback` and `recorded_in` on a rejection |
 | `arranged` | `arrange` | `pruned` |
 | `state_recomputed` | any command whose only effect was a status change — e.g. `status` unblocking cards. With `seen_outside_histos: true`: colors changed by hand in Obsidian since the last recorded command, recorded with the time Histos saw them | — / `seen_outside_histos` |
 
