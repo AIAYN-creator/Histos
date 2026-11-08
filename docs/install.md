@@ -75,4 +75,4 @@ The result is a single file: `packaging/dist/histos-gui.exe`.
 
 - **`histos`/`histos-gui`/`pyinstaller` not found** (terminal-tool path) — usually means Python's `Scripts` folder isn't on your `PATH`. Reinstalling Python with "Add python.exe to PATH" ticked (step 3) fixes this for good; closing and reopening the terminal after installing also matters, since `PATH` changes don't reach already-open terminals.
 - **The downloaded `.exe` won't run / SmartScreen blocks it entirely** — see step 2's note. If "Run anyway" isn't offered at all, your organization's security policy may be blocking unsigned executables outright — check with whoever manages the machine, or use the terminal-tool path instead.
-- **Everything else** — [usage.md](usage.md) for day-to-day use, or the [README](../README.md) for how Histos actually works.
+- **Everything else** — [usage.md](usage.md) for day-to-day use, or [how-it-works.md](how-it-works.md) for how Histos actually works.

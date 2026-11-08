@@ -1,6 +1,6 @@
 # Usage guide
 
-For the full design see the [README](../README.md); this is a practical "how this actually gets used day to day" guide. For how to organize the work itself — card size, rhythm, when to use subagents — see [workflow.md](workflow.md).
+For the full design see [how-it-works.md](how-it-works.md); this is a practical "how this actually gets used day to day" guide. For how to organize the work itself — card size, rhythm, when to use subagents — see [workflow.md](workflow.md).
 
 ## Install
 
@@ -17,7 +17,7 @@ Histos has two front ends for the parts you do yourself, and they're genuinely i
 | Review a proposal | `histos diff <id>` | Click the card under "Proposal pending review" |
 | Accept it | `histos approve <id>` | **Approve** |
 | Send it back | `histos reject <id> --feedback "..."` | **Reject** (same optional feedback) |
-| Open the board in Obsidian | (open Obsidian yourself) | **Open in Obsidian**, or **Show folder** if that doesn't work — see the README's Trust model for why it might not |
+| Open the board in Obsidian | (open Obsidian yourself) | **Open in Obsidian**, or **Show folder** if that doesn't work — Obsidian's own folder links are unreliable on Windows |
 | Tidy up the whole board | `histos arrange` | — |
 | Bring an older vault to v3 | `histos init --add-config` | — |
 | Give a card more attempts after failed evals | `histos retry <id>` | — |
@@ -172,7 +172,7 @@ Before you leave, let it get the queue ready: classify the cards, propose their 
 
 — never content written without your permission, never a model you didn't approve. Several agents (a parent and its subagents) can work at once: every command that changes the vault holds a lock, so nobody overwrites anybody.
 
-How much of this is enforced and how much is convention: see the README's [Trust model](../README.md#trust-model).
+How much of this is enforced and how much is convention: see the [trust model](trust-model.md).
 
 ## Upgrading a vault from v2
 
@@ -203,4 +203,4 @@ Checks `project.canvas` against the formal schema (broken references, dependency
 
 ## Full reference
 
-Every command with its flags is in the [README's CLI section](../README.md#cli), or `histos <command> --help`. The vault format — canvas, frontmatter, config, evals — is in [canvas-schema.md](canvas-schema.md).
+Every command with its flags is in [cli.md](cli.md), or `histos <command> --help`. The vault format — canvas, frontmatter, config, evals — is in [canvas-schema.md](canvas-schema.md).
