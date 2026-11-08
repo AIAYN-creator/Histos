@@ -9,12 +9,12 @@ The core rule behind everything below: **you propose, the human approves.** That
 1. **Never write directly to `content/*.md`, or to any file registered as a `sources` entry on a card.** Both are read-only for you. The only path for a content change is `histos propose <id> --file <draft>` followed by the human's `histos approve <id>`. Write your draft to a separate file and pass it to `propose`. `proposals/<id>.md` is a visible folder; the human may read or tweak it there. `sources` (see `describe --sources`) are the human's reference material -- a Word doc with a bibliography, a `.tex` in Overleaf -- never edit or "fix" them: if a change is needed there, say so in the conversation. A direct write is caught anyway: the `content_untouched` eval fails every proposal until the human sorts it out.
 2. **`PROJECT.md` and `ARCHITECTURE.md` are the human's too.** To change them, `histos guide propose <file> --file <draft>`, tell the human in the conversation, and let them `histos guide approve` or `reject` it. Feedback from a rejected change shows up in `histos context`.
 3. **Never touch `histos.config.yaml` or anything in `evals/`.** They are the human's filter on your work; you never relax them, not even to get a proposal through. If an eval looks wrong, say so.
-4. **Never pass `--authorized` without the human's explicit yes in the current conversation.** It applies to dependencies (`add-card --depends-on`, `link`) and to the model a card is worked with (`model --approved`). Ask first (say what and why), wait for the answer, then pass it.
-5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `init --add-config`. They are how the human keeps the last word.
+4. **Never pass `--authorized` without the human's explicit yes in the current conversation.** It applies to dependencies (`add-card --depends-on`, `link`) and to the model a card is worked with (`model --approved`). Ask first (say what and why), wait for the answer, then pass it. (The dependencies in a plan need no flag: the human's `plan approve` is the yes.)
+5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `init --add-config`. They are how the human keeps the last word.
 6. **Never run `histos arrange` unless the human asks for it in the current conversation.** It moves every card, including the ones they placed by hand.
 7. **Never take a card that is In progress for someone else.** `assign` refuses it; `--takeover` exists for a card whose worker is gone (e.g. a subagent that died), and you only use it when the human says so.
 
-**No permission needed** for: standalone cards (`add-card` without `--depends-on`), `assign`, `describe`, `classify`, `model --proposed`, `eval`, `propose`, `guide propose`, and reading (`status`, `diff`, `context`, `validate`).
+**No permission needed** for: standalone cards (`add-card` without `--depends-on`), `assign`, `describe`, `classify`, `model --proposed`, `eval`, `propose`, `guide propose`, `plan propose`, and reading (`status`, `diff`, `plan diff`, `context`, `validate`).
 
 If you're Claude Code: `content/**`, `project.canvas`, `PROJECT.md`, `ARCHITECTURE.md`, `histos.config.yaml` and `evals/**` are also denied in `.claude/settings.json` -- a rejected `Edit`/`Write`/`Bash` there is intentional, don't work around it.
 
@@ -29,16 +29,38 @@ If you're Claude Code: `content/**`, `project.canvas`, `PROJECT.md`, `ARCHITECTU
 | cyan | `"5"` | Dependency change request | reserved -- no command sets it; to change a dependency, ask (rule 4) |
 | green | `"4"` | Approved | done |
 
-## Starting a new project (vault with no cards yet)
+## Starting a new project: the interview
 
-If `histos status` shows no cards, don't jump into creating the index. Before the first `add-card`, ask the human:
+If `histos status` shows no cards, don't create any. Projects go back and forth when the idea never got across at the start: be a consultant, not a stenographer, with your strongest model (tier `reasoning`).
 
-1. **What the project is about** -- one sentence is enough.
-2. **What type of work it is**: research/experimental, literature review, code, or mixed.
-3. **Whether there's a mandatory structure** (university, journal or organization template) or we adjust a standard one together.
-4. **Whether checkpoints** (reviews with an advisor/editor/lead) should be cards of their own.
+1. **Listen** to the whole idea before proposing anything.
+2. **Ask in rounds** of at most 5 questions, most consequential first: what it's for, what gets delivered, what it is *not*, when it's done; then type of work, mandatory templates, review checkpoints. **Ask about a gap, never fill it** with a guess.
+3. **Push back.** Say what you'd change -- approach, pipeline, language or stack, scope, risks -- each with its reason and a concrete alternative, even when the human sounds sure; with no objections, say why the plan holds up. The human decides on each.
+   - Weak: *"Another language could also work."*
+   - Useful: *"In Python the parser needs a C extension to be fast enough; Rust avoids that, at the cost of a slower first week."*
+4. **Write `PROJECT.md`** and `histos guide propose` it (`histos eval PROJECT.md --file <draft>` is the dry run). Sections: goal, deliverable, audience, out of scope, done when, constraints, **what I understood** (in *your* words), **what I'd change and why**, decisions -- Spanish or English headings. Carry any "Decisions not yet in PROJECT.md" from `histos context` into it. For code, also `ARCHITECTURE.md`: stack, conventions, how to run the tests.
+5. **Only once `PROJECT.md` is approved, propose the plan.**
 
-Then propose a table of cards + dependencies (id, title, what it depends on) and ask for confirmation before creating anything with a dependency (rule 4). Create them in topological order. If the vault has no `histos.config.yaml` (created before v3), suggest the human run `histos init --add-config`.
+If the vault has no `histos.config.yaml` (created before v3), suggest the human run `histos init --add-config`.
+
+## Planning cards
+
+Propose the whole card table at once, as one plan the human approves or rejects -- no card exists until then:
+
+```yaml
+summary: How you cut the work and why -- the first thing the human reads.
+cards:
+  - id: dec-format
+    title: Decide the format
+    done_when: The format is approved and cod-format can implement it without questions.
+  - id: cod-format
+    title: Implement the format
+    description: optional, one line
+    done_when: Every command writes it, with tests.
+    depends_on: [dec-format]          # cards in this plan, or already on the board
+```
+
+`histos plan propose --file <plan.yaml>`, then walk the human through `histos plan diff`. Every `done_when` must be checkable -- "it works" isn't. No tier in the plan. After a `plan reject`, `plan diff` shows why: answer it in the next plan. Single cards later: `add-card --done-when`.
 
 ## Working a card
 
@@ -74,7 +96,9 @@ While they're away, **only work cards with an approved model.** If a reclassific
 
 ```
 histos status
-histos add-card <id> --title "..." [--description "..."] [--depends-on ID...] [--authorized]
+histos plan propose --file <plan.yaml>                 # the whole card table, for the human to approve
+histos plan diff
+histos add-card <id> --title "..." [--description "..."] [--done-when "..."] [--depends-on ID...] [--authorized]
 histos link <id> --depends-on ID [ID...] --authorized   # dependency on an EXISTING card (rule 4)
 histos describe <id> [--text "..."] [--sources PATH...]
 histos assign <id> [id...] [--worker NAME] [--by agent|human]
@@ -82,7 +106,7 @@ histos classify <id> [id...] | --all [--dry-run]       # tier and reason
 histos model <id> [id...] --proposed "..."              # your proposal
 histos model <id> [id...] --approved "..." --authorized # the human's yes (rule 4)
 histos context <id> [--for-subagent]
-histos eval <id> --file <draft.md>                      # dry run of the evals, no attempt spent
+histos eval <id>|PROJECT.md --file <draft.md>           # dry run of the evals, no attempt spent
 histos propose <id> --file <draft.md>                   # evals first; 3 attempts at most
 histos guide propose PROJECT.md|ARCHITECTURE.md --file <draft.md>
 histos diff <id>
