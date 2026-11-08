@@ -41,15 +41,29 @@ The desktop app covers the first six rows; the rest are yours too, but terminal-
 
    Either way, this creates `project.canvas` (with the color legend already in place), `content/`, the agent instructions (`AGENTS.md`, `CLAUDE.md`), `histos.config.yaml` and an `evals/` folder. Order matters: until these files exist, a new agent has no way of knowing this is a Histos project.
 
-3. **Optionally, write `PROJECT.md` and `ARCHITECTURE.md`** in the same folder: what the project is, and how it's written (style, citation format, structure — or, for code, the stack and conventions). The agent reads both before every card. After this, it can only *propose* changes to them (see [below](#projectmd-and-architecturemd)).
+3. **Open that same folder as a vault in Obsidian** — Canvas is a native feature, no plugin needed — and you'll see the board with the legend at the top. **Important:** the folder you open has to be exactly the one containing `project.canvas`, never one above it — otherwise Obsidian can't find the cards' `.md` files and you'll see them as "Create new note" instead of with content.
 
-4. **Open that same folder as a vault in Obsidian** — Canvas is a native feature, no plugin needed — and you'll see the board with the legend at the top. **Important:** the folder you open has to be exactly the one containing `project.canvas`, never one above it — otherwise Obsidian can't find the cards' `.md` files and you'll see them as "Create new note" instead of with content.
+4. **Open a new agent session** (a different window/conversation) with that folder as the working directory. Claude Code loads `CLAUDE.md` automatically on startup, which in turn imports all of `AGENTS.md` — you don't need to explain anything about Histos to it.
 
-5. **Open a new agent session** (a different window/conversation) with that folder as the working directory. Claude Code loads `CLAUDE.md` automatically on startup, which in turn imports all of `AGENTS.md` — you don't need to explain anything about Histos to it.
+5. **Tell it what the project is about**, in your own words — "I want to organize my thesis on X." The agent then interviews you (`AGENTS.md` tells it how): questions in short rounds, then its objections and alternatives, each with a reason. Answer them; it's how the idea gets across.
 
-6. **Tell it what the project is about**, nothing more — something natural like "I want to organize my thesis on X" or "help me set up this writing project." If `AGENTS.md` is doing its job, the agent asks what it's about, what type of work it is, whether there's a mandatory template, and whether review checkpoints make sense — and from that it proposes a card table with dependencies, which you can adjust before confirming.
+6. **Review the brief.** The agent proposes `PROJECT.md` — goal, deliverable, audience, what it's *not*, when it's done, constraints, its own "what I understood" and "what I'd change and why", and decisions. The evals refuse a brief missing any of these before you see it.
 
-7. **Refresh Obsidian (`Ctrl+R`) after the agent creates the cards.** The canvas gets edited from outside Obsidian, and Obsidian doesn't always notice on its own that `project.canvas` changed while you had it open.
+   ```bash
+   histos guide diff PROJECT.md                     # what it would write
+   histos guide approve PROJECT.md                  # or: histos guide reject PROJECT.md --feedback "..."
+   ```
+
+7. **Review the plan.** Once the brief is approved, the agent proposes every card at once:
+
+   ```bash
+   histos plan diff                                 # the cards, what runs in parallel, warnings
+   histos plan approve                              # creates them all -- or: histos plan reject --feedback "..."
+   ```
+
+   A rejection's `--feedback` is written into `PROJECT.md`'s decisions, so it isn't proposed again. Nothing is on the board until `plan approve`.
+
+8. **Refresh Obsidian (`Ctrl+R`) after the cards are created.** The canvas gets edited from outside Obsidian, and Obsidian doesn't always notice on its own that `project.canvas` changed while you had it open.
 
 ## Reading the board
 
@@ -138,6 +152,12 @@ histos guide approve PROJECT.md    # write it; the previous version goes to appr
 histos guide reject PROJECT.md --feedback "keep the scope as it is"
 ```
 
+The evals check proposed guides too: a `PROJECT.md` missing a required section, or with an empty "What I understood", never reaches you ([details](canvas-schema.md#evals)). Rejecting with `--feedback` — a guide or a plan — writes your reason into `PROJECT.md`'s decisions section, dated, and keeps the previous version in `approved/guides/` ([details](canvas-schema.md#guidance-files)).
+
+## The event log
+
+Every command that changes the vault records what it did in `.histos/events.jsonl`: who, when, which card, and every status change it caused — including how long cards wait for your review. Nothing is shown yet; it's the history that time estimates, the critical path and the project report will be built from (see the [roadmap](roadmap.md)), so it starts collecting from day one. It never leaves your machine. Format: [canvas-schema.md](canvas-schema.md#event-log).
+
 ## Keeping the board tidy
 
 **Nothing on the board moves on its own.** Approving a card only changes its color (and turns the cards that were waiting on it from red to purple). A new card lands one column to the right of its dependencies, at their height, without pushing anything else. Cards you dragged somewhere by hand stay exactly there. So as weeks go by, the board slowly drifts out of shape.
@@ -180,7 +200,7 @@ How much of this is enforced and how much is convention: see the [trust model](t
 histos init --add-config
 ```
 
-adds `histos.config.yaml` and `evals/` and touches nothing else. `init` never overwrites an existing `AGENTS.md`, so copy the new one over the old one by hand — from [`src/histos/templates/AGENTS.md`](../src/histos/templates/AGENTS.md) — or the agent won't know about tiers, models or evals. Cards created before v3 have no `content_hash`; `content_untouched` compares them with their approved copy instead, so nothing breaks.
+adds `histos.config.yaml` and `evals/` (and `evals/guides.yaml` to an `evals/` folder you already have) and touches nothing else. `init` never overwrites an existing `AGENTS.md`, so copy the new one over the old one by hand — from [`src/histos/templates/AGENTS.md`](../src/histos/templates/AGENTS.md) — or the agent won't know about tiers, models, evals, the interview or plans. Cards created before v3 have no `content_hash`; `content_untouched` compares them with their approved copy instead, so nothing breaks.
 
 ## Other useful commands
 
@@ -188,7 +208,8 @@ These are what the agent runs for itself — terminal/agent-only:
 
 - `histos describe <id> [--text "..."] [--sources path1 path2 ...]` — sets or changes a card's description and/or its list of external reference files (`.txt`, `.md`, `.tex`, `.docx` — e.g. the Word doc with your bibliography). Paths can be anywhere on disk. `--sources` replaces the whole list. It doesn't touch content, so it doesn't need approval.
 - `histos context <id>` — bundles into one block of text: the card's description, tier and model, sources and your rejection feedback; the same for each dependency (plus its approved content), including the ones `arrange` stopped drawing; and `PROJECT.md`/`ARCHITECTURE.md`. `--for-subagent` wraps it in a brief for a subagent.
-- `histos eval <id> --file <draft>` — runs the evals on a draft without proposing it, so the agent can check its work without spending an attempt.
+- `histos eval <id> --file <draft>` — runs the evals on a draft without proposing it, so the agent can check its work without spending an attempt. `histos eval PROJECT.md --file <draft>` does the same for a guide.
+- `histos add-card <id> --title "..." --done-when "..."` — a single card outside a plan, with a checkable criterion for when it's done.
 - `histos link <id> --depends-on ID [ID...] --authorized` — for a dependency discovered after the card was created.
 
 **Sources aren't picked up by location.** Having a Word doc or a `.tex` open in the vault folder doesn't make it get used: you register the path once with `describe --sources`, and `context` uses it from then on. That's deliberate — without the registration there's no reliable way to know which loose file belongs to which card.

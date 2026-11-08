@@ -8,8 +8,13 @@ The agent proposes, you approve — and your time goes into deciding, not into d
 
 ## 2. Starting a project
 
-- **Write `PROJECT.md` and `ARCHITECTURE.md` before the first card.** `PROJECT.md` says what the project is (goal, scope, audience); `ARCHITECTURE.md` says how it's written — for a thesis, structure, register and citation format; for code, stack and conventions. Every card the agent works starts from these two. Ten lines each is plenty.
-- **Let the agent interview you, then correct its card table before anything is created.** Cheap to fix in a table, tedious to fix on a board.
+Every misunderstanding at the start costs cards later — that's why the start is the strictest part of Histos.
+
+- **Let the agent interview you, and argue back.** It asks in short rounds, the questions that could sink the project first, and then says what it would change and why: a different approach, a broken pipeline, a better language. That's the point, not insubordination. Answer each objection — accept it or say why not — instead of skipping past it.
+- **Read "What I understood" first.** The `PROJECT.md` it proposes restates your project in its own words. If that paragraph is off, everything after it will be too: reject with `--feedback` and say what it got wrong.
+- **Reject with a reason.** `guide reject` and `plan reject` with `--feedback` write your reason into `PROJECT.md`'s decisions, dated, so no agent proposes the same thing again — even a fresh one weeks later.
+- **Review the plan as a whole.** `histos plan diff` shows the cards, what can run in parallel and any warnings. Fix the plan before approving it — cheap in a table, tedious on a board. Nothing exists until you run `plan approve`.
+- **`ARCHITECTURE.md` too**, for anything with conventions: for a thesis, structure, register and citation format; for code, stack, conventions and how to run the tests.
 - **Old vault?** `histos init --add-config`, and copy the current `AGENTS.md` over the old one (see [usage.md](usage.md#upgrading-a-vault-from-v2)).
 
 ## 3. Cutting the work into cards
@@ -17,7 +22,7 @@ The agent proposes, you approve — and your time goes into deciding, not into d
 - **One card, one proposal you can review in one sitting.** If reviewing it would take you more than a few minutes, it's two cards.
 - **Decisions are cards of their own, and they come first.** A choice that other work depends on — a structure, a method, a library, a scope cut — gets a `dec-` card the others depend on. An approved decision is cheap; a decision discovered halfway through a chapter or a module means redoing it.
 - **Use a type prefix in ids:** `dec-` (decision), `cod-` (code), `doc-` (docs/writing), `pru-` (a real-world test), `rel-` (release) — or `cap1`, `cap2` for chapters. The board reads at a glance, and evals can target types (`only: ["cap*"]`, `except: ["cod-*"]`).
-- **Give each card a real description**, a sentence or two about what "done" means. It's what the agent works from, and it's most of what `classify` has to pick a tier: "Compare the three main approaches and their trade-offs" gets `reasoning`; "Results" gets a guess.
+- **Give each card a real description and a checkable `done_when`** ("the tests of X pass in CI", not "it works"). It's what the agent works from, and it's most of what `classify` has to pick a tier: "Compare the three main approaches and their trade-offs" gets `reasoning`; "Results" gets a guess.
 - **Dependencies only where they're real.** A card should depend on another only if it can't be done well without that one's approved content. Over-linking blocks work for nothing; `arrange` hides redundant arrows anyway.
 
 ## 4. The rhythm
