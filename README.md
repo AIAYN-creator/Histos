@@ -226,12 +226,41 @@ Model routing by tier, subagents with an isolated context, and deterministic eva
 
 - Addressing GUI bugs and implementing minor features identified during beta testing.
 
+### v3.1 — in development: a stricter start, and measuring from day one
+
+Two problems from real use. Projects went back and forth because the idea never got across well at the start. And estimates, metrics and unattended work all need history that Histos doesn't record yet. Since data only exists from the day the recording ships, recording goes first.
+
+- **Event log.** Every command that changes the vault appends an event to a per-vault log, inside the vault lock and atomically: assign, propose, each eval attempt, approve, reject (with its reason), takeover, model and tier changes. It records everything, including how long a card waits for human review: the time that matters is time until approved. The data stays on the user's machine, with no telemetry; the format will be documented so it can be exported.
+- **An interviewer that pushes back.** `PROJECT.md` gets required sections: goal, deliverable, audience, what the project is *not*, when it's done, constraints, *what I understood* (the agent restates the project in its own words), *what I'd change and why* (objections and alternatives with their reasons — a better approach, a broken pipeline, a better-suited language), and decisions. The evals now run on `guide propose` too, so a vague brief never reaches the human. The agent acts as a consultant, not a stenographer: it asks about gaps instead of filling them, and argues against what it thinks is badly framed.
+- **Planning as one reviewable plan.** `histos plan propose/diff/approve/reject`: the agent proposes the whole card table (cards, dependencies, a "done when" line per card, initial tier) and no card exists until the human approves it. `plan diff` warns about cycles, loose cards, cards without a done criterion, very long chains and duplicate ids. Rejection reasons for the plan and the guides go into the decisions section, which every agent then sees in `histos context`.
+
+### v3.2 — planned: estimates and the critical path
+
+- **Estimates from your own history, never from the agent's guess** (models are bad at estimating how long their own work takes). Each card is estimated from the median and percentiles of similar closed cards (same tier, type and size), using a history kept across all your vaults. With no history it says "no data" instead of inventing a number.
+- **The critical path drawn on the canvas.** A card's color is its status, so the critical path goes on the *arrows* (a canvas edge has its own color): one command marks it, another clears it. Before any durations exist it's the longest chain of cards; with them, the longest chain in time until approved, human review included.
+
+### v3.3 — planned: project metrics and the final report
+
+- **`histos report`** writes a Markdown report into the vault when a project closes. It includes a Gantt chart drawn by Obsidian from a [Mermaid](https://mermaid.js.org/) block (no plugins, no images) and a three-point PERT whose estimates come from the history's percentiles.
+- **Metrics:** actual vs. estimated time, rejection rate per tier and per model, eval attempts, time waiting for review, and how far the critical path drifted. This also gives the tier heuristics real outcomes to be calibrated against. New metrics ship as patch releases (v3.3.x).
+
+### v4.0 — planned: yolo mode
+
+Unattended work from backlog to merged-ready branch. It's a major version because it changes the trust model: for the first time someone other than the human approves.
+
+- **Only a human starts it**, typing `histos yolo start` in a terminal, with the same protections as `approve`. It stays on until the backlog is empty, with no card or round limits.
+- **Three roles:** an orchestrator picks and approves a model for each backlog card and assigns it, a builder writes the proposal, and a reviewer approves or rejects it on its own judgment. Histos refuses to let the reviewer be the agent that built the card. Approvals are marked as an agent's (`approved_by: agent:…`).
+- **Never on `main`:** approved work is committed and pushed to a parallel `yolo` branch of the project's code repository. If the human doesn't like it, they don't merge it.
+- **A token budget** is the stop condition, so a finished project never comes with an empty quota. Histos can't see tokens itself; how to measure them is still being decided (a Claude Code hook reading the session transcript, agent-reported usage, or the weekly usage percentage if the platform exposes it).
+- **Iteration is the point:** failing evals don't stop the loop. Only a card that can never pass gets parked for the human, and the loop moves on to the others.
+- **Resumable** after a dropped connection or a dead battery: the yolo state lives on disk, `histos yolo resume` picks up where it stopped, and cards left In progress are recovered with `--takeover`.
+- **Off limits:** yolo never touches `PROJECT.md`, `ARCHITECTURE.md`, `histos.config.yaml` or `evals/`.
+
 ## Future directions
 
 Ideas for later versions, none committed yet — roughly from most to least likely:
 
 - **The desktop app catches up with v3:** each card's tier, model and evals on the overview; approving the models of a queue and the guide changes from the app; `retry` and `accept-edit` as buttons.
-- **Calibrating tiers from real outcomes.** Every card already records its tier, approved model, attempts and approval; a `histos stats` could show, per tier and model, how often proposals pass the evals at the first attempt and get approved — and suggest rule changes from that, instead of from heuristics alone. The reserved duration fields fit here too.
 - **More eval checks**, still deterministic: citation keys that resolve against a `references.bib`, links and images that exist, a maximum length per section, and — opt-in, for code projects — running the project's own test command on a proposal.
 - **Permissions for other agents.** Generate the equivalent of the Claude Code deny list for Codex CLI and Gemini CLI from the same rules.
 - **An MCP server** exposing the Histos commands as structured tools, so agents call them directly instead of through a shell — clearer for the agent, and a narrower surface than shell access.
@@ -254,6 +283,6 @@ What's published in this repo is the **tool** (CLI, desktop app, vault format, a
 
 ## Open questions
 
-- **How much signal the tier heuristics can get from one-line card descriptions.** The calibration shows a reasonable split with visible misses; richer descriptions help, and calibrating from real outcomes (see [Future directions](#future-directions)) is the likely next step.
-- **Project brief format — mostly resolved:** `PROJECT.md` (what) and `ARCHITECTURE.md` (how) are both included as-is, and change only through `histos guide`. Still open: whether a recommended structure for them would help agents more than free text.
+- **How much signal the tier heuristics can get from one-line card descriptions.** The calibration shows a reasonable split with visible misses; richer descriptions help, and calibrating from real outcomes (see [v3.3](#v33--planned-project-metrics-and-the-final-report)) is the likely next step.
+- **Project brief format — mostly resolved:** `PROJECT.md` (what) and `ARCHITECTURE.md` (how) are both included as-is, and change only through `histos guide`. v3.1 gives `PROJECT.md` a required structure; whether `ARCHITECTURE.md` needs one too is still open.
 - **Folder structure — partially resolved:** cards live in `content/<id>.md` (see [`docs/canvas-schema.md`](docs/canvas-schema.md)); additional subfolders like `content/drafts/` remain open.
