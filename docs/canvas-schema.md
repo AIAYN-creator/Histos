@@ -15,9 +15,11 @@ A complete vault to look at: [`examples/sample-paper/`](../examples/sample-paper
 │   └── <id>.md              # one card = one file (its current, approved version)
 ├── proposals/
 │   ├── <id>.md              # a draft waiting for approve/reject
+│   ├── plan.yaml            # a pending plan of cards (v3.1)
 │   └── guides/              # a pending change to PROJECT.md or ARCHITECTURE.md
 ├── approved/
 │   ├── <id>.md              # the draft exactly as it was approved (rejected drafts are NOT kept)
+│   ├── plans/               # every approved plan, by date (v3.1)
 │   └── guides/              # each version of PROJECT.md / ARCHITECTURE.md an approval replaced
 ├── histos.config.yaml       # tier rules and evals settings (v3)
 ├── evals/                   # the evals run on every propose (v3)
@@ -211,6 +213,30 @@ Each `.yaml`/`.yml` file in `evals/` is a list of evals; `histos propose` runs e
 ## Guidance files
 
 `PROJECT.md` (what the project is) and `ARCHITECTURE.md` (how it's written: style, conventions, stack) are optional; when they exist, `histos context` appends both, in that order. Only the human changes them: the agent proposes a new version with `histos guide propose <file> --file <draft>`, and the human runs `histos guide approve` (the previous version goes to `approved/guides/<name>-<date-time>.md`) or `histos guide reject --feedback "..."` (which `histos context` then shows).
+
+## Plans
+
+A plan is a whole card table proposed at once: `histos plan propose --file <plan.yaml>` (agent), `histos plan diff` (anyone), then `histos plan approve` or `histos plan reject --feedback "..."` (human). No card exists until the plan is approved.
+
+```yaml
+summary: >
+  How the work is cut and why -- the first thing the human reads.
+cards:
+  - id: dec-format                  # required; same rules as add-card
+    title: Decide the format        # required
+    description: One line.          # optional
+    done_when: The format is approved and cod-format can implement it without questions.   # required
+  - id: cod-format
+    title: Implement the format
+    done_when: Every command writes it, with tests.
+    depends_on: [dec-format]        # cards in this plan, or already on the board
+```
+
+- **No tier in the plan:** a card is classified right before it's worked (`histos classify`), since its tier depends on the approved content of its dependencies.
+- **Refused on propose** (and checked again on approve, in case the board changed): unknown keys (a typo like `depend_on` never passes silently), a missing `summary`, `id`, `title` or `done_when`, invalid or repeated ids, ids already on the board, dependencies that exist nowhere, and cycles. All errors are listed at once.
+- **`plan approve`** creates every card in dependency order with one canvas save — all or nothing: if anything fails, no card and no file is left behind, and an existing `content/<id>.md` is never overwritten. Approving the plan is the authorization for its dependencies, so no `--authorized` is involved. The plan is kept in `approved/plans/<date-time>.yaml`.
+- **`done_when`** goes into the card's frontmatter and initial body, and `histos context` shows it; `add-card --done-when "..."` sets it on a single card.
+- One plan is pending at a time: proposing another replaces it. A rejection's feedback is shown by `histos plan diff` until the next plan is proposed.
 
 ## Event log
 
