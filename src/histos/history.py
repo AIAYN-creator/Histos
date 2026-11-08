@@ -10,7 +10,9 @@ v3.2 vault, dec-tiempos):
   different workers, so their work does run in parallel. A takeover doesn't cut the clock.
 - After the last allowed eval attempt fails, the card waits for the human's `retry`: that stretch
   is review time, not the agent's.
-- Review time is every stretch in "Proposal pending review", wall-clock (nights included).
+- Review time is every stretch in "Proposal pending review", measured twice: on the calendar
+  (`review_hours`, nights included) and active (`review_active_hours`), leaving out the hours the
+  human was away -- their `histos pause` until their next decision (pauses.py).
 - Time in Backlog or Blocked counts for neither.
 - A card already In progress or in review when the log starts gives no sample (its start is
   unknown); a card whose colors changed by hand during its life is `approximate`.
@@ -38,7 +40,8 @@ class Sample:
     card: str
     approved_at: datetime
     agent_hours: float
-    review_hours: float
+    review_hours: float          # calendar time waiting for the human
+    review_active_hours: float   # the same, minus the human's pauses
     rounds: int
     rejections: int
     tier: str | None
@@ -54,6 +57,7 @@ class Progress:
     state: str | None
     agent_hours: float
     review_hours: float
+    review_active_hours: float
 
 
 @dataclass
@@ -66,7 +70,7 @@ class _Card:
     wait_open: datetime | None = None   # waiting for the human's retry
     review_open: datetime | None = None
     agent_s: float = 0.0
-    review_s: float = 0.0
+    review_spans: list[tuple[datetime, datetime]] = field(default_factory=list)
     rounds: int = 0
     rejections: int = 0
     tier: str | None = None
@@ -138,7 +142,7 @@ class _Replay:
                 else:
                     self.last_done[c.worker] = (now, card_id)
             elif name == "retry" and c.wait_open is not None:
-                c.review_s += (now - c.wait_open).total_seconds()
+                c.review_spans.append((c.wait_open, now))
                 c.wait_open = None
                 c.agent_open = now
         outside = name == "state_recomputed" and data.get("seen_outside_histos")
@@ -156,13 +160,13 @@ class _Replay:
         if old == _IN_PROGRESS and new != _IN_PROGRESS:
             self._close_agent(card_id, c, now)
             if c.wait_open is not None:  # left In progress while waiting for a retry
-                c.review_s += (now - c.wait_open).total_seconds()
+                c.review_spans.append((c.wait_open, now))
                 c.wait_open = None
         if new == _REVIEW and old != _REVIEW:
             c.review_open = now
             c.rounds += 1
         if old == _REVIEW and new != _REVIEW and c.review_open is not None:
-            c.review_s += (now - c.review_open).total_seconds()
+            c.review_spans.append((c.review_open, now))
             c.review_open = None
             if new == "Backlog":
                 c.rejections += 1
@@ -186,10 +190,35 @@ def _vault_id(vault_root: Path) -> str:
         return str(vault_root.resolve())
 
 
-def vault_samples(vault_root: Path) -> list[Sample]:
-    """One sample per card approved in this vault whose whole life is in its log."""
+def _pause_spans(home: Path | None, now: datetime) -> list[tuple[datetime, datetime]]:
+    from . import pauses  # pauses -> events, like this module
+
+    return [(p.start, p.end or now) for p in pauses.read(home)]
+
+
+def _hours(spans: list[tuple[datetime, datetime]]) -> float:
+    return sum(max(0.0, (end - start).total_seconds()) for start, end in spans) / 3600
+
+
+def _active_hours(spans: list[tuple[datetime, datetime]], away: list[tuple[datetime, datetime]]) -> float:
+    """Hours of `spans` that fall outside every `away` span."""
+    total = 0.0
+    for start, end in spans:
+        seconds = max(0.0, (end - start).total_seconds())
+        for a_start, a_end in away:
+            overlap = (min(end, a_end) - max(start, a_start)).total_seconds()
+            if overlap > 0:
+                seconds -= overlap  # pauses never overlap each other: one pause at a time
+        total += max(0.0, seconds)
+    return total / 3600
+
+
+def vault_samples(vault_root: Path, home: Path | None = None) -> list[Sample]:
+    """One sample per card approved in this vault whose whole life is in its log. The human's
+    pauses come from `home` (default: HISTOS_HOME or ~/.histos)."""
     replay = _replay(vault_root)
     vault = _vault_id(vault_root)
+    away = _pause_spans(home, datetime.now(timezone.utc))
     result = []
     for card_id, c in replay.cards.items():
         if c.approved_at is None or c.incomplete or c.rounds == 0:
@@ -197,7 +226,8 @@ def vault_samples(vault_root: Path) -> list[Sample]:
         kinds = c.worker_kinds - {""}
         result.append(Sample(
             vault=vault, card=card_id, approved_at=c.approved_at,
-            agent_hours=c.agent_s / 3600, review_hours=c.review_s / 3600,
+            agent_hours=c.agent_s / 3600, review_hours=_hours(c.review_spans),
+            review_active_hours=_active_hours(c.review_spans, away),
             rounds=c.rounds, rejections=c.rejections, tier=c.tier,
             model=c.model or c.model_after, dependencies=len(c.deps),
             worker_kind="sub" if "sub" in kinds else ("parent" if "parent" in kinds else None),
@@ -206,22 +236,22 @@ def vault_samples(vault_root: Path) -> list[Sample]:
     return sorted(result, key=lambda s: s.approved_at)
 
 
-def open_progress(vault_root: Path, now: datetime | None = None) -> dict[str, Progress]:
+def open_progress(vault_root: Path, now: datetime | None = None, home: Path | None = None) -> dict[str, Progress]:
     """For each card that isn't approved: its state and the agent/review time it has so far."""
     now = now or datetime.now(timezone.utc)
     replay = _replay(vault_root)
+    away = _pause_spans(home, now)
     result = {}
     for card_id, c in replay.cards.items():
         if c.state in (None, _APPROVED):
             continue
-        agent, review = c.agent_s, c.review_s
+        agent = c.agent_s
         if c.agent_open is not None:
             agent += max(0.0, (now - c.agent_open).total_seconds())
-        if c.wait_open is not None:
-            review += max(0.0, (now - c.wait_open).total_seconds())
-        if c.review_open is not None:
-            review += max(0.0, (now - c.review_open).total_seconds())
-        result[card_id] = Progress(state=c.state, agent_hours=agent / 3600, review_hours=review / 3600)
+        spans = list(c.review_spans)
+        spans += [(start, now) for start in (c.wait_open, c.review_open) if start is not None]
+        result[card_id] = Progress(state=c.state, agent_hours=agent / 3600, review_hours=_hours(spans),
+                                   review_active_hours=_active_hours(spans, away))
     return result
 
 
@@ -250,7 +280,7 @@ def samples(home: Path | None = None, skipped: list[str] | None = None) -> list[
             continue
         seen.add(vault)
         try:
-            result += vault_samples(vault_root)
+            result += vault_samples(vault_root, home)
         except (OSError, ValueError, KeyError) as e:
             if skipped is not None:
                 skipped.append(f"{vault_root}: {e}")

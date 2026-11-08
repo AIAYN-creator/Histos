@@ -188,7 +188,36 @@ def test_open_progress(tmp_path):
     progress = history.open_progress(tmp_path, now)
     assert (progress["w"].state, progress["w"].agent_hours, progress["w"].review_hours) == (P, 2.0, 0.0)
     assert (progress["r"].state, progress["r"].agent_hours, progress["r"].review_hours) == (R, 1.0, 3.0)
-    assert progress["todo"] == history.Progress(B, 0.0, 0.0)
+    assert progress["r"].review_active_hours == 3.0  # never paused
+    assert progress["todo"] == history.Progress(B, 0.0, 0.0, 0.0)
+
+
+# 13. The human's pauses come out of the active review time, never the agent's or the calendar's
+def write_pauses(*spans):
+    home = events.home()
+    home.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for start, end in spans:
+        lines.append(json.dumps({"event": "pause", "ts": start}))
+        if end:
+            lines.append(json.dumps({"event": "resume", "ts": end, "by": "approve"}))
+    (home / "pauses.jsonl").write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+
+
+def test_a_night_away_is_not_review_time(tmp_path):
+    write_log(tmp_path, [created(at("20:00"), "a"), assign(at("21:00"), "a"),
+                         propose(at("22:00"), "a"), approve(at("08:00", day=2), "a")])
+    write_pauses((at("21:30"), at("21:45")), (at("23:00"), at("07:00", day=2)))  # 1st: during the agent's work
+    s = one(tmp_path)
+    assert (s.agent_hours, s.review_hours, s.review_active_hours) == (1.0, 10.0, 2.0)
+
+
+def test_an_open_pause_counts_until_now(tmp_path):
+    write_log(tmp_path, [created(at("09:00"), "r"), assign(at("09:00"), "r"), propose(at("10:00"), "r")])
+    write_pauses((at("11:00"), None))
+    now = datetime(2026, 12, 1, 15, 0, tzinfo=timezone.utc)
+    progress = history.open_progress(tmp_path, now)["r"]
+    assert (progress.review_hours, progress.review_active_hours) == (5.0, 1.0)
 
 
 # 12. The log the CLI really writes is the log this module reads
