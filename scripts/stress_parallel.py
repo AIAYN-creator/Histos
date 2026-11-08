@@ -20,7 +20,15 @@ for project.canvas and the vault lock. Then it checks the invariants:
   carrying the Histos color are exactly those of the path that nobody else colored, and they
   are the ones noted in .histos/critical-path.json (every noted arrow exists with the Histos
   color, no arrow has it without being noted);
-- repainting is not an event: the log has no event of a type outside events.EVENTS.
+- repainting is not an event: the log has no event of a type outside events.EVENTS;
+- the human's arrows survive: one more worker, the "human", recolors arrows during the rounds the
+  way Obsidian does (rewrites project.canvas without going through histos); at the end every
+  arrow it colored still has exactly its color and is not in the ledger -- Histos never paints
+  over them or takes them back, even while it repaints the path under eight agents.
+  Unlike Obsidian, the human holds the vault lock for its read-modify-write (not for the
+  repaint), only so its write can't clobber an agent's card update and make the lost-update
+  invariants fail for a reason that isn't a Histos bug. What is left to race is what matters:
+  the human's color landing between any two commands, each of which may repaint.
 
 It sets HISTOS_HOME to a temp folder, so it never writes to the real ~/.histos.
 
@@ -46,7 +54,8 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
-from histos import canvas, config, critical, events, frontmatter, operations  # noqa: E402
+from histos import canvas, config, critical, events, frontmatter, lock, operations  # noqa: E402
+from histos.fsutil import write_text_atomic  # noqa: E402
 
 CARDS_PER_WORKER = 4
 CONTESTED = 3
@@ -54,6 +63,7 @@ TS_TOLERANCE_S = 0.05
 # Events one successful operation records each (the script's ops -> these names). `classify` is
 # not counted: it only records when something changed.
 COUNTED_EVENTS = frozenset({"assigned", "described", "model_proposed", "proposed", "proposal_refused"})
+HUMAN_COLORS = ("4", "2", "#00FF00")  # Obsidian presets and a custom one: none is the Histos color
 GOOD_DRAFT = "Un borrador completo con bastantes palabras para pasar las evals sin problema.\n"
 BAD_DRAFT = "Falta esto: TODO\n"
 
@@ -75,6 +85,9 @@ class Report:
     busy: int = 0
     events: Counter = field(default_factory=Counter)  # events the successful operations should have recorded
     lock: threading.Lock = field(default_factory=threading.Lock)
+    human_colored: dict[str, str] = field(default_factory=dict)  # arrow id -> the color the human last gave it
+    human_actions: int = 0
+    human_hit_painted: int = 0  # times the human recolored an arrow Histos had painted
 
 
 def histos(vault: Path, *argv: str) -> subprocess.CompletedProcess:
@@ -176,6 +189,52 @@ def worker(vault: Path, name: str, cards: list[str], contested: list[str], round
                 expect("assigned")
                 with report.lock:
                     wins.setdefault(target, []).append(name)
+
+
+def human(vault: Path, seed: int, stop: threading.Event, report: Report) -> None:
+    """Recolors arrows by hand, as Obsidian would: it rewrites project.canvas directly, with no
+    histos process. It works on half of the arrows, always including a painted one, and leaves
+    the last painted one alone, so Histos still has something of its own to get right at the end."""
+    rng = random.Random(f"{seed}-human")
+    path = canvas.vault_canvas_path(vault)
+    first = json.loads(path.read_text(encoding="utf-8")).get("edges", [])
+    mine = [e["id"] for e in first if (e.get("color") or "").upper() == config.CRITICAL_PATH_COLOR]
+    spared = mine[-1] if mine else None
+    others = [e["id"] for e in first if e["id"] != spared]
+    ids = set(rng.sample(others, max(1, len(others) // 2))) | set(mine[:1] if len(mine) > 1 else [])
+    while True:
+        with lock.file_lock(lock.lock_path(vault), "human recolors an arrow"):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            edges = [e for e in data.get("edges", []) if e["id"] in ids]
+            painted = [e for e in edges if (e.get("color") or "").upper() == config.CRITICAL_PATH_COLOR]
+            pool = painted if painted and rng.random() < 0.5 else edges
+            if pool:
+                edge = rng.choice(pool)
+                if (edge.get("color") or "").upper() == config.CRITICAL_PATH_COLOR:
+                    report.human_hit_painted += 1
+                edge["color"] = rng.choice(HUMAN_COLORS)
+                write_text_atomic(path, json.dumps(data, indent=2) + "\n")
+                report.human_colored[edge["id"]] = edge["color"]
+                report.human_actions += 1
+        if stop.wait(rng.uniform(0.05, 0.4)):
+            return
+
+
+def check_human(vault: Path, report: Report) -> list[str]:
+    """Every arrow the human colored still has the color it gave it, and Histos never noted it.
+    (A color can't be lost to a concurrent save here: the human writes under the vault lock.)"""
+    problems = []
+    edges = {e["id"]: e for e in canvas.load(vault)["edges"]}
+    ledger = critical._read_ledger(vault) or {}
+    for eid, color in sorted(report.human_colored.items()):
+        edge = edges.get(eid)
+        if edge is None:
+            problems.append(f"human: arrow {eid} is gone")
+        elif edge.get("color") != color:
+            problems.append(f"human: arrow {eid} was colored {color!r} by hand, but ends {edge.get('color')!r}")
+        if eid in ledger:
+            problems.append(f"human: arrow {eid} is the human's, but the ledger still notes it")
+    return problems
 
 
 def _parse_ts(ts: str) -> datetime:
@@ -319,6 +378,7 @@ def check(vault: Path, owned: dict[str, list[str]], contested: list[str], expect
 
     problems += check_events(vault, report, setup_events, initial or {}, contested, wins)
     problems += check_critical(vault)
+    problems += check_human(vault, report)
 
     leftovers = [str(p.relative_to(vault)) for p in vault.rglob("*.tmp")]
     if leftovers:
@@ -349,10 +409,15 @@ def run(workers: int, rounds: int, seed: int, keep: bool = False, quiet: bool = 
                                                   expected, wins, report, drafts))
             for name, cards in owned.items()
         ]
-        for t in threads:
+        stop = threading.Event()
+        human_thread = threading.Thread(target=human, args=(vault, seed, stop, report))
+        for t in threads + [human_thread]:
             t.start()
         for t in threads:
             t.join()
+        stop.set()
+        human_thread.join()
+        histos(vault, "status")  # a repaint to settle on: the last command may not have changed the canvas
         elapsed = time.monotonic() - start
         problems = check(vault, owned, contested, expected, wins, report, setup_events, initial)
         if not quiet:
@@ -360,6 +425,8 @@ def run(workers: int, rounds: int, seed: int, keep: bool = False, quiet: bool = 
             for op in sorted(report.ops):
                 print(f"  {op:9s} {report.ops[op]:4d}  ok {report.ok[op]:4d}  refused {report.refused[op]:4d}")
             print(f"  'vault is busy' timeouts: {report.busy}")
+            print(f"  human: {report.human_actions} arrows recolored by hand "
+                  f"({report.human_hit_painted} of them painted by Histos), {len(report.human_colored)} distinct")
             print(f"  contested cards won: {sum(len(v) for v in wins.values())} of {len(contested)}")
             print("invariants: OK" if not problems else "invariants: FAILED\n  " + "\n  ".join(problems))
             if keep:
