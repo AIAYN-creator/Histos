@@ -2,6 +2,12 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.1.2] - 2026-11-08
+
+### Added
+
+- **`histos pause`: you're away.** Going to sleep, onto something else, leaving the agent an AFK queue -- run it once, from any vault. Until your next decision (`approve`, `reject`, `retry`, `accept-edit`, a guide's or a plan's approve/reject, `arrange`, from the terminal or the desktop app), the time cards wait for your review isn't your reviewing time, in any vault. There's no resume command: deciding something means you're back. Commands the agent runs too (`status`, `context`...) never end a pause, and the agent's own time keeps counting. The pauses are kept in `~/.histos/pauses.jsonl`, next to the vault registry, so the estimates coming in 3.2 can tell the hours you reviewed from the hours you were away. `histos status` shows when you're paused; `AGENTS.md` makes `pause` a human-only command and has the agent remind you of it before an AFK queue.
+
 ## [3.1.1] - 2026-11-08
 
 ### Fixed
@@ -127,6 +133,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.1.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.2
 [3.1.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.1
 [3.1.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.0
 [3.0.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.0.0
