@@ -273,6 +273,11 @@ def registered_vaults(home: Path | None = None) -> list[Path]:
     return [Path(v["path"]) for v in entries or [] if isinstance(v, dict) and isinstance(v.get("path"), str)]
 
 
+def vault_names(home: Path | None = None) -> dict[str, str]:
+    """Vault id -> the name of its folder, for showing a sample's origin (ids are UUIDs)."""
+    return {_vault_id(p): p.resolve().name for p in registered_vaults(home) if events.log_path(p).exists()}
+
+
 def samples(home: Path | None = None, skipped: list[str] | None = None) -> list[Sample]:
     """Samples from every registered vault, each vault once. Vaults that are gone or whose log
     can't be read are left out and named in `skipped` (when given) -- never an error."""

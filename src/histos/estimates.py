@@ -176,6 +176,61 @@ def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies:
     return CardEstimate(agent=agent, review=estimate(rows, review_groups(type_), review_value))
 
 
+# --- Coverage ------------------------------------------------------------------------------
+
+TIER_ORDER = ("fast", "exec", "reasoning")  # cheapest first, for listings
+OUTLIER_AGENT_HOURS = 7 * 24  # an agent stretch longer than this looks forgotten In progress (dec-tiempos)
+
+
+def _members(group: Group, rows: list[Row]) -> int:
+    return sum(1 for r in rows if _matches(group, r.key))
+
+
+def _sort_key(group: Group) -> tuple:
+    tier, type_, deps = group
+    return (TIER_ORDER.index(tier) if tier in TIER_ORDER else len(TIER_ORDER), tier or "",
+            type_ == ANY, type_ if type_ != ANY else "", deps == ANY, deps if deps != ANY else 0)
+
+
+def _coverage(rows: list[Row], ladders: list[list[Group]]) -> list[tuple[Group, int]]:
+    """Every group of the given ladders (one per row), with how many rows it holds. Only groups
+    some row belongs to appear, ordered by tier, then type, then deps (the most specific first)."""
+    found = {group for ladder in ladders for group in ladder}
+    return sorted(((g, _members(g, rows)) for g in found), key=lambda item: _sort_key(item[0]))
+
+
+def agent_coverage(rows: list[Row]) -> list[tuple[Group, int]]:
+    """The groups agent estimates use (agent_groups), with their sample counts. A sample without
+    a tier belongs to no group, as in `for_card`."""
+    return _coverage(rows, [agent_groups(r.sample.tier, r.type, r.sample.dependencies)
+                            for r in rows if r.sample.tier])
+
+
+def review_coverage(rows: list[Row]) -> list[tuple[Group, int]]:
+    """The groups review estimates use (review_groups), with their sample counts."""
+    return _coverage(rows, [review_groups(r.type) for r in rows])
+
+
+def group_label(group: Group) -> str:
+    tier, type_, deps = group
+    parts = [tier] if tier != ANY else []
+    if type_ != ANY:
+        parts.append(type_)
+    if deps != ANY:
+        parts.append(f"{deps}{'+' if deps == 2 else ''} dep{'' if deps == 1 else 's'}")
+    return " · ".join(parts) or "all cards"
+
+
+def still_needed(count: int) -> int:
+    return max(0, MIN_SAMPLES - count)
+
+
+def outliers(samples: list[Sample]) -> list[Sample]:
+    """Samples whose agent time looks wrong (OUTLIER_AGENT_HOURS), longest first."""
+    return sorted((s for s in samples if s.agent_hours > OUTLIER_AGENT_HOURS),
+                  key=lambda s: -s.agent_hours)
+
+
 # --- Showing durations ---------------------------------------------------------------------
 
 def format_hours(hours: float) -> str:

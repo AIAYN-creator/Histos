@@ -242,12 +242,25 @@ def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardE
     except (OSError, ValueError, KeyError):
         found, card_ids = [], {}  # no history is never an error: every card just has no data
     rows = estimates.typed(found, card_ids)
+
+    result = {}
+    for card, md_path, meta, body, card_estimate in estimate_open_cards(vault_root, data, rows):
+        result[card["id"]] = card_estimate
+        if md_path.exists():
+            _store_estimate(md_path, meta, body, card_estimate)
+    return result
+
+
+def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row]) -> list[tuple]:
+    """Read-only: for each open (not Approved) card, `(card, md_path, meta, body, estimate)` --
+    the same figures `status` shows. Nothing is written; refresh_estimates stores them, and the
+    coverage report only counts them."""
     types = estimates.card_types([c["id"] for c in canvas.cards(data)])
     declared: dict[str, set[str]] = {}
     for edge in canvas.dependency_edges(data):
         declared.setdefault(edge["toNode"], set()).add(edge["fromNode"])
 
-    result = {}
+    result = []
     for card in canvas.cards(data):
         if card["color"] == canvas.APPROVED:
             continue
@@ -255,10 +268,48 @@ def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardE
         meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
         dependencies = declared.get(card["id"], set()) | set(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
         card_estimate = estimates.for_card(rows, meta.get("proposed_tier"), types.get(card["id"]), len(dependencies))
-        result[card["id"]] = card_estimate
-        if md_path.exists():
-            _store_estimate(md_path, meta, body, card_estimate)
+        result.append((card, md_path, meta, body, card_estimate))
     return result
+
+
+@dataclass
+class Coverage:
+    samples: list[history.Sample]
+    skipped: list[str]
+    vault_names: dict[str, str]          # vault id -> folder name, to show where a sample came from
+    agent: list[tuple]                   # [(group, cards)] -- estimates.agent_coverage
+    review: list[tuple]
+    open_cards: int = 0
+    open_with_agent: int = 0
+    open_with_review: int = 0
+    outliers: list[history.Sample] = field(default_factory=list)
+
+
+def coverage(home: Optional[Path] = None) -> Coverage:
+    """Read-only: how many closed cards each estimate group has, and how many open cards of ALL the
+    registered vaults would get an estimate right now. Takes no lock and writes nothing. Vaults
+    whose canvas can't be read are left out of the open-card count."""
+    skipped: list[str] = []
+    found, card_ids = history.read_all(home, skipped)
+    rows = estimates.typed(found, card_ids)
+    report = Coverage(samples=found, skipped=skipped, vault_names=history.vault_names(home),
+                      agent=estimates.agent_coverage(rows), review=estimates.review_coverage(rows),
+                      outliers=estimates.outliers(found))
+    seen: set[Path] = set()
+    for vault_root in history.registered_vaults(home):
+        if vault_root.resolve() in seen:
+            continue
+        seen.add(vault_root.resolve())
+        try:
+            data = canvas.load(vault_root)
+            cards = estimate_open_cards(vault_root, data, rows)
+        except (canvas.HistosError, OSError, ValueError, KeyError):
+            continue
+        for *_, card_estimate in cards:
+            report.open_cards += 1
+            report.open_with_agent += isinstance(card_estimate.agent, estimates.Estimate)
+            report.open_with_review += isinstance(card_estimate.review, estimates.Estimate)
+    return report
 
 
 def _estimate_part(e) -> Optional[dict]:
