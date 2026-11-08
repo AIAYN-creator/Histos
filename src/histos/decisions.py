@@ -18,6 +18,7 @@ Where the line goes:
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from .fsutil import read_text_exact, write_text_atomic, write_text_exact
 SECTION = ["## Decisiones", "## Decisions"]
 FALLBACK_FILE = Path(".histos") / "decisions.md"
 _FALLBACK_HEADER = "# Decisions not yet in PROJECT.md\n\n"
+_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2} · ")
 
 
 def record(vault_root: Path, what: str, feedback: str | None) -> str | None:
@@ -59,12 +61,23 @@ def record(vault_root: Path, what: str, feedback: str | None) -> str | None:
 
 
 def pending_text(vault_root: Path) -> str | None:
-    """The decisions recorded outside PROJECT.md, for `histos context`."""
+    """The decisions recorded outside PROJECT.md, for `histos context`. The ones the agent has
+    already carried into PROJECT.md are left out (the file itself is never touched), or context
+    would show them twice."""
     path = vault_root / FALLBACK_FILE
     if not path.exists():
         return None
-    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("- ")]
+    project = vault_root / "PROJECT.md"
+    carried = " ".join(project.read_text(encoding="utf-8").split()) if project.exists() else ""
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines()
+             if line.startswith("- ") and not _carried(line, carried)]
     return "\n".join(lines) or None
+
+
+def _carried(line: str, project_text: str) -> bool:
+    """Whether a decision line's text (after the date) is already in PROJECT.md."""
+    text = _DATE_PREFIX.sub("", " ".join(line[2:].split()), count=1)
+    return bool(text) and text in project_text
 
 
 def _append_to_section(text: str, line: str) -> str | None:
