@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from test_estimates import T0, rows, sample
 from test_history import A, B, P, R, approve, assign, at, created, propose, write_log
 
-from histos import estimates, history
+from histos import estimates, frontmatter, history
 from histos.estimates import ANY, Row, Rows
 
 
@@ -105,3 +105,16 @@ def test_a_snapshot_keeps_the_skipped_vaults_for_every_caller(tmp_path):
         history.read_all(None, first)
         history.read_all(None, second)
     assert first == second == [f"{gone}: no event log there"]
+
+
+def test_the_c_yaml_loader_reads_frontmatter_like_the_pure_python_one(tmp_path):
+    md = tmp_path / "card.md"
+    meta = {"description": "Naive: a 'quoted' bit -- with: colons", "sources": ["a.pdf", "b"], "estimated_duration_hours": 1.5,
+            "status_note": None, "done_when": "multi\nline", "estimate": {"agent_hours": {"median": 0.5, "p80": 1.0}},
+            "flag": True, "when": "2026-12-01"}
+    frontmatter.write(md, meta, "# T\n\nbody\n")
+    read, body = frontmatter.read(md)
+    assert read == meta and body == "# T\n\nbody\n"
+    import yaml
+    text = md.read_text(encoding="utf-8").split("---\n")[1]
+    assert read == yaml.safe_load(text)

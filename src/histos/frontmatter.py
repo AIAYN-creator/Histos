@@ -10,7 +10,11 @@ import yaml
 from .errors import HistosError
 from .fsutil import write_text_atomic
 
-_FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
+# The same safe loader, in C when PyYAML was built with libyaml: `status` reads every card's
+# frontmatter, and the pure-Python parser was the biggest cost of a vault with hundreds of cards.
+_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+_FRONTMATTER_RE =re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
 
 DEFAULT_META = {
     "description": None,
@@ -42,7 +46,7 @@ def read(path: Path) -> tuple[dict, str]:
     if not m:
         return {}, text
     try:
-        meta = yaml.safe_load(m.group(1)) or {}
+        meta = yaml.load(m.group(1), Loader=_LOADER) or {}
     except yaml.YAMLError as e:
         raise HistosError(f"{path.name}: its frontmatter can't be parsed as YAML: {e}") from None
     if not isinstance(meta, dict):
