@@ -36,6 +36,11 @@ The loop that works best — the same one Histos v3 was built with, card by card
 
 Each turn leaves the board clean: nothing orange halfway, nothing purple that could have been proposed. When the board looks tangled after a batch of approvals, `histos arrange`.
 
+**Let the numbers work for you, not the other way round:**
+- **Review the critical path first.** If several cards are yellow, the ones on the magenta arrows decide when the project ends; the others have slack.
+- **`histos pause` when you leave**, even for an evening. Your review estimates are your *active* time; without the pause, a night asleep counts as eight hours of reviewing, and every estimate after it is inflated.
+- **Estimates are yours and improve on their own.** "no data" early on is honest, not broken — `histos estimate --coverage` shows how close each kind of card is. Don't ask the agent to guess instead: its guesses are exactly what Histos replaces.
+
 ## 5. Code projects: the repository lives next to the vault
 
 The vault holds the plan; the code lives in its own repository, in a **sibling folder** — never inside the vault, which would fill Obsidian with source files:

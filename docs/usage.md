@@ -156,9 +156,40 @@ The evals check proposed guides too: a `PROJECT.md` missing a required section, 
 
 ## The event log
 
-Every command that changes the vault records what it did in `.histos/events.jsonl`: who, when, which card, and every status change it caused — including how long cards wait for your review. Nothing is shown yet; it's the history that time estimates, the critical path and the project report will be built from (see the [roadmap](roadmap.md)), so it starts collecting from day one. It never leaves your machine. Format: [canvas-schema.md](canvas-schema.md#event-log).
+Every command that changes the vault records what it did in `.histos/events.jsonl`: who, when, which card, and every status change it caused — including how long cards wait for your review. It's the history the estimates and the critical path below are built from, and it starts collecting from day one. It never leaves your machine. Format: [canvas-schema.md](canvas-schema.md#event-log).
 
 **When you're away, `histos pause`.** Going to sleep, off to something else, leaving the agent an AFK queue: run it once, from any vault. Until your next decision — `approve`, `reject`, `retry`, a guide's or a plan's approve/reject, `arrange`, or the same from the desktop app — the time cards spend waiting for your review isn't counted as review time, in any vault. There's no resume command: deciding something means you're back. The agent keeps working meanwhile, and its own time keeps counting. `histos status` shows when you're paused.
+
+## Estimates and the critical path
+
+Histos learns how long *your* cards take from *your* closed cards — all your vaults, nothing shared, never the agent's guess. Each open card gets two estimates in `histos status`:
+
+```
+  - cod-camino  (content/cod-camino.md)  {exec · Sonnet 5.5 · agent ~25 min (≤50 min) · review ~3 h (≤1 d)}
+  - doc-v32     (content/doc-v32.md)     {unclassified · review ~3 h (≤1 d)}
+  - dec-x       (content/dec-x.md)       {reasoning · agent no data (3 more needed) · review ~3 h (≤1 d)}
+```
+
+- **agent** is the agent's working time, **review** the time the card waits for you — your *active* time, without the hours you were paused. The first figure is the usual one (the median), the one in brackets the "if it goes badly" (4 of 5 similar cards finished within it).
+- **no data (N more needed)**: fewer than 5 similar closed cards yet. It fills in by itself as you approve cards. **unclassified**: the card has no tier yet, so there's no agent estimate (`histos classify` happens right before it's worked).
+- The same figures go into each card's frontmatter (`estimate`, `estimated_duration_hours`), which Obsidian shows as properties; on approval, `actual_duration_hours` gets what it really took.
+
+**How far along is the data?** `histos estimate --coverage` lists, for every group of similar cards, how many closed cards it has and how many it still needs — and how many of your open cards would get an estimate right now. It only reads.
+
+**The critical path** is the remaining chain of cards that takes longest: if any card on it slips, the end slips. `histos status` names it on its last line —
+
+```
+Critical path (~6 h · 2 cards): cod-a -> cod-b
+```
+
+— and the canvas draws it as **magenta arrows**, repainted after every command that changes the board. With no history yet it's simply the longest chain of cards (`3 cards, no estimates yet`). Histos only ever paints arrows that have no color: one you colored yourself is never touched, and if you recolor a magenta one it becomes yours. In `histos.config.yaml`:
+
+```yaml
+critical_path:
+  enabled: true          # false removes Histos's colors and stops painting
+  color: "#E83E8C"
+  review: active         # or calendar: count review waits with the nights included
+```
 
 ## Keeping the board tidy
 
