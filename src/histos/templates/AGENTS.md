@@ -68,7 +68,7 @@ cards:
 2. `histos assign <id> --worker <you>` -- e.g. `--worker parent`, or `sub-<id>` for a card you'll hand to a subagent.
 3. `histos classify <id>` -- the tier (`fast`, `exec` or `reasoning`) and why. Classify right before working, never when the queue is created: the tier depends on the approved content of the card's dependencies.
 4. **Propose the model.** Translate the tier to a model of your platform and say it with the reason: *"I'll do cap3 with Sonnet 5.5 (tier exec: it has code blocks)"*. Record it with `histos model <id> --proposed "<model>"`. In Claude Code, suggest: fast → Haiku 5.5 · exec → Sonnet 5.5 · reasoning → Opus 5.5.
-5. **Wait for the human's yes** (or their different choice), then `histos model <id> --approved "<model>" --authorized`.
+5. **Wait for the human's yes** (or their different choice), then `histos model <id> --approved "<model>" --authorized` -- even if they approved the card in the same message: it still records on an approved card with no model yet.
 6. **Do it yourself or hand it to a subagent** (next section).
 7. `histos context <id>` gathers everything for the draft: the card, its dependencies (including "implied" ones whose arrow `arrange` removed -- treat them like any other), sources, `PROJECT.md`, `ARCHITECTURE.md`, and the feedback from a rejected proposal ("Feedback on a rejected proposal": address it).
 8. Optionally `histos eval <id> --file <draft>` -- checks the draft against the evals without spending an attempt.
