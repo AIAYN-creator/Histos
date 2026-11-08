@@ -73,34 +73,17 @@ def cmd_add_card(args: argparse.Namespace) -> int:
             print(f"error: dependency '{dep}' doesn't exist", file=sys.stderr)
             return 1
 
-    all_approved = all(by_id[dep]["color"] == canvas.APPROVED for dep in depends_on)
-    initial_color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOCKED
-
-    width, height = canvas.estimate_card_size(args.description)
-    node = canvas.add_card_node(data, args.id, initial_color, width=width, height=height)
-    for dep in depends_on:
-        canvas.add_edge(data, dep, args.id)
-
-    cycle = canvas.detect_cycle(data)
-    if cycle:
-        print(f"error: that dependency would form a cycle: {' -> '.join(cycle)}", file=sys.stderr)
+    try:
+        node = operations.create_card(
+            vault_root, data, args.id, args.title, description=args.description, depends_on=depends_on,
+            done_when=getattr(args, "done_when", None),
+        )
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
         return 1
-
-    md_path = canvas.card_file_path(vault_root, node)
-    md_path.parent.mkdir(parents=True, exist_ok=True)
-    meta = dict(frontmatter.DEFAULT_META)
-    body = f"# {args.title}\n\n"
-    if args.description:
-        meta["description"] = args.description
-        body += f"{args.description}\n\n"
-    meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
-    frontmatter.write(md_path, meta, body)
-
-    canvas.place_new_card(data, node)
     canvas.save(vault_root, data)
-    events.emit("card_created", card=args.id, title=args.title, depends_on=list(depends_on))
 
-    print(f"card '{args.id}' created ({operations.STATE_NAMES[initial_color]}) -> {node['file']}")
+    print(f"card '{args.id}' created ({operations.STATE_NAMES[node['color']]}) -> {node['file']}")
     return 0
 
 

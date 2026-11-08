@@ -156,6 +156,45 @@ def add_config(vault_root: Path) -> list[str]:
     return warnings
 
 
+DONE_WHEN_KEY = "done_when"
+
+
+def create_card(vault_root: Path, data: dict, card_id: str, title: str, *, description: Optional[str] = None,
+                depends_on: tuple[str, ...] | list[str] = (), done_when: Optional[str] = None) -> dict:
+    """Adds one card to `data` and writes its content/<id>.md -- without saving the canvas, so a
+    caller can create several and save once. The caller checks the id and that the
+    dependencies exist; a cycle raises HistosError before any file is written."""
+    by_id = {c["id"]: c for c in canvas.cards(data)}
+    all_approved = all(by_id[dep]["color"] == canvas.APPROVED for dep in depends_on)
+    initial_color = canvas.BACKLOG if (not depends_on or all_approved) else canvas.BLOCKED
+
+    width, height = canvas.estimate_card_size(description)
+    node = canvas.add_card_node(data, card_id, initial_color, width=width, height=height)
+    for dep in depends_on:
+        canvas.add_edge(data, dep, card_id)
+
+    cycle = canvas.detect_cycle(data)
+    if cycle:
+        raise canvas.HistosError(f"that dependency would form a cycle: {' -> '.join(cycle)}")
+
+    md_path = canvas.card_file_path(vault_root, node)
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    meta = dict(frontmatter.DEFAULT_META)
+    body = f"# {title}\n\n"
+    if description:
+        meta["description"] = description
+        body += f"{description}\n\n"
+    if done_when:
+        meta[DONE_WHEN_KEY] = done_when
+        body += f"**Done when:** {done_when}\n\n"
+    meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+    frontmatter.write(md_path, meta, body)
+
+    canvas.place_new_card(data, node)
+    events.emit("card_created", card=card_id, title=title, depends_on=list(depends_on))
+    return node
+
+
 @dataclass
 class CardSummary:
     id: str
