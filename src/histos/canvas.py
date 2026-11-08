@@ -68,7 +68,7 @@ _CURVE_SAMPLES = 40
 _GRID_STATUS_ORDER = [IN_PROGRESS, PENDING_REVIEW, DEPENDENCY_CHANGE_REQUEST, BLOCKED, BACKLOG, APPROVED]
 
 LEGEND_ID = "legend"
-_LEGEND_TEXT = """## Status legend (Histos)
+_LEGEND_ROWS = """## Status legend (Histos)
 
 | Color | Status |
 |---|---|
@@ -78,9 +78,13 @@ _LEGEND_TEXT = """## Status legend (Histos)
 | \U0001F7E1 yellow | Proposal pending review |
 | \U0001F535 cyan | Dependency change request |
 | \U0001F7E2 green | Approved |
-
-Detail: docs/canvas-schema.md in the Histos repo.
 """
+_LEGEND_FOOTER = "\nDetail: docs/canvas-schema.md in the Histos repo.\n"
+LEGEND_TEXT = _LEGEND_ROWS + "\nA magenta arrow is the critical path: histos repaints it, never your own colors.\n" + _LEGEND_FOOTER
+LEGEND_HEIGHT = 300
+# Legends Histos wrote before; one still exactly like this is upgraded in place. One the human
+# edited is never touched.
+OLDER_LEGEND_TEXTS = frozenset({_LEGEND_ROWS + _LEGEND_FOOTER})
 
 
 def vault_canvas_path(vault_root: Path) -> Path:
@@ -703,8 +707,8 @@ def build_legend_node() -> dict:
         "x": 0,
         "y": -320,
         "width": 520,
-        "height": 260,
-        "text": _LEGEND_TEXT,
+        "height": LEGEND_HEIGHT,
+        "text": LEGEND_TEXT,
     }
 
 
