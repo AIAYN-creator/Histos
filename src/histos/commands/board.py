@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .. import canvas, config, evals, events, frontmatter, guides, operations, plans, validation
+from .. import canvas, config, evals, events, frontmatter, guides, operations, pauses, plans, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -265,6 +265,10 @@ def cmd_status(args: argparse.Namespace) -> int:
     if awaiting:
         listed = ", ".join(f"{c.id} ({c.tier + ', ' if c.tier else ''}proposed {c.proposed_model})" for c in awaiting)
         print(f"Waiting for your model approval: {listed}")
+    paused = pauses.current()
+    if paused:
+        since = paused.start.astimezone().strftime("%Y-%m-%d %H:%M")
+        print(f"Paused since {since} -- the review clock is stopped until the human's next decision")
     waiting = guides.pending(vault_root)
     if waiting:
         print(f"Guides pending review: {', '.join(waiting)}  ('histos guide diff <file>' to review)")
@@ -274,6 +278,18 @@ def cmd_status(args: argparse.Namespace) -> int:
         except canvas.HistosError:
             size = ""
         print(f"Plan pending review{size}  ('histos plan diff' to review)")
+    return 0
+
+
+def cmd_pause(args: argparse.Namespace) -> int:
+    """(Human) "I'm away": stops the review clock in every vault until the human's next decision."""
+    paused, new = pauses.pause()
+    since = paused.start.astimezone().strftime("%Y-%m-%d %H:%M")
+    if new:
+        print(f"paused at {since} -- in every vault, the time cards wait for your review stops counting.")
+        print("It ends by itself with your next decision (approve, reject, retry...). The agent can keep working.")
+    else:
+        print(f"already paused since {since}")
     return 0
 
 
