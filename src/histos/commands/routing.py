@@ -101,8 +101,13 @@ def cmd_model(args: argparse.Namespace) -> int:
             print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
             return 1
         if card["color"] == canvas.APPROVED:
-            print(f"error: '{card_id}' is already Approved -- its model stays as a record", file=sys.stderr)
-            return 1
+            # The human often says yes to the model and approves the card in one go, so the card
+            # can turn green before the agent records that yes: --approved may still fill an
+            # empty approved_model. Anything else on an approved card is refused -- it's a record.
+            meta, _ = frontmatter.read(canvas.card_file_path(vault_root, card))
+            if not args.approved or meta.get("approved_model"):
+                print(f"error: '{card_id}' is already Approved -- its model stays as a record", file=sys.stderr)
+                return 1
         cards.append(card)
 
     for card in cards:

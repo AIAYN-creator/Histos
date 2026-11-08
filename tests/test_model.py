@@ -1,7 +1,7 @@
 import pytest
 from conftest import run
 
-from histos import canvas, frontmatter, validation
+from histos import canvas, events, frontmatter, validation
 
 
 @pytest.fixture
@@ -65,6 +65,25 @@ def test_approved_cards_are_left_alone(vault, monkeypatch, capsys):
     capsys.readouterr()
     assert run(monkeypatch, vault, "model", "cap3", "--proposed", "A") == 1
     assert "already Approved" in capsys.readouterr().err
+    assert run(monkeypatch, vault, "model", "cap3", "--clear") == 1
+
+
+def test_an_approved_card_can_still_get_the_model_the_human_said_yes_to(vault, monkeypatch, capsys):
+    """The yes to the model and the card's approval often come in the same breath."""
+    draft = vault / "d.md"
+    draft.write_text("x\n", encoding="utf-8")
+    run(monkeypatch, vault, "assign", "cap3")
+    run(monkeypatch, vault, "model", "cap3", "--proposed", "Opus 5.5")
+    run(monkeypatch, vault, "propose", "cap3", "--file", str(draft))
+    run(monkeypatch, vault, "approve", "cap3")
+    assert run(monkeypatch, vault, "model", "cap3", "--approved", "Opus 5.5", "--authorized") == 0
+    meta, _ = frontmatter.read(vault / "content" / "cap3.md")
+    assert meta["approved_model"] == "Opus 5.5"
+    assert events.read(vault)[-1]["event"] == "model_approved"
+    capsys.readouterr()
+    assert run(monkeypatch, vault, "model", "cap3", "--approved", "Sonnet 5.5", "--authorized") == 1
+    assert "already Approved" in capsys.readouterr().err  # once recorded, it stays
+    assert frontmatter.read(vault / "content" / "cap3.md")[0]["approved_model"] == "Opus 5.5"
 
 
 def test_no_tier_warns_but_writes(vault, monkeypatch, capsys):
