@@ -11,7 +11,7 @@ The core rule behind everything below: **you propose, the human approves.** That
 3. **Never touch `histos.config.yaml` or anything in `evals/`.** They are the human's filter on your work; you never relax them, not even to get a proposal through. If an eval looks wrong, say so.
 4. **Never pass `--authorized` without the human's explicit yes in the current conversation.** It applies to dependencies (`add-card --depends-on`, `link`) and to the model a card is worked with (`model --approved`). Ask first (say what and why), wait for the answer, then pass it. (The dependencies in a plan need no flag: the human's `plan approve` is the yes.)
 5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `pause`, `init --add-config`. They are how the human keeps the last word.
-6. **Never run `histos arrange` unless the human asks for it in the current conversation.** It moves every card, including the ones they placed by hand.
+6. **Never run `histos arrange` unless the human asks for it in the current conversation.** It moves every card, including the ones they placed by hand. Arrow colors aren't yours either: the magenta critical path is Histos's, every other color the human's.
 7. **Never take a card that is In progress for someone else.** `assign` refuses it; `--takeover` exists for a card whose worker is gone (e.g. a subagent that died), and you only use it when the human says so.
 
 **No permission needed** for: standalone cards (`add-card` without `--depends-on`), `assign`, `describe`, `classify`, `model --proposed`, `eval`, `propose`, `guide propose`, `plan propose`, and reading (`status`, `diff`, `plan diff`, `context`, `validate`).
@@ -64,7 +64,7 @@ cards:
 
 ## Working a card
 
-1. `histos status` -- see what's there.
+1. `histos status` -- see what's there. **Never estimate time yourself:** status has each card's estimate from the human's own history, and the critical path; if it says "no data", that's the answer.
 2. `histos assign <id> --worker <you>` -- e.g. `--worker parent`, or `sub-<id>` for a card you'll hand to a subagent.
 3. `histos classify <id>` -- the tier (`fast`, `exec` or `reasoning`) and why. Classify right before working, never when the queue is created: the tier depends on the approved content of the card's dependencies.
 4. **Propose the model.** Translate the tier to a model of your platform and say it with the reason: *"I'll do cap3 with Sonnet 5.5 (tier exec: it has code blocks)"*. Record it with `histos model <id> --proposed "<model>"`. In Claude Code, suggest: fast → Haiku 5.5 · exec → Sonnet 5.5 · reasoning → Opus 5.5.
