@@ -23,6 +23,7 @@ Each person trains their own Histos: time estimates learned from *your* closed c
 ### Notes
 
 - **Built for starting with no data.** Every new user starts with an empty history: estimates say "no data (N more needed)" instead of guessing, fill in by themselves as cards close, and fall back to broader groups to appear sooner; the critical path works from day one by counting cards; `--coverage` shows how close each group is. Released with 11 closed cards in its author's history -- enough for review estimates and for `exec` agent estimates; checking how accurate the estimates are on real data comes with use.
+- **Caught before release by the scale tests:** with 2000 closed cards in 5 vaults, `histos status` took 18 s and `--coverage` 6 s. Now under 1 s: each estimate group's cards are sorted once, pauses are looked up by bisection, the history is read once per command, and frontmatter is parsed with PyYAML's C loader when available.
 - **What the first numbers showed:** in a code project, a card's measured agent time is the *proposal* (the spec), not the implementation, which happens after approval -- so the agent's times there are minutes. In writing projects, where the approved text is the result, they measure the real work. A measured implementation phase for code cards is an idea for v3.3.
 
 ## [3.1.2] - 2026-11-08
