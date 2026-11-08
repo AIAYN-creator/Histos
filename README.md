@@ -7,8 +7,8 @@
 
 <p align="center">
   <b>Your AI agent proposes. You approve.</b><br>
-  A project board for working with AI agents on theses, papers, reports — and code —<br>
-  built on Obsidian Canvas, with every change waiting for your yes.
+  A project board on Obsidian Canvas for working with AI agents on theses, papers, reports and code,
+  where every change waits for your yes.
 </p>
 
 <p align="center">
@@ -37,13 +37,10 @@ Working with an agent on something long goes wrong in quiet ways: it rewrites a 
 
 ```mermaid
 flowchart LR
-    A[🟪 Backlog] -->|agent: assign| B[🟧 In progress]
-    B -->|agent: propose| E{evals}
-    E -->|fail: fix and retry| B
-    E -->|pass| C[🟨 Pending review]
-    C -->|you: approve| D[🟩 Approved]
-    C -->|you: reject + feedback| A
-    D -.->|unblocks| F[🟥 Blocked cards]
+    A[🟪 Backlog] --> B[🟧 Working] --> E{evals}
+    E -- pass --> C[🟨 Review] -- you approve --> D[🟩 Done]
+    E -. fail .-> B
+    C -. you reject .-> A
 ```
 
 1. **You and the agent plan** the project: what it is, then the cards and their dependencies. Dependencies need your yes.
