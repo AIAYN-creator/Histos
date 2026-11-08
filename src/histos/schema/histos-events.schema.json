@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AIAYN-creator/Histos/schema/histos-events.schema.json",
+  "title": "Histos event",
+  "description": "One line of .histos/events.jsonl: something a histos command did to the vault. Append-only; written inside the vault lock. See docs/canvas-schema.md.",
+  "type": "object",
+  "required": ["v", "ts", "event", "card", "actor", "worker"],
+  "additionalProperties": false,
+  "properties": {
+    "v": { "const": 1, "description": "Format version." },
+    "ts": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$", "description": "UTC, ISO 8601 with milliseconds." },
+    "event": {
+      "enum": [
+        "vault_created", "config_added",
+        "card_created", "dependency_added", "described", "assigned",
+        "classified", "model_proposed", "model_approved", "model_cleared",
+        "proposed", "proposal_refused", "approved", "rejected", "retry", "edit_accepted",
+        "guide_proposed", "guide_approved", "guide_rejected",
+        "plan_proposed", "plan_approved", "plan_rejected",
+        "arranged", "state_recomputed"
+      ]
+    },
+    "card": { "type": ["string", "null"], "description": "The card id, or null for vault-wide events." },
+    "actor": { "enum": ["agent", "human"], "description": "Who ran the command." },
+    "worker": { "type": ["string", "null"], "description": "The card's worker at the time, if any." },
+    "data": { "type": "object", "description": "What's specific to the event." },
+    "transitions": {
+      "type": "array",
+      "description": "Every card whose status (color) the command changed, this card or any other.",
+      "items": {
+        "type": "object",
+        "required": ["card", "from", "to"],
+        "additionalProperties": false,
+        "properties": {
+          "card": { "type": "string" },
+          "from": { "$ref": "#/$defs/state" },
+          "to": { "$ref": "#/$defs/state" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "state": {
+      "enum": ["Backlog", "In progress", "Blocked", "Proposal pending review", "Dependency change request", "Approved", null]
+    }
+  }
+}
