@@ -339,6 +339,20 @@ def get_diff(vault_root: Path, card_id: str) -> DiffResult:
     return DiffResult(card_id=card_id, current_body=current_body, proposed_body=proposed_body)
 
 
+def _actual_hours(vault_root: Path, card_id: str) -> Optional[float]:
+    """What the card really took: its agent time + its ACTIVE review time (calendar minus the
+    human's pauses). The `approved` event is only written to the log when the lock is released,
+    so the card still shows as waiting for review there: that stretch is closed at this very
+    moment, which is when the approval happens. None if the log can't tell the whole story."""
+    try:
+        progress = history.open_progress(vault_root, _now()).get(card_id)
+    except (OSError, ValueError, KeyError):
+        return None
+    if progress is None or progress.incomplete or progress.state != STATE_NAMES[canvas.PENDING_REVIEW]:
+        return None
+    return round(progress.agent_hours + progress.review_active_hours, 2)
+
+
 @dataclass
 class ApproveResult:
     card_id: str
@@ -366,6 +380,9 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
         meta = dict(frontmatter.DEFAULT_META)
     body = proposal_path.read_text(encoding="utf-8")
     meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+    actual = _actual_hours(vault_root, card_id)
+    if actual is not None:
+        meta[ACTUAL_KEY] = actual
     frontmatter.write(md_path, meta, body)
 
     approved_path = _approved_path(vault_root, card_id)

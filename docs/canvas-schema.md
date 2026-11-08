@@ -97,7 +97,7 @@ Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatt
 | `content_hash` | 64 hex characters | `add-card`, `approve`, `accept-edit` | SHA-256 of the body as Histos last wrote it legitimately; the `content_untouched` eval compares against it |
 | `estimate` | mapping | `status`, `classify` | the card's estimate while it is open: `agent_hours` and `review_hours`, each `{median, p80, basis}` (hours, 2 decimals; `null` when there isn't enough history), plus `at`, the date. `p80` is "if it goes badly": 4 in 5 similar cards finished sooner. **`review_hours` is computed from the human's *active* review time** -- the calendar time a card waited, minus the stretches the human was away between `histos pause` and their next decision -- not from the calendar time. Only rewritten when the rounded numbers change |
 | `estimated_duration_hours` | number | `status`, `classify` | agent median + review median (the active review time above); `null` when either is missing |
-| `actual_duration_hours` | number | — | reserved; no command sets it yet |
+| `actual_duration_hours` | number | `approve` | what the card really took: its agent time + its *active* review time (calendar waiting minus the human's `histos pause` stretches), up to the approval. Left empty when the log doesn't hold the card's whole life |
 
 `status` is deliberately not here: it lives as `color` on the canvas so the same data doesn't have two sources of truth.
 
