@@ -17,6 +17,7 @@ from .commands.board import (
     cmd_status,
     cmd_validate,
 )
+from .commands.estimate import cmd_estimate
 from .commands.review import (
     cmd_accept_edit,
     cmd_approve,
@@ -147,6 +148,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("status", help="lists cards grouped by status")
     p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser(
+        "estimate",
+        help="read only: how many closed cards each estimate group has (needs --coverage)",
+    )
+    p.add_argument(
+        "--coverage", action="store_true",
+        help="per group: closed cards, and whether there are enough to estimate; open cards with an estimate now",
+    )
+    p.set_defaults(func=cmd_estimate)
 
     p = sub.add_parser(
         "pause",

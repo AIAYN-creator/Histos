@@ -8,11 +8,12 @@ and the desktop app call, so there is exactly one implementation of what each ac
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import __version__, canvas, events, frontmatter, validation
+from . import __version__, canvas, estimates, events, frontmatter, history, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -204,6 +205,7 @@ class CardSummary:
     tier: Optional[str] = None  # proposed_tier
     approved_model: Optional[str] = None
     proposed_model: Optional[str] = None
+    estimate: Optional[estimates.CardEstimate] = None  # None for an approved card
 
 
 @dataclass
@@ -216,6 +218,125 @@ class StatusGroup:
 @dataclass
 class StatusResult:
     groups: list[StatusGroup] = field(default_factory=list)  # in the fixed display order
+    critical_path: Optional[object] = None  # critical.CriticalPath, or None when the vault has none
+
+
+ESTIMATE_KEY = "estimate"
+ESTIMATED_KEY = "estimated_duration_hours"
+ACTUAL_KEY = "actual_duration_hours"
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardEstimate]:
+    """Estimates every open card from the history of all the registered vaults (read once) and
+    keeps each card's frontmatter up to date: `estimate` (the detail) and `estimated_duration_hours`
+    (agent median + review median, null if either is missing). A file is only written when the
+    rounded numbers changed. The caller holds the vault lock.
+
+    The review half is built from the human's ACTIVE review hours (calendar time minus their
+    `histos pause` periods), but it is named `review_hours` in the frontmatter, as dec-estimador says."""
+    try:
+        found, card_ids = history.read_all()
+    except (OSError, ValueError, KeyError):
+        found, card_ids = [], {}  # no history is never an error: every card just has no data
+    rows = estimates.typed(found, card_ids)
+
+    result = {}
+    for card, md_path, meta, body, card_estimate in estimate_open_cards(vault_root, data, rows):
+        result[card["id"]] = card_estimate
+        if md_path.exists():
+            _store_estimate(md_path, meta, body, card_estimate)
+    return result
+
+
+def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row]) -> list[tuple]:
+    """Read-only: for each open (not Approved) card, `(card, md_path, meta, body, estimate)` --
+    the same figures `status` shows. Nothing is written; refresh_estimates stores them, and the
+    coverage report only counts them."""
+    types = estimates.card_types([c["id"] for c in canvas.cards(data)])
+    declared: dict[str, set[str]] = {}
+    for edge in canvas.dependency_edges(data):
+        declared.setdefault(edge["toNode"], set()).add(edge["fromNode"])
+
+    result = []
+    for card in canvas.cards(data):
+        if card["color"] == canvas.APPROVED:
+            continue
+        md_path = canvas.card_file_path(vault_root, card)
+        meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
+        dependencies = declared.get(card["id"], set()) | set(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
+        card_estimate = estimates.for_card(rows, meta.get("proposed_tier"), types.get(card["id"]), len(dependencies))
+        result.append((card, md_path, meta, body, card_estimate))
+    return result
+
+
+@dataclass
+class Coverage:
+    samples: list[history.Sample]
+    skipped: list[str]
+    vault_names: dict[str, str]          # vault id -> folder name, to show where a sample came from
+    agent: list[tuple]                   # [(group, cards)] -- estimates.agent_coverage
+    review: list[tuple]
+    open_cards: int = 0
+    open_with_agent: int = 0
+    open_with_review: int = 0
+    outliers: list[history.Sample] = field(default_factory=list)
+
+
+def coverage(home: Optional[Path] = None) -> Coverage:
+    """Read-only: how many closed cards each estimate group has, and how many open cards of ALL the
+    registered vaults would get an estimate right now. Takes no lock and writes nothing. Vaults
+    whose canvas can't be read are left out of the open-card count."""
+    skipped: list[str] = []
+    found, card_ids = history.read_all(home, skipped)
+    rows = estimates.typed(found, card_ids)
+    report = Coverage(samples=found, skipped=skipped, vault_names=history.vault_names(home),
+                      agent=estimates.agent_coverage(rows), review=estimates.review_coverage(rows),
+                      outliers=estimates.outliers(found))
+    seen: set[Path] = set()
+    for vault_root in history.registered_vaults(home):
+        if vault_root.resolve() in seen:
+            continue
+        seen.add(vault_root.resolve())
+        try:
+            data = canvas.load(vault_root)
+            cards = estimate_open_cards(vault_root, data, rows)
+        except (canvas.HistosError, OSError, ValueError, KeyError):
+            continue
+        for *_, card_estimate in cards:
+            report.open_cards += 1
+            report.open_with_agent += isinstance(card_estimate.agent, estimates.Estimate)
+            report.open_with_review += isinstance(card_estimate.review, estimates.Estimate)
+    return report
+
+
+def _estimate_part(e) -> Optional[dict]:
+    if not isinstance(e, estimates.Estimate):
+        return None
+    return {"median": round(e.median, 2), "p80": round(e.p80, 2), "basis": e.basis}
+
+
+def _numbers(part) -> tuple:
+    if not isinstance(part, dict):
+        return (None, None)
+    return (part.get("median"), part.get("p80"))
+
+
+def _store_estimate(md_path: Path, meta: dict, body: str, e: estimates.CardEstimate) -> None:
+    agent, review = _estimate_part(e.agent), _estimate_part(e.review)
+    total = round(e.agent.median + e.review.median, 2) if agent and review else None
+    old = meta.get(ESTIMATE_KEY) if isinstance(meta.get(ESTIMATE_KEY), dict) else {}
+    unchanged = (_numbers(old.get("agent_hours")) == _numbers(agent)
+                 and _numbers(old.get("review_hours")) == _numbers(review)
+                 and meta.get(ESTIMATED_KEY) == total)
+    if unchanged:
+        return
+    meta[ESTIMATE_KEY] = {"agent_hours": agent, "review_hours": review, "at": _now().date().isoformat()}
+    meta[ESTIMATED_KEY] = total
+    frontmatter.write(md_path, meta, body)
 
 
 @locked("status")  # recomputing Blocked can save the canvas
@@ -223,27 +344,35 @@ def get_status(vault_root: Path) -> StatusResult:
     data = _load_valid(vault_root)
     if canvas.recompute_blocked(data):
         canvas.save(vault_root, data)
+    with history.snapshot():  # the estimates and the critical path read the same history: once
+        open_estimates = refresh_estimates(vault_root, data)
 
-    by_color: dict[str, list[dict]] = {c: [] for c in STATE_NAMES}
-    for card in canvas.cards(data):
-        by_color.setdefault(card["color"], []).append(card)
+        by_color: dict[str, list[dict]] = {c: [] for c in STATE_NAMES}
+        for card in canvas.cards(data):
+            by_color.setdefault(card["color"], []).append(card)
 
-    groups = []
-    for color in _STATUS_ORDER:
-        summaries = []
-        for card in by_color.get(color, []):
-            meta = {}
-            md_path = canvas.card_file_path(vault_root, card)
-            if md_path.exists():
-                meta, _ = frontmatter.read(md_path)
-            worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
-            summaries.append(CardSummary(
-                id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
-                tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
-                proposed_model=meta.get("proposed_model"),
-            ))
-        groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
-    return StatusResult(groups=groups)
+        groups = []
+        for color in _STATUS_ORDER:
+            summaries = []
+            for card in by_color.get(color, []):
+                meta = {}
+                md_path = canvas.card_file_path(vault_root, card)
+                if md_path.exists():
+                    meta, _ = frontmatter.read(md_path)
+                worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
+                summaries.append(CardSummary(
+                    id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
+                    tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
+                    proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
+                ))
+            groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
+        from . import critical  # critical reaches back into this module
+
+        try:
+            path = critical.refresh(vault_root)  # status repaints too, and shows the chain
+        except Exception:
+            path = None  # the critical path never keeps the human from seeing the board
+    return StatusResult(groups=groups, critical_path=path)
 
 
 @dataclass
@@ -267,6 +396,20 @@ def get_diff(vault_root: Path, card_id: str) -> DiffResult:
     _, current_body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
     proposed_body = proposal_path.read_text(encoding="utf-8")
     return DiffResult(card_id=card_id, current_body=current_body, proposed_body=proposed_body)
+
+
+def _actual_hours(vault_root: Path, card_id: str) -> Optional[float]:
+    """What the card really took: its agent time + its ACTIVE review time (calendar minus the
+    human's pauses). The `approved` event is only written to the log when the lock is released,
+    so the card still shows as waiting for review there: that stretch is closed at this very
+    moment, which is when the approval happens. None if the log can't tell the whole story."""
+    try:
+        progress = history.open_progress(vault_root, _now()).get(card_id)
+    except (OSError, ValueError, KeyError):
+        return None
+    if progress is None or progress.incomplete or progress.state != STATE_NAMES[canvas.PENDING_REVIEW]:
+        return None
+    return round(progress.agent_hours + progress.review_active_hours, 2)
 
 
 @dataclass
@@ -296,6 +439,9 @@ def approve(vault_root: Path, card_id: str) -> ApproveResult:
         meta = dict(frontmatter.DEFAULT_META)
     body = proposal_path.read_text(encoding="utf-8")
     meta[frontmatter.CONTENT_HASH_KEY] = frontmatter.body_hash(body)
+    actual = _actual_hours(vault_root, card_id)
+    if actual is not None:
+        meta[ACTUAL_KEY] = actual
     frontmatter.write(md_path, meta, body)
 
     approved_path = _approved_path(vault_root, card_id)

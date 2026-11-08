@@ -65,6 +65,8 @@ def cmd_classify(args: argparse.Namespace) -> int:
         frontmatter.write(md_path, meta, body)
         events.emit("classified", card=card["id"], tier=result.tier, previous_tier=previous,
                     model_cleared=bool(cleared))
+    if not args.dry_run:
+        operations.refresh_estimates(vault_root, data)  # the tier changes which cards it is compared with
 
     if len(targets) > 1 or args.dry_run:
         summary = " · ".join(f"{name} {counts[name]}" for name in ("fast", "exec", "reasoning"))

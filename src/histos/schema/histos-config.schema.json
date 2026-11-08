@@ -14,6 +14,16 @@
       "items": { "$ref": "#/$defs/tier" }
     },
     "evals": { "$ref": "#/$defs/evals" },
+    "critical_path": {
+      "description": "The critical path drawn on the canvas arrows (v3.2). Optional: without it, it's on, magenta, and uses the active review time.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "review": { "enum": ["active", "calendar"], "description": "Which review clock counts: active (minus the human's pauses) or calendar." }
+      }
+    },
     "terms": {
       "description": "Extra terms for the *_terms_present / file_operations_mentioned conditions -- added to the built-in lists, never replacing them.",
       "type": "object",

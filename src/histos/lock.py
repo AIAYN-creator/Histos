@@ -64,10 +64,23 @@ def lock_path(vault_root: Path) -> Path:
 @contextmanager
 def vault_lock(vault_root: Path, command: str, actor: str = "agent") -> Iterator[None]:
     """The vault lock, plus the event log session that records what the command did (events.py).
-    `actor` is who runs the command: 'agent', or 'human' for the human's commands."""
+    `actor` is who runs the command: 'agent', or 'human' for the human's commands. If the command
+    changed the canvas, the critical path is repainted before the lock is released (critical.py)."""
     with file_lock(lock_path(vault_root), command):
+        before = _canvas_bytes(vault_root)
         with events.recording(vault_root, actor):
             yield
+        if _canvas_bytes(vault_root) != before:
+            from . import critical  # imported late: critical reaches the command layer
+
+            critical.refresh_quietly(vault_root)
+
+
+def _canvas_bytes(vault_root: Path) -> bytes | None:
+    try:
+        return (vault_root / "project.canvas").read_bytes()
+    except OSError:
+        return None
 
 
 @contextmanager

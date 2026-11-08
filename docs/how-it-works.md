@@ -48,6 +48,25 @@ Represented via the canvas edges as a DAG (directed acyclic graph). The agent re
 - **Subagents** get only what `histos context --for-subagent` gives them, propose their draft themselves, and return a short summary to the parent. A parent and its subagents can work at once: every command that changes the vault holds an OS file lock, and every file is written atomically.
 - **Evals** are YAML files in `evals/`, run on every `propose`: `word_count`, `no_placeholders`, `required_headings`, `content_untouched`, each with `only`/`except` card id patterns. They filter obvious junk; the human still reviews everything that passes.
 
+## Estimates and the critical path
+
+Each person trains their own Histos: estimates come from *their* closed cards, in all their vaults, recorded by the event log — never from the agent, which is bad at judging how long its own work takes. It's descriptive statistics, deterministic and explainable, like the tiers.
+
+**Three times per closed card**, measured from the log:
+- **agent** — time In progress being worked, over every round. *A worker does one thing at a time*: cards assigned in one batch before you leave (AFK) are worked one after another, so each round starts at the later of its assignment and that worker's last action on another card. Subagents are separate workers, so they do run in parallel. A takeover doesn't stop the clock.
+- **review (calendar)** — every stretch waiting for your decision, nights included; also the wait for your `retry` after the evals ran out of attempts.
+- **review (active)** — the same, minus the time you were away (`histos pause`, until your next decision).
+
+Time in Backlog or Blocked counts for neither: it depends on what's ahead, not on the card. A card already under way when the log started gives no sample; one whose colors you changed by hand meanwhile is marked approximate.
+
+**Two estimates per open card, grouped differently**, because they depend on different things:
+- the **agent's** depends on the card: tier + type + dependencies (0 / 1 / 2+), then tier + type, then tier;
+- the **review's** depends on you: type, then all your cards. It uses your *active* time.
+
+A card's *type* is its id prefix (`dec-x` → `dec`, `cap3` → `cap`), only in vaults where at least two thirds of the cards share prefixes; otherwise there's no type. The first group with at least **5** closed cards wins, over its **30** most recent; the **median** is the estimate and the **80th percentile** (nearest rank) the "if it goes badly". Below 5 everywhere: "no data", and how many are missing.
+
+**The critical path** is the remaining chain that takes longest: each open card weighs what it still needs (its estimate minus what it already has — in review, only the review), cards without an estimate weigh the median closed card, and with no closed cards at all every card weighs 1. It's drawn as magenta arrows and repainted after every command that changes the board. Histos notes the arrows it paints and only ever removes its own color, so an arrow you color is yours for good. Which review clock it counts (active or calendar) is a setting.
+
 ## The board
 
 > Formal, machine-checkable schema: [`src/histos/schema/histos-canvas.schema.json`](../src/histos/schema/histos-canvas.schema.json) — full detail of the whole vault format in [canvas-schema.md](canvas-schema.md).

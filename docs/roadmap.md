@@ -4,19 +4,11 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.2 — in development: estimates and the critical path
-
-Each user trains their own Histos: estimates come from *your* history — recorded by v3.1 in every vault — never from the agent's guess (models are bad at estimating their own work), and nothing is shared. The design is decided (planned and approved in a Histos vault with v3.1's interview and plans); it ships once your own data is enough.
-
-- **Two estimates per card, kept apart:** the agent's working time and the time it waits for your review. They're grouped differently — the agent's by tier, card type and number of dependencies; the review's by card type only, because review speed depends on you, not on the card. The median is the estimate and the 80th percentile the "if it goes badly", from the 30 most recent similar cards, with at least 5 of them; below that it says "no data" and how many are missing. Shown in `histos status` and in the card's `estimated_duration_hours`; `actual_duration_hours` gets the real figure on approval.
-- **Measured fairly:** an agent works one card at a time, so a batch assigned before you leave isn't counted as parallel work; time waiting for your `retry` counts as review, not as the agent's. Card types come from id prefixes only in vaults that really use them.
-- **The critical path on the arrows**, in magenta — off the status palette, so it can't be mistaken for Blocked. It's the remaining chain that takes longest, repainted after every command that changes the board; with no data at all, it's the longest chain of cards. Histos keeps track of the arrows it painted and never touches one you colored yourself. It can be turned off in `histos.config.yaml`.
-- **`histos estimate --coverage`** shows how many closed cards each group has and which are enough — the measure of when there's enough data to release.
-
 ### v3.3 — planned: project metrics and the final report
 
 - **`histos report`** writes a Markdown report into the vault when a project closes. It includes a Gantt chart drawn by Obsidian from a [Mermaid](https://mermaid.js.org/) block (no plugins, no images) and a three-point PERT whose estimates come from the history's percentiles.
 - **Metrics:** actual vs. estimated time, rejection rate per tier and per model, eval attempts, time waiting for review, and how far the critical path drifted. This also gives the tier heuristics real outcomes to be calibrated against. New metrics ship as patch releases (v3.3.x).
+- **A measured implementation phase for code cards.** v3.2's first real numbers showed that in a code project a card's agent time is the *proposal* (the spec): the implementation happens after approval, where Histos doesn't see it.
 
 ### v4.0 — planned: yolo mode
 
@@ -50,6 +42,15 @@ Ideas for later versions, none committed yet — roughly from most to least like
 - Still open from earlier versions: git as an optional history backend for the content, calendar/date-based scheduling, pulling external context automatically (e.g. Overleaf's `.tex` via its Git integration), `content/` subfolder conventions, and a translated desktop app.
 
 ## Shipped
+
+### v3.2 ([v3.2.0](https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.0))
+
+Each person trains their own Histos — the first version planned with v3.1's interview and `plan propose`.
+
+- **Estimates from your own history:** the agent's time and your active review time (minus `histos pause`), each grouped its own way, median and 80th percentile, in `histos status` and the card's frontmatter; "no data" until 5 similar cards are closed. `actual_duration_hours` on approval.
+- **Measured fairly:** one card at a time per worker, so AFK batches aren't parallel work; three figures per closed card (agent, calendar review, active review).
+- **`histos estimate --coverage`:** how close each group is to having enough data.
+- **The critical path on the arrows**, in magenta, repainted on every change, never over your own colors; configurable in `histos.config.yaml`.
 
 ### v3.1 ([v3.1.0](https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.0))
 

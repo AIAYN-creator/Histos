@@ -5,6 +5,18 @@
   "description": "Types of the frontmatter fields Histos reads or writes in content/<id>.md. Fields Histos doesn't know (your own Obsidian properties) are allowed and never touched. See docs/canvas-schema.md.",
   "type": "object",
   "additionalProperties": true,
+  "$defs": {
+    "estimate_part": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["median", "p80", "basis"],
+      "properties": {
+        "median": { "type": "number" },
+        "p80": { "type": "number" },
+        "basis": { "type": "string" }
+      }
+    }
+  },
   "properties": {
     "description": { "type": ["string", "null"] },
     "done_when": { "type": ["string", "null"], "description": "A checkable criterion for when the card is done (add-card --done-when, or the plan)." },
@@ -14,6 +26,16 @@
     },
     "estimated_duration_hours": { "type": ["number", "null"] },
     "actual_duration_hours": { "type": ["number", "null"] },
+    "estimate": {
+      "type": "object",
+      "description": "The estimate of an open card, written by status and classify. review_hours is computed from the human's ACTIVE review hours (calendar time minus their pauses).",
+      "additionalProperties": false,
+      "properties": {
+        "agent_hours": { "$ref": "#/$defs/estimate_part" },
+        "review_hours": { "$ref": "#/$defs/estimate_part" },
+        "at": { "type": "string" }
+      }
+    },
     "assigned_to": { "enum": ["agent", "human", null] },
     "worker": { "type": "string", "minLength": 1 },
     "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },

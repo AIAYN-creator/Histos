@@ -31,6 +31,7 @@ Working with an agent on something long goes wrong in quiet ways: it rewrites a 
 - **Nothing is written without you.** The agent never edits your content: it proposes a draft, and the change only happens when you approve it.
 - **Junk is filtered before you see it.** Each draft passes your evals first (no leftover `TODO`, the required sections, nothing edited behind Histos's back).
 - **The right model for each card.** Every card gets a tier (`fast`, `exec`, `reasoning`) with the reason, and you approve which model does it — or let a subagent take it with a clean context.
+- **Your own estimates, and what decides the end.** Histos learns how long *your* cards take from your own history — never the agent's guess — and draws the critical path on the canvas arrows.
 - **Local and agent-agnostic.** A plain folder and a CLI any agent can run (Claude Code, Codex, Gemini CLI...). No server, no plugin, no account.
 
 ## How it works
@@ -82,6 +83,7 @@ Prefer buttons for your side? The desktop app (`histos-gui.exe`, on the [Release
 | 🟨 yellow | Pending review | passed the evals, waiting for you |
 | 🟦 cyan | Dependency change request | reserved |
 | 🟩 green | Approved | done |
+| magenta arrow | Critical path | the remaining chain that takes longest — repainted on every change |
 
 The canvas only holds the map — the content lives in `content/<id>.md`, with its metadata as frontmatter Obsidian shows as properties. `histos arrange` re-lays out a messy board when you ask it to:
 
@@ -107,7 +109,7 @@ The canvas only holds the map — the content lives in `content/<id>.md`, with i
 |---|---|---|
 | **v3.0** | ✅ shipped | tiers and model approval, subagents, evals, safe concurrency |
 | **v3.1** | ✅ shipped | a stricter project interview, plans reviewed as a whole, an event log from day one |
-| **v3.2** | 🔨 in development | time estimates from your own history; the critical path drawn on the canvas |
+| **v3.2** | ✅ shipped | time estimates from your own history; the critical path drawn on the canvas |
 | **v3.3** | 📋 planned | project metrics and a final report with a Gantt chart and a PERT |
 | **v4.0** | 📋 planned | yolo mode: agents build *and* review the whole backlog, on a separate branch |
 

@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .. import canvas, config, evals, events, frontmatter, guides, operations, pauses, plans, validation
+from .. import canvas, config, estimates, evals, events, frontmatter, guides, operations, pauses, plans, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -265,6 +265,11 @@ def cmd_status(args: argparse.Namespace) -> int:
     if awaiting:
         listed = ", ".join(f"{c.id} ({c.tier + ', ' if c.tier else ''}proposed {c.proposed_model})" for c in awaiting)
         print(f"Waiting for your model approval: {listed}")
+    path = result.critical_path
+    if path is not None and path.cards:
+        size = f"{len(path.cards)} card{'s' if len(path.cards) != 1 else ''}"
+        how = f"{size}, no estimates yet" if path.by_count else f"{estimates.format_hours(path.hours)} · {size}"
+        print(f"Critical path ({how}): {' -> '.join(path.cards)}")
     paused = pauses.current()
     if paused:
         since = paused.start.astimezone().strftime("%Y-%m-%d %H:%M")
@@ -294,12 +299,18 @@ def cmd_pause(args: argparse.Namespace) -> int:
 
 
 def _routing_label(c: operations.CardSummary) -> str:
-    """'exec · Sonnet 5.5', 'reasoning · proposed Opus 5.5?' (no yes from the human yet), 'fast', or ''."""
+    """'exec · Sonnet 5.5', 'reasoning · proposed Opus 5.5?' (no yes from the human yet) or 'fast',
+    then -- for an open card -- its estimates: 'exec · Sonnet 5.5 · agent ~25 min (≤50 min) ·
+    review ~3 h (≤1 d)'. An open card without a tier says 'unclassified'."""
     parts = [c.tier] if c.tier else []
     if c.approved_model:
         parts.append(c.approved_model)
     elif c.proposed_model:
         parts.append(f"proposed {c.proposed_model}?")
+    if c.estimate is not None:
+        if not c.tier:
+            parts.insert(0, "unclassified")
+        parts += estimates.status_parts(c.estimate)
     return " · ".join(parts)
 
 

@@ -107,3 +107,27 @@ def test_invalid_config_does_not_block_reviewing(tmp_path, monkeypatch):
 
     assert run(monkeypatch, tmp_path, "status") == 0
     assert run(monkeypatch, tmp_path, "approve", "cap1") == 0
+
+
+# ---- critical_path (v3.2) ----
+
+def test_critical_path_defaults_when_the_section_is_missing(tmp_path):
+    write(tmp_path, VALID)
+    cp = config.load(tmp_path).critical_path
+    assert (cp.enabled, cp.color, cp.review) == (True, "#E83E8C", "active")
+
+
+def test_critical_path_can_be_tuned(tmp_path):
+    write(tmp_path, VALID + "critical_path:\n  enabled: false\n  color: \"#00aa88\"\n  review: calendar\n")
+    cp = config.load(tmp_path).critical_path
+    assert (cp.enabled, cp.color, cp.review) == (False, "#00AA88", "calendar")
+
+
+@pytest.mark.parametrize("section", [
+    "critical_path:\n  color: magenta\n",
+    "critical_path:\n  review: wallclock\n",
+    "critical_path:\n  width: 3\n",
+])
+def test_a_bad_critical_path_section_is_reported(tmp_path, section):
+    write(tmp_path, VALID + section)
+    assert config.validate(tmp_path)
