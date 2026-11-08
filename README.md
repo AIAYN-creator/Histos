@@ -43,7 +43,7 @@ flowchart LR
     C -. you reject .-> A
 ```
 
-1. **You and the agent plan** the project: what it is, then the cards and their dependencies. Dependencies need your yes.
+1. **You and the agent plan** the project: it interviews you and pushes back, proposes the brief (`PROJECT.md`), then the whole plan of cards — nothing is created until you approve it.
 2. **The agent works a card** — itself or through a subagent — with everything it needs gathered by `histos context`.
 3. **It proposes a draft.** The evals run; a failing draft goes back to the agent with the reason.
 4. **You review when you can** — `histos diff`, or the desktop app — and approve or reject with feedback.
@@ -52,9 +52,9 @@ Because the agent can only propose, you can leave it working through a queue and
 
 | | |
 |---|---|
-| **The agent does on its own** | create standalone cards, pick up work, classify tiers, propose models and drafts |
+| **The agent does on its own** | interview you, propose the project brief and the plan of cards, pick up work, classify tiers, propose models and drafts |
 | **Needs your yes in the conversation** | adding a dependency, the model a card is worked with |
-| **Only you** | `approve`, `reject`, `retry`, `accept-edit`, approving changes to `PROJECT.md` / `ARCHITECTURE.md`, `arrange` |
+| **Only you** | `approve`, `reject`, `retry`, `accept-edit`, approving the plan and changes to `PROJECT.md` / `ARCHITECTURE.md`, `arrange` |
 
 How much of this is enforced and how much is a rule the agent follows: [docs/trust-model.md](docs/trust-model.md).
 

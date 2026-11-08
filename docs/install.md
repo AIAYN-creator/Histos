@@ -49,7 +49,7 @@ Your existing vaults keep working as they are: without the v3 files, Histos beha
 histos init --add-config
 ```
 
-and copy the new [`AGENTS.md`](../src/histos/templates/AGENTS.md) over the vault's old one (`init` never overwrites it). Details: [usage.md](usage.md#upgrading-a-vault-from-v2).
+and copy the new [`AGENTS.md`](../src/histos/templates/AGENTS.md) over the vault's old one (`init` never overwrites it). Do the same after every update that changes it — 3.1 does, with the project interview and plans; without the new copy the agent keeps working the old way. Details: [usage.md](usage.md#upgrading-a-vault-from-v2).
 
 ## Running the desktop app from source instead of the downloaded `.exe`
 

@@ -9,7 +9,9 @@ Every command operates on the current directory, which must be the root of a His
 ```bash
 histos status                                           # cards by status, with tier, model and worker;
                                                         # models still waiting for approval; pending guides
-histos add-card cap1 --title "Intro" [--description "..."]
+histos plan propose --file plan.yaml                    # the whole card table as one plan (nothing created yet)
+histos plan diff                                        # the plan: cards, levels (what runs in parallel), warnings
+histos add-card cap1 --title "Intro" [--description "..."] [--done-when "..."]
                                                         # standalone card -> Backlog
 histos add-card cap2 --title "Cap 2" --depends-on cap1 --authorized
                                                         # --authorized is required as soon as the dependency
@@ -24,11 +26,11 @@ histos model cap1 --proposed "Sonnet 5.5"               # the agent's proposal
 histos model cap1 [cap2...] --approved "..." --authorized
                                                         # the human's yes, recorded
 histos context cap1 [--for-subagent]                    # everything to work the card (or a subagent's brief)
-histos eval cap1 --file draft.md                        # runs the evals on a draft, spends no attempt
+histos eval cap1|PROJECT.md --file draft.md             # runs the evals on a draft, spends no attempt
 histos propose cap1 --file draft.md                     # evals first; if they pass -> Proposal pending review
 histos guide propose PROJECT.md --file new.md           # proposes a change to PROJECT.md / ARCHITECTURE.md
 histos diff cap1                                        # evals passed + diff against the pending proposal
-histos validate                                         # canvas, frontmatter, config and evals
+histos validate                                         # canvas, frontmatter, config, evals and the event log
 ```
 
 ## The human's commands
@@ -42,6 +44,9 @@ histos reject cap1 [--feedback "..."]                   # discards the proposal 
 histos retry cap1                                       # 3 more attempts after the evals failed 3 times
 histos accept-edit cap1 [cap2...]                       # accepts your own hand edits to a card's .md
 histos guide approve|reject PROJECT.md [--feedback ".."]
+                                                        # a rejection's feedback goes to PROJECT.md's decisions
+histos plan approve                                     # creates every card of the plan, all or nothing
+histos plan reject [--feedback "..."]                   # discards it; the feedback goes to PROJECT.md's decisions
 histos arrange [--no-set-aside-done] [--no-prune-redundant]
                                                         # re-lays out the WHOLE board: dependency columns, no
                                                         # arrow across a card, "Not connected" and "Done" groups,
