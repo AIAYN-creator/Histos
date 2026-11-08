@@ -107,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
         "eval",
         help="runs the vault's evals on a draft without proposing it -- no state change, no attempt spent",
     )
-    p.add_argument("id")
+    p.add_argument("id", help="a card id, or PROJECT.md / ARCHITECTURE.md for a guide draft")
     p.add_argument("--file", required=True, help="the draft to check")
     p.set_defaults(func=cmd_eval)
 

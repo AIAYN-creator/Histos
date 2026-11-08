@@ -1,0 +1,35 @@
+# Evals for PROJECT.md and ARCHITECTURE.md -- run by `histos guide propose` before a change to
+# them reaches you. They only apply to the files their `only` names, so they never touch cards.
+#
+# PROJECT.md gets a fixed structure: what the project is, what it is NOT, when it's done -- and
+# two sections the agent writes itself, so you can see whether it understood the project and
+# what it would do differently. A heading can be given in several spellings (one per language):
+# any one of them counts, and accents don't matter. Add your own language's headings here --
+# this file is yours (only you edit evals/, see AGENTS.md).
+
+- name: project_structure
+  check: required_headings
+  headings:
+    - ["## Objetivo", "## Goal"]
+    - ["## Entregable", "## Deliverable"]
+    - ["## Para quién", "## Audience"]
+    - ["## Qué no es", "## Out of scope"]
+    - ["## Terminado cuando", "## Done when"]
+    - ["## Restricciones", "## Constraints"]
+    - ["## Lo que he entendido", "## What I understood"]
+    - ["## Lo que cambiaría y por qué", "## What I'd change and why"]
+    - ["## Decisiones", "## Decisions"]
+  only: ["PROJECT.md"]
+
+- name: understanding_written
+  check: min_section_words
+  sections:
+    - heading: ["## Lo que he entendido", "## What I understood"]
+      min: 60
+    - heading: ["## Lo que cambiaría y por qué", "## What I'd change and why"]
+      min: 30
+  only: ["PROJECT.md"]
+
+- name: no_placeholders_in_guides
+  check: no_placeholders
+  only: ["PROJECT.md", "ARCHITECTURE.md"]

@@ -6,7 +6,7 @@ import difflib
 import sys
 from pathlib import Path
 
-from .. import canvas, config, context, events, frontmatter, guides, heuristics, operations, tiers
+from .. import canvas, config, context, evals, events, frontmatter, guides, heuristics, operations, tiers
 from ._shared import _vault_root, _with_vault_lock
 
 
@@ -175,11 +175,21 @@ def cmd_guide(args: argparse.Namespace) -> int:
                 print(f"error: can't find the draft '{draft}'", file=sys.stderr)
                 return 1
             result = guides.propose(vault_root, args.name, draft.read_text(encoding="utf-8"))
+            if result.evals is not None:
+                print(result.evals.render(result.name))
+            if not result.saved:
+                print(f"error: the change to {result.name} wasn't proposed -- fix the draft and propose again",
+                      file=sys.stderr)
+                return 1
             if result.replaced_pending:
                 print(f"warning: replaced the change to {result.name} that was already pending", file=sys.stderr)
             print(f"{result.name}: change pending review ('histos guide diff {result.name}' to review it)")
         elif args.guide_action == "diff":
             result = guides.get_diff(vault_root, args.name)
+            stored = guides.stored_evals(vault_root, result.name)
+            if stored and isinstance(stored.get("checks"), list):
+                run = evals.EvalRun(passed=bool(stored.get("passed")), checks=stored["checks"], skipped=0)
+                print(run.render(result.name) + "\n")
             sys.stdout.writelines(difflib.unified_diff(
                 result.current.splitlines(keepends=True),
                 result.proposed.splitlines(keepends=True),

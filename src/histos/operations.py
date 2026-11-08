@@ -42,6 +42,9 @@ WORKER_KEY = "worker"
 EVAL_RESULTS_KEY = "eval_results"
 V3_CONFIG_TEMPLATE = "histos.config.yaml"
 V3_EVALS_TEMPLATES = ["evals/basics.yaml", "evals/examples.yaml"]
+# Only applies to the guide files (its evals' `only` names them), so unlike the two above it's
+# added to an evals/ folder that already exists: it can't change how any card is checked.
+GUIDE_EVALS_TEMPLATE = "evals/guides.yaml"
 AGENT_TEMPLATES = ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
 
 
@@ -126,9 +129,11 @@ def _install_v3_config(vault_root: Path) -> list[str]:
     else:
         to_install.append(V3_CONFIG_TEMPLATE)
     if (vault_root / "evals").exists():
-        warnings.append("evals/ already exists, leaving it alone")
+        warnings.append("evals/ already exists, leaving its files alone")
     else:
         to_install += V3_EVALS_TEMPLATES
+    if not (vault_root / GUIDE_EVALS_TEMPLATE).exists():
+        to_install.append(GUIDE_EVALS_TEMPLATE)
     for rel_path in to_install:
         ref = resources.files("histos").joinpath("templates", *rel_path.split("/"))
         target = vault_root / rel_path
@@ -142,7 +147,7 @@ def add_config(vault_root: Path) -> list[str]:
     """Brings an existing vault to v3: adds histos.config.yaml and evals/ if missing, nothing else."""
     if not canvas.vault_canvas_path(vault_root).exists():
         raise canvas.HistosError(f"no {canvas.CANVAS_FILENAME} here -- use plain 'histos init' for a new vault")
-    templates = [V3_CONFIG_TEMPLATE, *V3_EVALS_TEMPLATES]
+    templates = [V3_CONFIG_TEMPLATE, *V3_EVALS_TEMPLATES, GUIDE_EVALS_TEMPLATE]
     missing = [t for t in templates if not (vault_root / t).exists()]
     warnings = _install_v3_config(vault_root)
     added = [t for t in missing if (vault_root / t).exists()]

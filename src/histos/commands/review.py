@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from .. import canvas, config, context, evals, events, frontmatter, operations
+from .. import canvas, config, context, evals, events, frontmatter, guides, operations
 from ..fsutil import write_text_atomic
 from ._shared import _vault_root, _with_vault_lock
 
@@ -108,18 +108,27 @@ def cmd_eval(args: argparse.Namespace) -> int:
     """Read-only dry run of what propose's evals would say about a draft."""
     vault_root = _vault_root()
     draft_path = Path(args.file)
+    target = args.id
     try:
-        data = operations._load_valid(vault_root)
-        card = canvas.find_card(data, args.id)
-        if card is None:
-            raise canvas.HistosError(f"card '{args.id}' doesn't exist")
         if not draft_path.exists():
             raise canvas.HistosError(f"can't find the draft '{draft_path}'")
-        result = evals.run_all(vault_root, config.load(vault_root), data, card, draft_path.read_text(encoding="utf-8"))
+        draft = draft_path.read_text(encoding="utf-8")
+        if guides.is_guide_name(args.id):  # card ids can't contain '.', so no clash
+            target = guides.canonical_name(args.id)
+            result = guides.run_evals(vault_root, target, draft)
+            if result is None:
+                print(f"evals: this vault has no evals for {target} (no histos.config.yaml, or evals are off)")
+                return 0
+        else:
+            data = operations._load_valid(vault_root)
+            card = canvas.find_card(data, args.id)
+            if card is None:
+                raise canvas.HistosError(f"card '{args.id}' doesn't exist")
+            result = evals.run_all(vault_root, config.load(vault_root), data, card, draft)
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    print(result.render(args.id))
+    print(result.render(target))
     return 0 if result.passed else 1
 
 

@@ -21,7 +21,9 @@ def test_init_creates_config_and_evals(tmp_path, monkeypatch):
 def test_only_the_basic_evals_are_active(tmp_path, monkeypatch):
     run(monkeypatch, tmp_path, "init")
     loaded = evals.load(tmp_path, config.load(tmp_path))
-    assert [e.name for e in loaded] == ["no_direct_writes", "no_placeholders"]
+    assert [e.name for e in loaded if e.applies_to("cap1")] == ["no_direct_writes", "no_placeholders"]
+    assert [e.name for e in loaded if e.applies_to("PROJECT.md", "guide")] == [
+        "project_structure", "understanding_written", "no_placeholders_in_guides"]
 
 
 def test_the_desktop_app_path_creates_the_same(tmp_path):
@@ -49,7 +51,8 @@ def test_add_config_brings_a_v2_vault_up_and_touches_nothing_else(tmp_path, monk
     assert run(monkeypatch, tmp_path, "init", "--add-config") == 0
     after = _tree(tmp_path)
     added = set(after) - set(before)
-    assert {a.replace("\\", "/") for a in added} == {"histos.config.yaml", "evals/basics.yaml", "evals/examples.yaml"}
+    assert {a.replace("\\", "/") for a in added} == {"histos.config.yaml", "evals/basics.yaml", "evals/examples.yaml",
+                                                     "evals/guides.yaml"}
     changed = {k.replace("\\", "/") for k in before if before[k] != after[k]}
     # only the deny rules -- and histos's own event log, which records the config_added
     assert changed - {".histos/events.jsonl", ".histos/colors.json"} <= {".claude/settings.json"}

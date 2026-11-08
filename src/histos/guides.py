@@ -5,6 +5,7 @@ writes these files, `histos guide approve` (run by the human) does.
     proposals/guides/PROJECT.md                     the pending change
     approved/guides/PROJECT-20261016-174502.md      the version it replaced, kept on approve
     proposals/guides/.feedback.json                 feedback from the last rejection, per file
+    proposals/guides/.eval_results.json             what the evals said about each pending change
 
 Card ids can't contain '/', so none of this ever collides with a card's own files.
 """
@@ -15,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import events, operations
+from . import canvas, config, evals, events, operations
 from .errors import HistosError
 from .fsutil import write_text_atomic
 from .lock import locked
@@ -23,6 +24,7 @@ from .lock import locked
 GUIDE_FILES = ("PROJECT.md", "ARCHITECTURE.md")
 _SUBDIR = "guides"
 _FEEDBACK_FILE = ".feedback.json"
+_EVAL_RESULTS_FILE = ".eval_results.json"
 
 
 def canonical_name(name: str) -> str:
@@ -74,22 +76,81 @@ def _set_feedback(vault_root: Path, name: str, text: str | None) -> None:
         path.unlink(missing_ok=True)
 
 
+def is_guide_name(name: str) -> bool:
+    return any(name.strip().lower() == real.lower() for real in GUIDE_FILES)
+
+
+def run_evals(vault_root: Path, name: str, draft_text: str) -> evals.EvalRun | None:
+    """The evals whose `only` names this guide, on a draft of it -- None when the vault has no
+    config or evals are off (pre-v3 vaults: guide changes work exactly as before)."""
+    cfg = config.load(vault_root)
+    if cfg is None or not cfg.evals.enabled:
+        return None
+    try:
+        data = canvas.load(vault_root)
+    except HistosError:
+        data = {"nodes": [], "edges": []}  # no checks on a guide need the board
+    return evals.run_all(vault_root, cfg, data, None, draft_text, guide=canonical_name(name))
+
+
+def stored_evals(vault_root: Path, name: str) -> dict | None:
+    """What the evals said when the pending change was proposed (shown by `guide diff`)."""
+    return _read_json(_eval_results_path(vault_root)).get(canonical_name(name))
+
+
+def _eval_results_path(vault_root: Path) -> Path:
+    return proposal_path(vault_root, _EVAL_RESULTS_FILE)
+
+
+def _read_json(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _set_stored_evals(vault_root: Path, name: str, run: evals.EvalRun | None) -> None:
+    path = _eval_results_path(vault_root)
+    current = _read_json(path)
+    if run is None:
+        if name not in current:
+            return
+        del current[name]
+    else:
+        current[name] = {"passed": run.passed, "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                         "checks": run.checks}
+    if current:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(path, json.dumps(current, indent=2, ensure_ascii=False) + "\n")
+    else:
+        path.unlink(missing_ok=True)
+
+
 @dataclass
 class ProposeResult:
     name: str
     replaced_pending: bool
+    evals: evals.EvalRun | None = None
+    saved: bool = True  # False when the evals refused the draft
 
 
 @locked("guide propose", actor="agent")
 def propose(vault_root: Path, name: str, draft_text: str) -> ProposeResult:
+    """Runs the evals that name this guide first: a failing draft isn't saved. No attempt cap,
+    unlike cards -- a guide change is proposed in a conversation, with the human there."""
     name = canonical_name(name)
+    run = run_evals(vault_root, name, draft_text)
     path = proposal_path(vault_root, name)
     replaced = path.exists()
+    if run is not None and not run.passed:
+        return ProposeResult(name=name, replaced_pending=False, evals=run, saved=False)
     path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(path, draft_text)
     _set_feedback(vault_root, name, None)  # a new proposal answers the old feedback
+    _set_stored_evals(vault_root, name, run)
     events.emit("guide_proposed", file=name, **events.size_of(draft_text))
-    return ProposeResult(name=name, replaced_pending=replaced)
+    return ProposeResult(name=name, replaced_pending=replaced, evals=run)
 
 
 @dataclass
@@ -132,6 +193,7 @@ def approve(vault_root: Path, name: str) -> ApproveResult:
     write_text_atomic(target, text)
     path.unlink()
     _set_feedback(vault_root, name, None)
+    _set_stored_evals(vault_root, name, None)
     events.emit("guide_approved", file=name, **events.size_of(text))
     return ApproveResult(name=name, archived_previous=archived)
 
@@ -144,5 +206,6 @@ def reject(vault_root: Path, name: str, feedback_text: str | None = None) -> str
         raise HistosError(f"no pending change for {name}")
     path.unlink()
     _set_feedback(vault_root, name, feedback_text)
+    _set_stored_evals(vault_root, name, None)
     events.emit("guide_rejected", file=name, feedback=feedback_text)
     return name

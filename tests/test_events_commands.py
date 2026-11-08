@@ -122,6 +122,7 @@ def test_retry_and_accept_edit(initialized_vault, monkeypatch, tmp_path):
 
 def test_guides(initialized_vault, monkeypatch, tmp_path):
     v = initialized_vault
+    (v / "evals" / "guides.yaml").unlink()  # any draft will do here
     run(monkeypatch, v, "guide", "propose", "PROJECT.md", "--file", draft(tmp_path, "# P\n\nOne two.\n"))
     run(monkeypatch, v, "guide", "reject", "PROJECT.md", "--feedback", "more")
     run(monkeypatch, v, "guide", "propose", "project.md", "--file", draft(tmp_path, "# P\n\nOne two.\n"))
