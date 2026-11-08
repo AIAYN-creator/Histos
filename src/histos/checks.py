@@ -6,6 +6,7 @@ what it measured, and a default message for when the eval doesn't set its own `e
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,7 +19,7 @@ class CheckInput:
     params: dict
     vault_root: Path
     data: dict
-    card: dict
+    card: dict | None  # None for a guide (PROJECT.md / ARCHITECTURE.md) proposal
 
 
 @dataclass
@@ -65,19 +66,66 @@ _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
 
 
 def _normalize_heading(text: str) -> str:
-    return " ".join(text.strip().lstrip("#").split()).lower()
+    """'## Qué no es' and 'que NO es' compare equal: level, case, spacing and accents don't count."""
+    text = " ".join(text.strip().lstrip("#").split()).lower()
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
+
+
+def _alternatives(heading: str | list[str]) -> list[str]:
+    """A required heading is a text, or a list of acceptable spellings (e.g. one per language)."""
+    return [heading] if isinstance(heading, str) else list(heading)
+
+
+def _headings_in(draft: str) -> set[str]:
+    return {_normalize_heading(m.group(1)) for line in draft.splitlines() if (m := _HEADING_RE.match(line))}
 
 
 def required_headings(i: CheckInput) -> CheckOutcome:
-    present = {_normalize_heading(m.group(1)) for line in i.draft.splitlines() if (m := _HEADING_RE.match(line))}
-    missing = [h for h in i.params["headings"] if _normalize_heading(h) not in present]
+    present = _headings_in(i.draft)
+    missing = [_alternatives(h)[0] for h in i.params["headings"]
+               if not any(_normalize_heading(alt) in present for alt in _alternatives(h))]
     if missing:
         detail = "missing: " + ", ".join(f'"{h}"' for h in missing)
         return CheckOutcome(False, detail, f"the draft lacks required headings -- {detail}")
     return CheckOutcome(True, f"all {len(i.params['headings'])} headings present", "")
 
 
+def _section_words(draft: str, heading: str | list[str]) -> int | None:
+    """Words between the heading and the next heading of the same or a higher level; None if absent."""
+    wanted = {_normalize_heading(alt) for alt in _alternatives(heading)}
+    lines = draft.splitlines()
+    for n, line in enumerate(lines):
+        m = _HEADING_RE.match(line)
+        if not m or _normalize_heading(m.group(1)) not in wanted:
+            continue
+        level = len(line.strip()) - len(line.strip().lstrip("#"))
+        body = []
+        for following in lines[n + 1:]:
+            nm = _HEADING_RE.match(following)
+            if nm and len(following.strip()) - len(following.strip().lstrip("#")) <= level:
+                break
+            body.append(following)
+        return len(re.findall(r"\w+", "\n".join(body)))
+    return None
+
+
+def min_section_words(i: CheckInput) -> CheckOutcome:
+    short, details = [], []
+    for section in i.params["sections"]:
+        name = _alternatives(section["heading"])[0].lstrip("#").strip()
+        count = _section_words(i.draft, section["heading"]) or 0
+        details.append(f'"{name}": {count} of {section["min"]} words')
+        if count < section["min"]:
+            short.append(details[-1])
+    if short:
+        detail = "; ".join(short)
+        return CheckOutcome(False, detail, f"some sections are too short -- {detail}")
+    return CheckOutcome(True, "; ".join(details), "")
+
+
 def content_untouched(i: CheckInput) -> CheckOutcome:
+    if i.card is None:  # a guide proposal: there's no card content to compare
+        return CheckOutcome(True, "not a card", "")
     changed, unknown = [], 0
     for card in canvas.cards(i.data):
         md_path = canvas.card_file_path(i.vault_root, card)
@@ -110,5 +158,6 @@ RUNNERS = {
     "word_count": word_count,
     "no_placeholders": no_placeholders,
     "required_headings": required_headings,
+    "min_section_words": min_section_words,
     "content_untouched": content_untouched,
 }

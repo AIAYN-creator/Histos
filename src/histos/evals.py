@@ -7,7 +7,9 @@ catalog below and passes its parameters:
       check: word_count
       min: 300
       error: "At least 300 words"      # optional; each check has a default message
-      only: ["cap*"]                   # optional: card id patterns it applies to
+      only: ["cap*"]                   # optional: card id patterns it applies to, or
+                                       # PROJECT.md / ARCHITECTURE.md (guides only ever get
+                                       # the evals whose `only` names them)
       except: ["cod-*"]                # optional
 
 No expressions, no eval(): anything outside the catalog, an unknown parameter or one of the
@@ -29,6 +31,7 @@ from .config import Config
 from .errors import HistosError
 
 _ID_PATTERN_RE = re.compile(r"^[A-Za-z0-9_\-*?]+$")
+_GUIDE_NAMES = {"PROJECT.md", "ARCHITECTURE.md"}  # what `only`/`except` may name besides card ids
 _COMMON_KEYS = {"name", "check", "error", "only", "except"}
 
 
@@ -38,6 +41,22 @@ def _non_negative_int(value) -> bool:
 
 def _string_list(value) -> bool:
     return isinstance(value, list) and bool(value) and all(isinstance(v, str) and v for v in value)
+
+
+def _heading(value) -> bool:
+    """A heading, or a list of acceptable spellings of it (e.g. one per language)."""
+    return (isinstance(value, str) and bool(value)) or _string_list(value)
+
+
+def _heading_list(value) -> bool:
+    return isinstance(value, list) and bool(value) and all(_heading(v) for v in value)
+
+
+def _section_list(value) -> bool:
+    return isinstance(value, list) and bool(value) and all(
+        isinstance(s, dict) and set(s) == {"heading", "min"} and _heading(s["heading"]) and _non_negative_int(s["min"])
+        for s in value
+    )
 
 
 @dataclass
@@ -60,9 +79,14 @@ CATALOG: dict[str, CheckSpec] = {
         param_types={"patterns": "a non-empty list of texts"},
     ),
     "required_headings": CheckSpec(
-        params={"headings": _string_list},
-        param_types={"headings": "a non-empty list of headings"},
+        params={"headings": _heading_list},
+        param_types={"headings": "a non-empty list of headings (each a text, or a list of acceptable spellings)"},
         rule=lambda p: "needs 'headings'" if "headings" not in p else None,
+    ),
+    "min_section_words": CheckSpec(
+        params={"sections": _section_list},
+        param_types={"sections": "a non-empty list of {heading: ..., min: <whole number>}"},
+        rule=lambda p: "needs 'sections'" if "sections" not in p else None,
     ),
     "content_untouched": CheckSpec(params={}, param_types={}),
 }
@@ -78,13 +102,18 @@ class Eval:
     except_: list[str] = field(default_factory=list)
     file: str = ""
 
-    def run(self, draft: str, vault_root: Path, data: dict, card: dict) -> checks.CheckOutcome:
+    def run(self, draft: str, vault_root: Path, data: dict, card: dict | None) -> checks.CheckOutcome:
         return checks.RUNNERS[self.check](checks.CheckInput(draft, self.params, vault_root, data, card))
 
-    def applies_to(self, card_id: str) -> bool:
-        if self.only and not any(fnmatch.fnmatchcase(card_id, p) for p in self.only):
+    def applies_to(self, target: str, kind: str = "card") -> bool:
+        """`target` is a card id, or a guide's file name (kind 'guide'). An eval reaches a guide
+        only when its `only` names it -- the evals a vault already has never start applying to
+        PROJECT.md by surprise."""
+        if kind == "guide" and not self.only:
             return False
-        return not any(fnmatch.fnmatchcase(card_id, p) for p in self.except_)
+        if self.only and not any(fnmatch.fnmatchcase(target, p) for p in self.only):
+            return False
+        return not any(fnmatch.fnmatchcase(target, p) for p in self.except_)
 
 
 def evals_dir(vault_root: Path, cfg: Config) -> Path:
@@ -131,12 +160,15 @@ class EvalRun:
         return "\n".join(lines)
 
 
-def run_all(vault_root: Path, cfg: Config | None, data: dict, card: dict, draft: str) -> EvalRun:
-    """Every eval that applies to the card, all of them -- no stopping at the first failure, so
-    the agent fixes everything in one retry instead of spending its attempts one by one."""
+def run_all(vault_root: Path, cfg: Config | None, data: dict, card: dict | None, draft: str,
+            guide: str | None = None) -> EvalRun:
+    """Every eval that applies to the card (or, with card=None, to the `guide` file), all of
+    them -- no stopping at the first failure, so the agent fixes everything in one retry
+    instead of spending its attempts one by one."""
+    target, kind = (card["id"], "card") if card is not None else (guide, "guide")
     results, skipped = [], 0
     for ev in load(vault_root, cfg):
-        if not ev.applies_to(card["id"]):
+        if not ev.applies_to(target, kind):
             skipped += 1
             continue
         try:
@@ -215,7 +247,8 @@ def _check_item(item) -> list[str]:
             if not _string_list(patterns):
                 errors.append(f"'{key}' must be a non-empty list of card id patterns")
             else:
-                errors += [f"'{key}': '{p}' is not a card id pattern" for p in patterns if not _ID_PATTERN_RE.match(p)]
+                errors += [f"'{key}': '{p}' is not a card id pattern (or PROJECT.md / ARCHITECTURE.md)"
+                           for p in patterns if not _ID_PATTERN_RE.match(p) and p not in _GUIDE_NAMES]
 
     spec = CATALOG[check]
     params = {k: v for k, v in item.items() if k not in _COMMON_KEYS}
