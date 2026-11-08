@@ -19,6 +19,7 @@ import math
 import re
 import statistics
 from dataclasses import dataclass
+from functools import cached_property
 
 from .history import Sample
 
@@ -35,8 +36,8 @@ class Row:
     sample: Sample
     type: str | None
 
-    @property
-    def key(self) -> tuple:
+    @cached_property
+    def key(self) -> tuple:  # compared once per group: worked out once
         return (self.sample.tier, self.type, dependency_bucket(self.sample.dependencies))
 
 
@@ -100,11 +101,36 @@ def card_types(card_ids: list[str]) -> dict[str, str | None]:
     return prefixes
 
 
-def typed(samples: list[Sample], card_ids_by_vault: dict[str, list[str]]) -> list[Row]:
+class Rows(list):
+    """The rows `typed()` returns, remembering which of them each group holds. Estimating an open
+    card looks at the same few groups again and again, and walking every closed card for each
+    one is what made commands slow with thousands of them: each group is worked out once."""
+
+    def __init__(self, rows=()) -> None:
+        super().__init__(rows)
+        self._groups: dict[tuple, list[Row]] = {}
+
+    def members(self, group: tuple) -> list[Row]:
+        """The rows in `group`, oldest approval first."""
+        found = self._groups.get(group)
+        if found is None:
+            found = self._groups[group] = _sorted_members(group, self)
+        return found
+
+
+def _sorted_members(group: tuple, rows: list[Row]) -> list[Row]:
+    return sorted((r for r in rows if _matches(group, r.key)), key=lambda r: r.sample.approved_at)
+
+
+def _members_of(group: tuple, rows: list[Row]) -> list[Row]:
+    return rows.members(group) if isinstance(rows, Rows) else _sorted_members(group, rows)
+
+
+def typed(samples: list[Sample], card_ids_by_vault: dict[str, list[str]]) -> Rows:
     """Each sample with its type, read with the card ids of ITS vault (a `cod` in one vault and
     a `cod` in another are the same type; a vault without prefixes gives None)."""
     types = {vault: card_types(ids) for vault, ids in card_ids_by_vault.items()}
-    return [Row(s, types.get(s.vault, {}).get(s.card)) for s in samples]
+    return Rows(Row(s, types.get(s.vault, {}).get(s.card)) for s in samples)
 
 
 # --- Groups --------------------------------------------------------------------------------
@@ -151,9 +177,9 @@ def estimate(rows: list[Row], groups: list[Group], value) -> Estimate | Missing:
     number out of a sample. If no group qualifies: how many the closest one lacks."""
     best = 0
     for group in groups:
-        members = [r for r in rows if _matches(group, r.key)]
+        members = _members_of(group, rows)
         if len(members) >= MIN_SAMPLES:
-            recent = sorted(members, key=lambda r: r.sample.approved_at)[-RECENT:]
+            recent = members[-RECENT:]
             numbers = [value(r.sample) for r in recent]
             return Estimate(median=statistics.median(numbers), p80=percentile80(numbers),
                             n=len(recent), basis=basis_text(group, len(members)))
@@ -183,7 +209,7 @@ OUTLIER_AGENT_HOURS = 7 * 24  # an agent stretch longer than this looks forgotte
 
 
 def _members(group: Group, rows: list[Row]) -> int:
-    return sum(1 for r in rows if _matches(group, r.key))
+    return len(_members_of(group, rows))
 
 
 def _sort_key(group: Group) -> tuple:

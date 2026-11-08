@@ -344,33 +344,34 @@ def get_status(vault_root: Path) -> StatusResult:
     data = _load_valid(vault_root)
     if canvas.recompute_blocked(data):
         canvas.save(vault_root, data)
-    open_estimates = refresh_estimates(vault_root, data)
+    with history.snapshot():  # the estimates and the critical path read the same history: once
+        open_estimates = refresh_estimates(vault_root, data)
 
-    by_color: dict[str, list[dict]] = {c: [] for c in STATE_NAMES}
-    for card in canvas.cards(data):
-        by_color.setdefault(card["color"], []).append(card)
+        by_color: dict[str, list[dict]] = {c: [] for c in STATE_NAMES}
+        for card in canvas.cards(data):
+            by_color.setdefault(card["color"], []).append(card)
 
-    groups = []
-    for color in _STATUS_ORDER:
-        summaries = []
-        for card in by_color.get(color, []):
-            meta = {}
-            md_path = canvas.card_file_path(vault_root, card)
-            if md_path.exists():
-                meta, _ = frontmatter.read(md_path)
-            worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
-            summaries.append(CardSummary(
-                id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
-                tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
-                proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
-            ))
-        groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
-    from . import critical  # critical reaches back into this module
+        groups = []
+        for color in _STATUS_ORDER:
+            summaries = []
+            for card in by_color.get(color, []):
+                meta = {}
+                md_path = canvas.card_file_path(vault_root, card)
+                if md_path.exists():
+                    meta, _ = frontmatter.read(md_path)
+                worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
+                summaries.append(CardSummary(
+                    id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
+                    tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
+                    proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
+                ))
+            groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
+        from . import critical  # critical reaches back into this module
 
-    try:
-        path = critical.refresh(vault_root)  # status repaints too, and shows the chain
-    except Exception:
-        path = None  # the critical path never keeps the human from seeing the board
+        try:
+            path = critical.refresh(vault_root)  # status repaints too, and shows the chain
+        except Exception:
+            path = None  # the critical path never keeps the human from seeing the board
     return StatusResult(groups=groups, critical_path=path)
 
 
