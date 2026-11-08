@@ -27,7 +27,7 @@ from pathlib import Path
 
 import yaml
 
-from . import canvas, events, operations
+from . import canvas, decisions, events, operations
 from .errors import HistosError
 from .fsutil import write_text_atomic
 from .lock import locked
@@ -267,5 +267,6 @@ def reject(vault_root: Path, feedback: str | None = None) -> int:
         cards = 0
     path.unlink()
     _set_feedback(vault_root, feedback)
-    events.emit("plan_rejected", cards=cards, feedback=feedback)
+    recorded = decisions.record(vault_root, "plan rejected", feedback)
+    events.emit("plan_rejected", cards=cards, feedback=feedback, recorded_in=recorded)
     return cards

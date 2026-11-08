@@ -161,7 +161,8 @@ def test_reject_keeps_the_feedback_until_the_next_plan(vault, monkeypatch, capsy
     assert "plan discarded (3 cards, none created)" in capsys.readouterr().out
     run(monkeypatch, vault, "plan", "diff")
     assert capsys.readouterr().out == "no pending plan\nFeedback on the last rejected plan: Split cod-a in two\n"
-    assert events.read(vault)[-1]["data"] == {"cards": 3, "feedback": "Split cod-a in two"}
+    assert events.read(vault)[-1]["data"] == {"cards": 3, "feedback": "Split cod-a in two",
+                                              "recorded_in": ".histos/decisions.md"}
     run(monkeypatch, vault, "plan", "propose", "--file", write(vault, PLAN))
     assert plans.last_feedback(vault) is None
 

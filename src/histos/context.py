@@ -102,6 +102,14 @@ def guidance_sections(vault_root: Path) -> list[str]:
             parts.append(f"Feedback on a rejected {filename} change: {rejected[filename]}")
         if parts:
             sections.append(f"## {label} ({filename})\n\n" + "\n\n".join(parts))
+    from . import decisions  # it builds on guides, which this module imports
+
+    outside = decisions.pending_text(vault_root)
+    if outside:
+        sections.append(
+            "## Decisions not yet in PROJECT.md (.histos/decisions.md)\n\n" + outside
+            + "\n\nCarry these into PROJECT.md's decisions section the next time you propose it."
+        )
     return sections
 
 

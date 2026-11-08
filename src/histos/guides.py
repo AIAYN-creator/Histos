@@ -170,6 +170,22 @@ def get_diff(vault_root: Path, name: str) -> GuideDiff:
     return GuideDiff(name=name, current=current, proposed=path.read_text(encoding="utf-8"))
 
 
+def archive_current(vault_root: Path, name: str) -> Path | None:
+    """Keeps the current version of a guide in approved/guides/ before it's replaced."""
+    target = vault_root / name
+    if not target.exists():
+        return None
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    archived = _approved_dir(vault_root) / f"{Path(name).stem}-{stamp}.md"
+    n = 2
+    while archived.exists():  # two changes within the same second (a reject, then an approve)
+        archived = archived.with_name(f"{Path(name).stem}-{stamp}-{n}.md")
+        n += 1
+    archived.parent.mkdir(parents=True, exist_ok=True)
+    write_text_atomic(archived, target.read_text(encoding="utf-8"))
+    return archived
+
+
 @dataclass
 class ApproveResult:
     name: str
@@ -183,12 +199,7 @@ def approve(vault_root: Path, name: str) -> ApproveResult:
     if not path.exists():
         raise HistosError(f"no pending change for {name}")
     target = vault_root / name
-    archived = None
-    if target.exists():
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        archived = _approved_dir(vault_root) / f"{Path(name).stem}-{stamp}.md"
-        archived.parent.mkdir(parents=True, exist_ok=True)
-        write_text_atomic(archived, target.read_text(encoding="utf-8"))
+    archived = archive_current(vault_root, name)
     text = path.read_text(encoding="utf-8")
     write_text_atomic(target, text)
     path.unlink()
@@ -204,8 +215,11 @@ def reject(vault_root: Path, name: str, feedback_text: str | None = None) -> str
     path = proposal_path(vault_root, name)
     if not path.exists():
         raise HistosError(f"no pending change for {name}")
+    from . import decisions  # it builds on this module
+
     path.unlink()
     _set_feedback(vault_root, name, feedback_text)
     _set_stored_evals(vault_root, name, None)
-    events.emit("guide_rejected", file=name, feedback=feedback_text)
+    recorded = decisions.record(vault_root, f"{name} change rejected", feedback_text)
+    events.emit("guide_rejected", file=name, feedback=feedback_text, recorded_in=recorded)
     return name

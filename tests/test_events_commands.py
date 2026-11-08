@@ -131,7 +131,7 @@ def test_guides(initialized_vault, monkeypatch, tmp_path):
         ("guide_proposed", None, "agent"), ("guide_rejected", None, "human"),
         ("guide_proposed", None, "agent"), ("guide_approved", None, "human"),
     ]
-    assert log(v)[-3]["data"] == {"file": "PROJECT.md", "feedback": "more"}
+    assert log(v)[-3]["data"] == {"file": "PROJECT.md", "feedback": "more", "recorded_in": ".histos/decisions.md"}
     assert log(v)[-1]["data"] == {"file": "PROJECT.md", "words": 3, "lines": 3}
 
 
