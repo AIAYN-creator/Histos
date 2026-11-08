@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import canvas, config, evals, events, operations
+from . import canvas, events, operations
 from .errors import HistosError
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
@@ -83,6 +83,10 @@ def is_guide_name(name: str) -> bool:
 def run_evals(vault_root: Path, name: str, draft_text: str) -> evals.EvalRun | None:
     """The evals whose `only` names this guide, on a draft of it -- None when the vault has no
     config or evals are off (pre-v3 vaults: guide changes work exactly as before)."""
+    # Imported here: config -> heuristics -> context -> guides would otherwise loop back into
+    # config while it's still loading (`import histos.config` first, as the desktop app does).
+    from . import config, evals
+
     cfg = config.load(vault_root)
     if cfg is None or not cfg.evals.enabled:
         return None
