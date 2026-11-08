@@ -78,6 +78,8 @@ A `file` card without `color` isn't managed by Histos (added by hand in Obsidian
 
 **Redundant edges:** when a longer path already implies an edge (A → B → C makes a direct A → C redundant), `histos arrange` removes it from the canvas and records A in C's `implied_dependencies` frontmatter (see below). That changes nothing about what's blocked — C can't leave Blocked before B is approved, and B can't before A — it just stops drawing the same dependency twice.
 
+**Color — the critical path:** the arrows between consecutive cards of the critical path carry `"color"` (by default `"#E83E8C"`, a magenta off the six status presets), repainted after every command that changes the canvas. Histos only ever colors an arrow with no color, and notes each one it painted in `.histos/critical-path.json` (`{"<edge id>": "<color>"}`); it only removes a color it noted and that's still exactly its own, so an arrow you colored — before or after — stays yours. Without that file, only arrows with exactly the configured color count as Histos's. `arrange` keeps arrow colors. Everything else about the critical path: [usage.md](usage.md#estimates-and-the-critical-path).
+
 ## `.md` frontmatter
 
 Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatter on each card — never in the `.canvas`. Fields Histos doesn't know (your own Obsidian properties) are allowed and never touched.
@@ -180,6 +182,8 @@ method -> fast
 `no_code_blocks` and `no_math_symbols` are accepted as aliases of their negation. **Card text** is the card's own title, description, feedback and body — so a dependency that mentions "debugging" doesn't make this card `reasoning`. **Full context** is what `histos context` bundles for the card (dependencies' approved content, sources), minus `PROJECT.md`/`ARCHITECTURE.md`, which are the same for every card. Terms are matched as whole words (plurals included), ignoring case and accents, in English and Spanish; `terms:` adds to the built-in lists, never replaces them.
 
 The default rules were calibrated on ~400 real cards, writing and code: about 13 % `fast`, 57 % `exec` (half of them by default) and 30 % `reasoning`. With one-line descriptions the signal is weak — the tier is a suggestion with its reason, and the human approves the model. `scripts/calibrate_tiers.py` measures how a config would split your own vaults, read-only.
+
+**`critical_path`** (optional, v3.2): `enabled` (default `true`; `false` removes Histos's arrow colors and stops painting), `color` (`#RRGGBB`, default `#E83E8C`) and `review` — which review clock the path counts: `active` (default: minus the human's `histos pause` time) or `calendar` (nights included). A card's weight is what it still needs: its estimate (agent median + review median) minus what it already has; a card in review only needs review; a card with no estimate uses the median of every closed card; with no closed card at all, every card weighs 1 and the path is the longest chain of cards. Ties go to more cards, then to board order.
 
 ## Evals
 
@@ -296,7 +300,7 @@ Read-only commands (`status` when nothing changed, `context`, `diff`, `validate`
 
 **Reliability:** a session's events are appended in one write with `fsync`. If the machine dies mid-line, the cut-off last line is ignored and `validate` warns about it; any other broken line is a `validate` error. If recording fails (a full disk), the command warns and still succeeds: the vault change already happened.
 
-**The rest of `.histos/`:** `vault.json` holds the vault's id (a UUID, so its history stays recognizable if the folder moves) and `colors.json` each card's color as of the last recorded command (how changes made in Obsidian are noticed). Outside the vault, `~/.histos/vaults.json` lists every vault that recorded an event, so later versions can learn from all your projects without asking where they are; set `HISTOS_HOME` to keep it somewhere else. Next to it, `~/.histos/pauses.jsonl` records `histos pause` (`{"event": "pause", "ts": ...}`) and the decision that ended it (`{"event": "resume", "ts": ..., "by": "approve"}`): one pause per person, for every vault, so review time can leave out the hours you were away.
+**The rest of `.histos/`:** `vault.json` holds the vault's id (a UUID, so its history stays recognizable if the folder moves) `colors.json` each card's color as of the last recorded command (how changes made in Obsidian are noticed), and `critical-path.json` the arrows Histos painted (see "Edges" above). Outside the vault, `~/.histos/vaults.json` lists every vault that recorded an event, so later versions can learn from all your projects without asking where they are; set `HISTOS_HOME` to keep it somewhere else. Next to it, `~/.histos/pauses.jsonl` records `histos pause` (`{"event": "pause", "ts": ...}`) and the decision that ended it (`{"event": "resume", "ts": ..., "by": "approve"}`): one pause per person, for every vault, so review time can leave out the hours you were away.
 
 If you keep a vault in git, commit `.histos/` with it — it's the project's history.
 
