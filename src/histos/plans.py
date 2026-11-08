@@ -27,7 +27,7 @@ from pathlib import Path
 
 import yaml
 
-from . import canvas, decisions, events, operations
+from . import canvas, decisions, events, headings, operations
 from .errors import HistosError
 from .fsutil import write_text_atomic
 from .lock import locked
@@ -38,6 +38,13 @@ _ARCHIVE_SUBDIR = "plans"
 _TOP_KEYS = {"summary", "cards"}
 _CARD_KEYS = {"id", "title", "description", "done_when", "depends_on"}
 _REQUIRED_CARD_KEYS = ("id", "title", "done_when")
+
+# Thresholds of the warnings (plans.warnings)
+MAX_DEPENDENCIES = 5
+MIN_DONE_WHEN_WORDS = 5
+_EMPTY_PHRASES = {headings.normalize(p) for p in (
+    "está hecho", "hecho", "terminado", "funciona", "listo", "completado",
+    "done", "it works", "works", "finished", "complete")}
 
 
 @dataclass
@@ -167,6 +174,46 @@ def topological_order(plan: Plan) -> list[PlanCard]:
                 if not pending_deps[card.id]:
                     ready.append(card.id)
     return order
+
+
+def levels(plan: Plan, data: dict) -> list[list[str]]:
+    """The plan by levels: level 1 can start once the plan is approved (no dependencies, or only
+    on approved board cards), level N+1 when level N is done. Plan order inside a level. A card
+    that depends on an unapproved board card is marked 'id (waits for other)': it can't start yet."""
+    approved = {c["id"] for c in canvas.cards(data) if c["color"] == canvas.APPROVED}
+    on_board = {c["id"] for c in canvas.cards(data)}
+    level_of: dict[str, int] = {}
+    for card in topological_order(plan):
+        in_plan = [level_of[d] for d in card.depends_on if d in level_of]
+        level_of[card.id] = 1 + max(in_plan, default=0)
+    result: list[list[str]] = []
+    for card in plan.cards:
+        if card.id not in level_of:  # part of a cycle: structural_errors refuses these earlier
+            continue
+        waits = [d for d in card.depends_on if d in on_board and d not in approved]
+        label = f"{card.id} (waits for {', '.join(waits)})" if waits else card.id
+        while len(result) < level_of[card.id]:
+            result.append([])
+        result[level_of[card.id] - 1].append(label)
+    return result
+
+
+def _plain(text: str) -> str:
+    return headings.normalize(text).rstrip(".").strip()
+
+
+def warnings(plan: Plan, data: dict) -> list[str]:
+    """Things that are usually an oversight in a plan. They never block: the human decides."""
+    found: list[str] = []
+    depended_on = {d for c in plan.cards for d in c.depends_on}
+    for card in plan.cards:
+        if len(plan.cards) > 1 and not card.depends_on and card.id not in depended_on:
+            found.append(f"warning: {card.id} is loose: it depends on nothing and nothing depends on it")
+        if len(card.depends_on) > MAX_DEPENDENCIES:
+            found.append(f"warning: {card.id} depends on {len(card.depends_on)} cards")
+        if len(card.done_when.split()) < MIN_DONE_WHEN_WORDS or _plain(card.done_when) in _EMPTY_PHRASES:
+            found.append(f"warning: {card.id}: done_when \"{card.done_when}\" can't be checked")
+    return found
 
 
 def _cycle(plan: Plan) -> list[str] | None:
