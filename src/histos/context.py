@@ -46,6 +46,8 @@ def render_card(vault_root: Path, card: dict, label: str, with_feedback: bool = 
     parts = [f"## {label}: {card['id']} ({operations.STATE_NAMES[card['color']]})"]
     if meta.get("description"):
         parts.append(f"Description: {meta['description']}")
+    if meta.get(operations.DONE_WHEN_KEY):
+        parts.append(f"Done when: {meta[operations.DONE_WHEN_KEY]}")
     routing = _routing_line(meta) if with_feedback else None  # only the card itself, not its dependencies
     if routing:
         parts.append(routing)

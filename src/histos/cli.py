@@ -44,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.add_argument("--title", required=True)
     p.add_argument("--description", default=None, help="one line, goes into the frontmatter and the initial body")
+    p.add_argument("--done-when", default=None, help="one line: a checkable criterion for when the card is done")
     p.add_argument("--depends-on", nargs="+", default=[], metavar="ID")
     p.add_argument(
         "--authorized", action="store_true",

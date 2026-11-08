@@ -76,7 +76,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
     try:
         node = operations.create_card(
             vault_root, data, args.id, args.title, description=args.description, depends_on=depends_on,
-            done_when=getattr(args, "done_when", None),
+            done_when=args.done_when,
         )
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
