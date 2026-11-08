@@ -40,11 +40,26 @@ class EvalsConfig:
     run_on: str
 
 
+CRITICAL_PATH_COLOR = "#E83E8C"  # magenta: off Obsidian's six status presets
+
+
+@dataclass
+class CriticalPathConfig:
+    enabled: bool = True
+    color: str = CRITICAL_PATH_COLOR
+    review: str = "active"  # or "calendar"
+
+
 @dataclass
 class Config:
     tiers: dict[str, Tier]
     evals: EvalsConfig
     terms: dict[str, list[str]]
+    critical_path: CriticalPathConfig = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.critical_path is None:
+            self.critical_path = CriticalPathConfig()
 
 
 def config_path(vault_root: Path) -> Path:
@@ -129,7 +144,14 @@ def _build(raw: dict) -> Config:
         path=(ev or {}).get("path", DEFAULT_EVALS_PATH),
         run_on=(ev or {}).get("run_on", "propose"),
     )
-    return Config(tiers=tiers, evals=evals, terms={k: list(v) for k, v in (raw.get("terms") or {}).items()})
+    cp = raw.get("critical_path") or {}
+    critical_path = CriticalPathConfig(
+        enabled=bool(cp.get("enabled", True)),
+        color=cp.get("color", CRITICAL_PATH_COLOR).upper(),
+        review=cp.get("review", "active"),
+    )
+    return Config(tiers=tiers, evals=evals, terms={k: list(v) for k, v in (raw.get("terms") or {}).items()},
+                  critical_path=critical_path)
 
 
 def _load_schema() -> dict:

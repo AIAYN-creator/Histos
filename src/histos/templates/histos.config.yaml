@@ -39,3 +39,10 @@ evals:
   enabled: true
   path: evals/
   run_on: propose
+
+# The critical path drawn on the canvas arrows (the remaining chain of cards that takes longest).
+# Histos never touches an arrow you colored yourself.
+critical_path:
+  enabled: true
+  color: "#E83E8C"                   # magenta: off the six status colors
+  review: active                     # active (minus your histos pause time) or calendar
