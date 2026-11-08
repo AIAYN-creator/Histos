@@ -2,6 +2,29 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.2.0] - 2026-11-08
+
+Each person trains their own Histos: time estimates learned from *your* closed cards -- never the agent's guess -- and the critical path drawn on the canvas arrows. Planned, specified and approved card by card in a Histos vault, the first one built with v3.1's interview and `plan propose`.
+
+### Added
+
+- **Estimates in `histos status`**, two per open card, kept apart: the agent's working time and the time the card waits for your review -- your *active* time, without the hours you were paused. `agent ~25 min (≤50 min) · review ~3 h (≤1 d)`: the median, and the 80th percentile as the "if it goes badly". They come from your closed cards in all your vaults: the agent's grouped by tier, card type and number of dependencies, the review's by card type, falling back to broader groups; at least 5 cards, the 30 most recent. Below that, "no data (N more needed)" -- never an invented number. A card's type is its id prefix, only in vaults that really use prefixes.
+- **Measured fairly** (`history.py`): an agent works one card at a time, so a batch assigned before you leave isn't counted as parallel work; subagents are; a takeover doesn't stop the clock; waiting for your `retry` is review time; time in Backlog or Blocked counts for neither. Three figures per closed card: agent, review on the calendar, and active review.
+- **In the frontmatter**: `estimate` (both estimates and what they're based on) and `estimated_duration_hours` on open cards; `actual_duration_hours` filled on approval with what the card really took (agent + active review) -- the two fields reserved since v1.
+- **`histos estimate --coverage`**: how many closed cards each group has and how many it still needs, and how many of your open cards would get an estimate right now. Read-only.
+- **The critical path on the canvas arrows**, in magenta (off the six status colors), repainted after every command that changes the board, and named on the last line of `histos status`. Each card weighs what it still needs; with no history yet it's the longest chain of cards. Histos notes the arrows it paints (`.histos/critical-path.json`) and never touches one you colored. `histos.config.yaml` gets an optional `critical_path` section: `enabled`, `color`, and `review: active | calendar`. The canvas legend gains a line for it; a legend you edited is left alone.
+- `scripts/make_history.py`: synthetic histories with known times, to try estimates and the critical path without waiting for real data -- it refuses to write anywhere but an empty folder.
+
+### Changed
+
+- `AGENTS.md`: the agent never estimates time itself (`histos status` has the estimates, or says there's no data yet) and never touches arrow colors.
+- `histos status` shows each open card's estimates; approving a card fills `actual_duration_hours`; every command that changes the canvas may repaint arrows on the critical path.
+
+### Notes
+
+- **Released before the data was enough.** The plan was to release once `--coverage` said the history sufficed; it was released earlier, by decision, with 11 closed cards: enough for review estimates over all cards and for agent estimates of `exec` cards, not yet for the other groups. Estimates fill in by themselves as cards close.
+- **What the first numbers showed:** in a code project, a card's measured agent time is the *proposal* (the spec), not the implementation, which happens after approval -- so the agent's times there are minutes. In writing projects, where the approved text is the result, they measure the real work. A measured implementation phase for code cards is an idea for v3.3.
+
 ## [3.1.2] - 2026-11-08
 
 ### Added
@@ -133,6 +156,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.2.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.0
 [3.1.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.2
 [3.1.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.1
 [3.1.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.0
