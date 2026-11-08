@@ -106,6 +106,25 @@ def test_without_project_md_it_goes_to_the_fallback_and_context_shows_it(vault, 
     assert "## Decisions not yet in PROJECT.md" in out and "plan rejected: Second reason" in out
 
 
+def test_context_omits_the_decisions_already_carried_into_project_md(vault, monkeypatch, capsys):
+    reject_a_plan(vault, monkeypatch, "First reason")
+    reject_a_plan(vault, monkeypatch, "Second reason")
+    fallback = vault / ".histos" / "decisions.md"
+    carried = f"- {TODAY} · plan rejected: First reason"
+    (vault / "PROJECT.md").write_text(PROJECT_ES + carried + "\n", encoding="utf-8")  # the agent carried one
+    original = fallback.read_text(encoding="utf-8")
+    run(monkeypatch, vault, "add-card", "c", "--title", "C")
+    capsys.readouterr()
+    run(monkeypatch, vault, "context", "c")
+    out = capsys.readouterr().out
+    assert out.count("plan rejected: First reason") == 1  # only inside PROJECT.md
+    assert out.count("plan rejected: Second reason") == 1  # still outside it
+    assert decisions.pending_text(vault) == f"- {TODAY} · plan rejected: Second reason"
+    assert fallback.read_text(encoding="utf-8") == original  # Histos never edits its own file here
+    (vault / "PROJECT.md").write_text(PROJECT_ES + "Second   reason\nplan rejected: First reason\n", encoding="utf-8")
+    assert "Second reason" in decisions.pending_text(vault)  # a mere mention of a word isn't a carried line
+
+
 def test_a_project_md_without_the_section_is_left_alone(vault, monkeypatch):
     (vault / "PROJECT.md").write_text("# Old style brief\n", encoding="utf-8")
     reject_a_plan(vault, monkeypatch)
