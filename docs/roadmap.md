@@ -4,33 +4,63 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.3 — planned: project metrics and the final report
+### v3.2.x: patches, soon
 
-- **`histos report`** writes a Markdown report into the vault when a project closes. It includes a Gantt chart drawn by Obsidian from a [Mermaid](https://mermaid.js.org/) block (no plugins, no images) and a three-point PERT whose estimates come from the history's percentiles.
+- **A slimmer `AGENTS.md`.** The agent reads it in full at the start of every session, in every vault, so each line costs tokens every day. It grew with every version; the same rules, in about half the text.
+- **Agent estimates for cards without a tier.** Cards created before tiers existed never fall into a tier group, so they get no agent estimate. They'll fall back to the broader groups.
+- **A measured implementation phase for code cards.** v3.2's first real numbers showed that in a code project a card's agent time is the *proposal* (the spec): the implementation happens after approval, where Histos doesn't see it. It ships as a patch because every code card closed without it is data lost.
+- **`histos doctor`:** a read-only health check of a vault.
+  - an `AGENTS.md` older than the installed Histos (the template gets a version stamp);
+  - a missing `histos.config.yaml` or evals;
+  - a legend Histos doesn't recognise;
+  - open cards without a tier;
+  - and anything else that quietly turns features off.
+  
+  Each finding comes with the command that fixes it.
+
+### v3.3: project metrics and the final report
+
+- **`histos report`** writes a Markdown report into the vault when a project closes. It includes:
+  - a Gantt chart drawn by Obsidian from a [Mermaid](https://mermaid.js.org/) block (no plugins, no images);
+  - a three-point PERT whose estimates come from the history's percentiles.
 - **Metrics:** actual vs. estimated time, rejection rate per tier and per model, eval attempts, time waiting for review, and how far the critical path drifted. This also gives the tier heuristics real outcomes to be calibrated against. New metrics ship as patch releases (v3.3.x).
-- **A measured implementation phase for code cards.** v3.2's first real numbers showed that in a code project a card's agent time is the *proposal* (the spec): the implementation happens after approval, where Histos doesn't see it.
+- **Archiving finished work.** `histos archive` moves Done cards of a closed phase off the board into an archive canvas, so big boards stay readable and fast. Their history and metrics stay intact.
 
-### v4.0 — planned: yolo mode
+### v3.4: tokens, notifications and the desktop app
+
+- **Token cost per card.** The cost comes from the session transcripts Claude Code already keeps on disk, matched to the event log, so `status` and the report show what each card cost as well as how long it took. This shows which kind of card eats a subscription's quota. Yolo mode needs it too, as its stop condition.
+- **"Waiting for you" notifications.** A desktop notification when a card reaches review, or an eval run fails for good. Review time is mostly waiting, and the human is only one notification away.
+- **`histos undo`:** reverts the last change a command made to the board, using the event log and the atomic writes that already exist. It never undoes a human approval.
+- **The desktop app catches up:** estimates, the critical path and a pause button. Also each card's tier, model and evals on the overview, approving the models of a queue and guide changes from the app, and `retry` and `accept-edit` as buttons.
+
+### v3.5: other model providers, opt-in per vault
+
+- The agent can propose another provider's executor for a card, for example the Gemini CLI on its free tier for drawings or for reading a whole repository at once. As always, the human approves.
+- **Off by default, enabled per vault** in `histos.config.yaml`. Free tiers usually pay with your data, so it's meant for public projects, never private vaults.
+- Histos still only proposes, records and measures, never calls a model itself. Estimates are grouped by executor too, so whether a provider pays off is answered by your own history.
+- Out of scope: local models (they need hardware most laptops don't have) and driving web chat interfaces (against providers' terms and fragile).
+
+### v4.0: yolo mode
 
 Unattended work from backlog to merged-ready branch. It's a major version because it changes the trust model: for the first time someone other than the human approves.
 
 - **Only a human starts it**, typing `histos yolo start` in a terminal, with the same protections as `approve`. It stays on until the backlog is empty, with no card or round limits.
-- **Three roles:** an orchestrator picks and approves a model for each backlog card and assigns it, a builder writes the proposal, and a reviewer approves or rejects it on its own judgment. Histos refuses to let the reviewer be the agent that built the card. Approvals are marked as an agent's (`approved_by: agent:…`).
+- **Three roles:**
+  - an orchestrator picks and approves a model for each backlog card and assigns it;
+  - a builder writes the proposal;
+  - a reviewer approves or rejects it on its own judgment.
+
+  Histos refuses to let the reviewer be the agent that built the card. Approvals are marked as an agent's (`approved_by: agent:…`).
 - **Never on `main`:** approved work is committed and pushed to a parallel `yolo` branch of the project's code repository. If the human doesn't like it, they don't merge it.
-- **A token budget** is the stop condition, so a finished project never comes with an empty quota. Histos can't see tokens itself; how to measure them is still being decided (a Claude Code hook reading the session transcript, agent-reported usage, or the weekly usage percentage if the platform exposes it).
+- **A token budget** is the stop condition, so a finished project never comes with an empty quota. It's measured by v3.4's token accounting.
 - **Iteration is the point:** failing evals don't stop the loop. Only a card that can never pass gets parked for the human, and the loop moves on to the others.
 - **Resumable** after a dropped connection or a dead battery: the yolo state lives on disk, `histos yolo resume` picks up where it stopped, and cards left In progress are recovered with `--takeover`.
 - **Off limits:** yolo never touches `PROJECT.md`, `ARCHITECTURE.md`, `histos.config.yaml` or `evals/`.
-
-### v2.2 — whenever it's needed
-
-- Addressing GUI bugs and implementing minor features identified during beta testing.
 
 ## Future directions
 
 Ideas for later versions, none committed yet — roughly from most to least likely:
 
-- **The desktop app catches up with v3:** each card's tier, model and evals on the overview; approving the models of a queue and the guide changes from the app; `retry` and `accept-edit` as buttons.
 - **More eval checks**, still deterministic: citation keys that resolve against a `references.bib`, links and images that exist, a maximum length per section, and — opt-in, for code projects — running the project's own test command on a proposal.
 - **Permissions for other agents.** Generate the equivalent of the Claude Code deny list for Codex CLI and Gemini CLI from the same rules.
 - **An MCP server** exposing the Histos commands as structured tools, so agents call them directly instead of through a shell — clearer for the agent, and a narrower surface than shell access.
@@ -97,7 +127,7 @@ Model routing by tier, subagents with an isolated context, and deterministic eva
 
 ## Open questions
 
-- **How much signal the tier heuristics can get from one-line card descriptions.** The calibration shows a reasonable split with visible misses; richer descriptions help, and calibrating from real outcomes (see [v3.3](#v33--planned-project-metrics-and-the-final-report)) is the likely next step.
+- **How much signal the tier heuristics can get from one-line card descriptions.** The calibration shows a reasonable split with visible misses; richer descriptions help, and calibrating from real outcomes (see [v3.3](#v33-project-metrics-and-the-final-report)) is the likely next step.
 - **Project brief format — mostly resolved:** `PROJECT.md` (what) and `ARCHITECTURE.md` (how) change only through `histos guide`, and since v3.1 `PROJECT.md` has a required structure; whether `ARCHITECTURE.md` needs one too is still open.
 - **Folder structure — partially resolved:** cards live in `content/<id>.md` (see [canvas-schema.md](canvas-schema.md)); additional subfolders like `content/drafts/` remain open.
 
