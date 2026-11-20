@@ -95,7 +95,7 @@ Review time                         cards   enough?
   rel                                   1   4 more
   all cards                            13   yes
 
-Open cards with an estimate right now: agent 2 of 3, review 3 of 3
+Open cards with an estimate right now: agent 3 of 3, review 3 of 3
 
 Agent time over 7 days (forgotten In progress?)
   {world['a'].name} · dec-a2: 8.3 days
@@ -150,4 +150,4 @@ def test_without_the_flag_it_explains(tmp_path, monkeypatch, capsys):
 
 def test_the_open_card_count_spans_every_registered_vault(world, monkeypatch, tmp_path, capsys):
     report = operations.coverage()
-    assert (report.open_cards, report.open_with_agent, report.open_with_review) == (3, 2, 3)
+    assert (report.open_cards, report.open_with_agent, report.open_with_review) == (3, 3, 3)
