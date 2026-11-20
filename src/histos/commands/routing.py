@@ -215,3 +215,26 @@ def cmd_guide(args: argparse.Namespace) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     return 0
+
+
+@_with_vault_lock
+def cmd_implement(args: argparse.Namespace) -> int:
+    """The implementation of an approved card -- in a code project, the work that happens after
+    the proposal (the spec) is approved. Only recorded: its time counts as the card's agent time."""
+    vault_root = _vault_root()
+    data = operations._load_valid(vault_root)
+    card = canvas.find_card(data, args.id)
+    if card is None:
+        print(f"error: card '{args.id}' doesn't exist", file=sys.stderr)
+        return 1
+    if card["color"] != canvas.APPROVED:
+        print(f"error: '{args.id}' isn't Approved -- implement the approved proposal, not a draft",
+              file=sys.stderr)
+        return 1
+    if args.done:
+        events.emit("implementation_done", card=args.id)
+        print(f"{args.id}: implementation done, its time recorded")
+    else:
+        events.emit("implementation_started", card=args.id)
+        print(f"{args.id}: implementation started -- run `histos implement {args.id} --done` when it's finished")
+    return 0

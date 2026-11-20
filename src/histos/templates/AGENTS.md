@@ -56,6 +56,7 @@ Every `done_when` must be checkable. No tiers in the plan. After a rejection, `p
 6. `histos context <id>`: card, dependencies (implied ones too), sources, guidance files, and feedback from a rejection (address it).
 7. Optional dry run: `histos eval <id> --file <draft>`.
 8. `histos propose <id> --file <draft>`. Evals run first; on failure, fix and propose again. **3 attempts at most**, then leave the card for the human.
+9. If the approved card still has to be built (code), `histos implement <id>` before you start and `histos implement <id> --done` when it's finished: that time is yours too.
 
 **Subagents** only for a card that is self-contained (`histos context <id> --for-subagent` is enough), has no open decision, and pays off. `dec-` cards are always yours. Assign it `--worker sub-<id>`, give that brief as the whole prompt, with the approved model. At most 2 at a time.
 
@@ -75,6 +76,7 @@ histos model <id>... --proposed "..." | --approved "..." --authorized
 histos context <id> [--for-subagent]
 histos eval <id>|PROJECT.md --file <draft>
 histos propose <id> --file <draft>
+histos implement <id> [--done]
 histos guide propose PROJECT.md|ARCHITECTURE.md --file <draft>
 ```
 

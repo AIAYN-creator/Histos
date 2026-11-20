@@ -250,3 +250,29 @@ def test_read_all_returns_the_created_card_ids(tmp_path):
     (home / "vaults.json").write_text(json.dumps({"vaults": [{"id": "one", "path": str(v1)}]}), encoding="utf-8")
     found, card_ids = history.read_all(home)
     assert [s.card for s in found] == ["a"] and card_ids == {"one": ["a", "b"]}
+
+
+def test_the_implementation_after_approval_counts_as_agent_time(tmp_path):
+    write_log(tmp_path, [
+        created(at("09:00"), "cod-a"), assign(at("09:00"), "cod-a"), propose(at("10:00"), "cod-a"),
+        approve(at("11:00"), "cod-a"),
+        ev(at("12:00"), "implementation_started", "cod-a", "parent"),
+        ev(at("15:00"), "implementation_done", "cod-a", "parent"),
+    ])
+    [s] = history.vault_samples(tmp_path)
+    assert s.implementation_hours == 3.0 and s.agent_hours == 4.0 and s.review_hours == 1.0
+
+
+def test_implement_needs_an_approved_card_and_records_both_ends(initialized_vault, monkeypatch, tmp_path):
+    v = initialized_vault
+    draft = tmp_path / "draft.md"
+    draft.write_text("# A\n\nA real draft with enough words.\n", encoding="utf-8")
+    run(monkeypatch, v, "add-card", "a", "--title", "A")
+    assert run(monkeypatch, v, "implement", "a") == 1  # not approved yet
+    run(monkeypatch, v, "assign", "a", "--worker", "parent")
+    run(monkeypatch, v, "propose", "a", "--file", str(draft))
+    run(monkeypatch, v, "approve", "a")
+    assert run(monkeypatch, v, "implement", "a") == 0
+    assert run(monkeypatch, v, "implement", "a", "--done") == 0
+    names = [e["event"] for e in events.read(v)]
+    assert names[-2:] == ["implementation_started", "implementation_done"]
