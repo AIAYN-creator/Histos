@@ -2,6 +2,19 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.2.1] - 2026-11-20
+
+Fewer tokens every session, agent estimates for every card, and the real work of code cards measured.
+
+### Changed
+
+- **`AGENTS.md` is half as long** (1779 → about 850 words), with the same rules. The agent reads it whole at the start of every session in every vault, so this saves tokens every day. Copy it into your vaults: `init` never overwrites it.
+- **Cards without a tier get an agent estimate.** Cards created before tiers existed used to show only a review estimate. They now fall back to the groups across every tier: card type and dependencies, then type, then all cards.
+
+### Added
+
+- **`histos implement <id>` and `histos implement <id> --done`.** In a code project the approved proposal is a spec, and the real work comes after it, where Histos couldn't see it. The agent marks the start and end of the implementation of an approved card, and that time counts as the card's agent time in history and estimates. It's only recorded: it doesn't change the card's color. `actual_duration_hours`, written on approval, doesn't include it.
+
 ## [3.2.0] - 2026-11-08
 
 Each person trains their own Histos: time estimates learned from *your* closed cards -- never the agent's guess -- and the critical path drawn on the canvas arrows. Planned, specified and approved card by card in a Histos vault, the first one built with v3.1's interview and `plan propose`.
@@ -157,6 +170,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.2.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.1
 [3.2.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.0
 [3.1.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.2
 [3.1.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.1
