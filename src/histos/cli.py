@@ -28,7 +28,7 @@ from .commands.review import (
     cmd_retry,
 )
 from .commands.plans import cmd_plan
-from .commands.routing import cmd_classify, cmd_context, cmd_guide, cmd_model
+from .commands.routing import cmd_classify, cmd_context, cmd_guide, cmd_implement, cmd_model
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -158,6 +158,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="per group: closed cards, and whether there are enough to estimate; open cards with an estimate now",
     )
     p.set_defaults(func=cmd_estimate)
+
+    p = sub.add_parser(
+        "implement",
+        help="(agent) start, or with --done finish, implementing an approved card; the time counts as agent time",
+    )
+    p.add_argument("id")
+    p.add_argument("--done", action="store_true", help="the implementation is finished")
+    p.set_defaults(func=cmd_implement)
 
     p = sub.add_parser(
         "pause",

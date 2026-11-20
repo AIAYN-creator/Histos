@@ -135,8 +135,10 @@ def typed(samples: list[Sample], card_ids_by_vault: dict[str, list[str]]) -> Row
 
 # --- Groups --------------------------------------------------------------------------------
 
-def agent_groups(tier: str, type_: str | None, dependencies: int) -> list[Group]:
-    """From the most specific to the most general. Without a type only the tier group applies."""
+def agent_groups(tier: str | None, type_: str | None, dependencies: int) -> list[Group]:
+    """From the most specific to the most general. Without a type only the tier group applies.
+    A card without a tier (created before tiers existed) falls back to every tier at once."""
+    tier = tier or ANY
     groups: list[Group] = []
     if type_:
         groups += [(tier, type_, dependency_bucket(dependencies)), (tier, type_, ANY)]
@@ -197,8 +199,7 @@ def review_value(sample: Sample) -> float:
 
 
 def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int) -> CardEstimate:
-    agent = (estimate(rows, agent_groups(tier, type_, dependencies), agent_value)
-             if tier else UNCLASSIFIED)
+    agent = estimate(rows, agent_groups(tier, type_, dependencies), agent_value)
     return CardEstimate(agent=agent, review=estimate(rows, review_groups(type_), review_value))
 
 

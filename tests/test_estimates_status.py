@@ -85,7 +85,8 @@ def test_the_three_labels(history_vault, vault, monkeypatch, capsys):
     out = status(vault, monkeypatch, capsys)
     assert ("  - cod-open1  (content/cod-open1.md)  "
             "{exec · Sonnet 5.5 · agent ~25 min (≤50 min) · review ~3 h (≤1 d)}") in out
-    assert "  - cod-open2  (content/cod-open2.md)  {unclassified · review ~3 h (≤1 d)}" in out
+    assert ("  - cod-open2  (content/cod-open2.md)  "
+            "{unclassified · agent ~25 min (≤50 min) · review ~3 h (≤1 d)}") in out  # no tier: any tier's history
     assert ("  - cod-open3  (content/cod-open3.md)  "
             "{reasoning · agent no data (3 more needed) · review ~3 h (≤1 d)}") in out
 
@@ -144,13 +145,16 @@ def test_the_file_is_only_written_when_the_numbers_change(history_vault, vault, 
     before = {p: p.stat().st_mtime_ns for p in (one, two)}
     status(vault, monkeypatch, capsys)
     assert {p: p.stat().st_mtime_ns for p in (one, two)} == before  # nothing changed: not touched
-    set_meta(vault, "cod-open2", proposed_tier="exec")  # a tier: its agent estimate appears
-    after_set = two.stat().st_mtime_ns
+    assert frontmatter.read(two)[0]["estimate"]["agent_hours"]["basis"] == "cod · 0 deps · 12 cards"  # no tier: any tier
+    set_meta(vault, "cod-open2", proposed_tier="exec")  # same figures from the exec group: nothing to rewrite
     status(vault, monkeypatch, capsys)
-    assert two.stat().st_mtime_ns > after_set
+    assert frontmatter.read(two)[0]["estimate"]["agent_hours"]["basis"] == "cod · 0 deps · 12 cards"
+    set_meta(vault, "cod-open2", proposed_tier="reasoning")  # thin group: the agent figure goes away
+    status(vault, monkeypatch, capsys)
     assert one.stat().st_mtime_ns == before[one]
     meta, _ = frontmatter.read(two)
-    assert meta["estimated_duration_hours"] == 3.42
+    assert meta["estimate"]["agent_hours"] is None  # rewritten
+    assert meta["estimated_duration_hours"] is None
 
 
 def test_classify_refreshes_the_estimate(history_vault, vault, monkeypatch, capsys):
@@ -162,6 +166,6 @@ def test_classify_refreshes_the_estimate(history_vault, vault, monkeypatch, caps
 
 def test_no_history_at_all_is_not_an_error(vault, monkeypatch, capsys):
     out = status(vault, monkeypatch, capsys)
-    assert "{unclassified · review no data (5 more needed)}" in out
+    assert "{unclassified · agent no data (5 more needed) · review no data (5 more needed)}" in out
     meta, _ = frontmatter.read(vault / "content" / "cod-open1.md")
     assert "estimate" not in meta  # nothing to say: the file is left as it was

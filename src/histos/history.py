@@ -53,6 +53,7 @@ class Sample:
     dependencies: int
     worker_kind: str | None  # "parent", "sub" or None
     approximate: bool
+    implementation_hours: float = 0.0  # included in agent_hours; after approval (code cards)
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,8 @@ class _Card:
     deps: set[str] = field(default_factory=set)
     approved_at: datetime | None = None
     worker_kinds: set[str] = field(default_factory=set)
+    implement_open: datetime | None = None  # an implementation under way (after approval)
+    implement_s: float = 0.0
 
 
 def _ts(text: str) -> datetime:
@@ -148,6 +151,11 @@ class _Replay:
                     c.wait_open = now  # out of attempts: waiting for the human's retry
                 else:
                     self.last_done[c.worker] = (now, card_id)
+            elif name == "implementation_started":
+                c.implement_open = c.implement_open or now
+            elif name == "implementation_done" and c.implement_open is not None:
+                c.implement_s += max(0.0, (now - c.implement_open).total_seconds())
+                c.implement_open = None
             elif name == "retry" and c.wait_open is not None:
                 c.review_spans.append((c.wait_open, now))
                 c.wait_open = None
@@ -257,8 +265,9 @@ def _vault_history(vault_root: Path, home: Path | None, away: "_Away | None" = N
         kinds = c.worker_kinds - {""}
         result.append(Sample(
             vault=vault, card=card_id, approved_at=c.approved_at,
-            agent_hours=c.agent_s / 3600, review_hours=_hours(c.review_spans),
+            agent_hours=(c.agent_s + c.implement_s) / 3600, review_hours=_hours(c.review_spans),
             review_active_hours=_active_hours(c.review_spans, away),
+            implementation_hours=c.implement_s / 3600,
             rounds=c.rounds, rejections=c.rejections, tier=c.tier,
             model=c.model or c.model_after, dependencies=len(c.deps),
             worker_kind="sub" if "sub" in kinds else ("parent" if "parent" in kinds else None),

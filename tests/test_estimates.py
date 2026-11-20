@@ -127,9 +127,10 @@ def test_for_card_gives_both_estimates():
     assert got.agent.median == 0.5 and got.review.median == 3.0 and got.review.basis == "cod · 5 cards"
 
 
-def test_an_unclassified_card_has_a_review_estimate_only():
-    got = estimates.for_card(rows(5), None, "cod", 0)
-    assert got.agent is estimates.UNCLASSIFIED and isinstance(got.review, Estimate)
+def test_a_card_without_tier_falls_back_to_every_tier():
+    got = estimates.for_card(rows(5, agent=0.5), None, "cod", 0)
+    assert got.agent.median == 0.5 and isinstance(got.review, Estimate)
+    assert estimates.agent_groups(None, "cod", 0)[-1] == (estimates.ANY,) * 3
 
 
 # --- showing durations ---

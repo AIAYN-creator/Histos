@@ -46,11 +46,12 @@ def stats_of(truths, value):
 def agent_ladder(tier, type_, deps):
     """[(label of the group, the truths in it)] from the most specific group to the broadest."""
     bucket = min(deps, 2)
+    same_tier = (lambda t: True) if tier is None else (lambda t: t.tier == tier)  # no tier: any tier counts
     rungs = []
     if type_:
-        rungs.append(lambda t: (t.tier, t.type, min(t.deps, 2)) == (tier, type_, bucket))
-        rungs.append(lambda t: (t.tier, t.type) == (tier, type_))
-    rungs.append(lambda t: t.tier == tier)
+        rungs.append(lambda t: same_tier(t) and (t.type, min(t.deps, 2)) == (type_, bucket))
+        rungs.append(lambda t: same_tier(t) and t.type == type_)
+    rungs.append(same_tier)
     return rungs
 
 
@@ -76,7 +77,7 @@ def review_h(t):
 
 
 def agent_expected(info, o):
-    return expected(info.truths, agent_ladder(o.tier, o.type, o.deps), agent_h) if o.tier else None
+    return expected(info.truths, agent_ladder(o.tier, o.type, o.deps), agent_h)
 
 
 def review_expected(info, o):
@@ -196,7 +197,7 @@ def test_status_shows_the_exact_median_and_percentile(tmp_path, monkeypatch, cap
         if want_agent:
             seen_agent += 1
             assert f"agent {hours_text(want_agent[0])} (≤{hours_text(want_agent[1])[1:]})" in line
-        elif o.tier:
+        else:
             assert "agent no data" in line
         assert f"review {hours_text(want_review[0])} (≤{hours_text(want_review[1])[1:]})" in line
     assert seen_agent >= 10  # plenty of cards with a figure were checked, and the ones without say so
@@ -405,7 +406,7 @@ def test_coverage_counts_and_footer_match_the_generated_data(tmp_path, monkeypat
 
     with_agent = sum(agent_expected(info, o) is not None for o in info.opens)
     with_review = sum(review_expected(info, o) is not None for o in info.opens)
-    assert with_agent < len(info.opens)  # some open cards are unclassified or in thin groups
+    assert with_agent <= len(info.opens)
     assert (f"Open cards with an estimate right now: agent {with_agent} of {len(info.opens)}, "
             f"review {with_review} of {len(info.opens)}") in out
 
