@@ -268,7 +268,8 @@ def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row])
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
         dependencies = declared.get(card["id"], set()) | set(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
-        card_estimate = estimates.for_card(rows, meta.get("proposed_tier"), types.get(card["id"]), len(dependencies))
+        card_estimate = estimates.for_card(rows, meta.get("proposed_tier"), types.get(card["id"]), len(dependencies),
+                                           meta.get("approved_model"))
         result.append((card, md_path, meta, body, card_estimate))
     return result
 

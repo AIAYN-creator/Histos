@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import re
+import dataclasses
 import statistics
 from dataclasses import dataclass
 from functools import cached_property
@@ -117,6 +118,13 @@ class Rows(list):
             found = self._groups[group] = _sorted_members(group, self)
         return found
 
+    def of_model(self, model: str) -> "Rows":
+        """Only the rows worked with `model`, worked out once per model."""
+        cache = self.__dict__.setdefault("_models", {})
+        if model not in cache:
+            cache[model] = Rows(r for r in self if r.sample.model == model)
+        return cache[model]
+
 
 def _sorted_members(group: tuple, rows: list[Row]) -> list[Row]:
     return sorted((r for r in rows if _matches(group, r.key)), key=lambda r: r.sample.approved_at)
@@ -198,8 +206,19 @@ def review_value(sample: Sample) -> float:
     return sample.review_active_hours
 
 
-def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int) -> CardEstimate:
-    agent = estimate(rows, agent_groups(tier, type_, dependencies), agent_value)
+def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int,
+             model: str | None = None) -> CardEstimate:
+    """With an approved model, the agent estimate comes from that model's cards first; with fewer
+    than MIN_SAMPLES of them in every group, from all cards, as without a model."""
+    groups = agent_groups(tier, type_, dependencies)
+    agent = None
+    if model:
+        model_rows = rows.of_model(model) if isinstance(rows, Rows) else [r for r in rows if r.sample.model == model]
+        found = estimate(model_rows, groups, agent_value)
+        if isinstance(found, Estimate):
+            agent = dataclasses.replace(found, basis=f"{model} · {found.basis}")
+    if agent is None:
+        agent = estimate(rows, groups, agent_value)
     return CardEstimate(agent=agent, review=estimate(rows, review_groups(type_), review_value))
 
 
@@ -231,6 +250,15 @@ def agent_coverage(rows: list[Row]) -> list[tuple[Group, int]]:
     a tier belongs to no group, as in `for_card`."""
     return _coverage(rows, [agent_groups(r.sample.tier, r.type, r.sample.dependencies)
                             for r in rows if r.sample.tier])
+
+
+def model_coverage(samples: list[Sample]) -> list[tuple[str, int]]:
+    """Closed cards per approved model, most cards first; cards without a model are left out."""
+    counts: dict[str, int] = {}
+    for s in samples:
+        if s.model:
+            counts[s.model] = counts.get(s.model, 0) + 1
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
 
 
 def review_coverage(rows: list[Row]) -> list[tuple[Group, int]]:

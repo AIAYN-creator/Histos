@@ -3,6 +3,7 @@
 Pure functions, so every case here is an invented list of samples."""
 from datetime import datetime, timedelta, timezone
 
+import dataclasses
 import pytest
 
 from histos import estimates
@@ -151,3 +152,30 @@ def test_status_parts():
     assert estimates.status_parts(e) == ["agent no data (3 more needed)", "review ~5 h (≤2 d)"]
     e = estimates.CardEstimate(estimates.UNCLASSIFIED, Estimate(5.0, 48.0, 12, "y"))
     assert estimates.status_parts(e) == ["review ~5 h (≤2 d)"]
+
+
+# --- by model ---
+
+def model_rows(model, count, agent, start=0):
+    return [Row(dataclasses.replace(sample(n=start + n, card=f"{model}{n}", agent=agent), model=model), "cod")
+            for n in range(count)]
+
+
+def test_an_approved_model_gets_its_own_estimate():
+    data = estimates.Rows(model_rows("A", 5, agent=2.0) + model_rows("B", 5, agent=1.0, start=10))
+    a = estimates.for_card(data, "exec", "cod", 0, "A").agent
+    b = estimates.for_card(data, "exec", "cod", 0, "B").agent
+    assert (a.median, b.median) == (2.0, 1.0)
+    assert a.basis.startswith("A · ")
+
+
+def test_too_few_cards_of_a_model_fall_back_to_every_model():
+    data = estimates.Rows(model_rows("A", 4, agent=2.0) + model_rows("B", 5, agent=1.0, start=10))
+    with_model = estimates.for_card(data, "exec", "cod", 0, "A").agent
+    without = estimates.for_card(data, "exec", "cod", 0).agent
+    assert with_model == without and with_model.n == 9
+
+
+def test_model_coverage_counts_closed_cards_per_model():
+    data = model_rows("A", 2, agent=1.0) + model_rows("B", 3, agent=1.0, start=5)
+    assert estimates.model_coverage([r.sample for r in data]) == [("B", 3), ("A", 2)]

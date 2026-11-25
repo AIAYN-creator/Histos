@@ -36,6 +36,11 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
     _table("Agent time", report.agent)
     _table("Review time", report.review)
+    models = estimates.model_coverage(report.samples)
+    if models:
+        print(f"\n{'Agent time by model':{NAME_WIDTH}}  cards   (its own estimate once a group has {estimates.MIN_SAMPLES})")
+        for model, count in models:
+            print(f"  {model:{NAME_WIDTH - 2}}  {count:>5}")
     print(f"\nOpen cards with an estimate right now: agent {report.open_with_agent} of {report.open_cards}, "
           f"review {report.open_with_review} of {report.open_cards}")
 
