@@ -19,7 +19,7 @@ from .commands.board import (
     cmd_status,
     cmd_validate,
 )
-from .commands.estimate import cmd_estimate
+from .commands.estimate import cmd_estimate, cmd_report
 from .commands.review import (
     cmd_accept_edit,
     cmd_approve,
@@ -160,6 +160,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="per group: closed cards, and whether there are enough to estimate; open cards with an estimate now",
     )
     p.set_defaults(func=cmd_estimate)
+
+    p = sub.add_parser(
+        "report",
+        help="generates a Markdown project report with metrics, Mermaid Gantt, and 3-point PERT",
+    )
+    p.add_argument("--output", default=None, help="output file relative to the vault (default: REPORT.md)")
+    p.add_argument("--include-archived", action="store_true", help="include cards moved to archive canvases")
+    p.set_defaults(func=cmd_report)
 
     p = sub.add_parser(
         "implement",
