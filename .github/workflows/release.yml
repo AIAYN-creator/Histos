@@ -1,0 +1,71 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -e ".[dev,gui,packaging]"
+
+      - name: Run tests and link check
+        run: |
+          python -m pytest -m "not slow" -q
+          python scripts/check_links.py
+
+      - name: Build desktop executable
+        run: python -m PyInstaller --noconfirm --clean --distpath packaging/dist --workpath packaging/build packaging/histos-gui.spec
+
+      - name: Selftest desktop executable
+        shell: pwsh
+        run: |
+          $env:HISTOS_GUI_SELFTEST = "1"
+          .\packaging\dist\histos-gui.exe
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $hash = (Get-FileHash .\packaging\dist\histos-gui.exe -Algorithm SHA256).Hash.ToLower()
+
+          $notesPath = "$env:RUNNER_TEMP\release-notes.md"
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $pattern = "(?ms)^## \[" + [regex]::Escape($version) + "\][^\r\n]*\r?\n(.*?)(?=^## \[|\Z)"
+          if ($changelog -match $pattern) {
+            $body = $Matches[1].Trim()
+          } else {
+            $body = "Release $tag."
+          }
+
+          @(
+            $body
+            ""
+            "Full list: [CHANGELOG.md](https://github.com/AIAYN-creator/Histos/blob/$tag/CHANGELOG.md)."
+            ""
+            "## Get it"
+            ""
+            "**Desktop app:** download `histos-gui.exe` below."
+            ""
+            "`histos-gui.exe` SHA-256: `$hash`"
+          ) | Set-Content -Path $notesPath -Encoding utf8
+
+          gh release create $tag packaging/dist/histos-gui.exe `
+            --title "Histos $tag" `
+            --notes-file $notesPath `
+            --latest

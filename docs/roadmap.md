@@ -4,14 +4,6 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.3: project metrics and the final report
-
-- **`histos report`** writes a Markdown report into the vault when a project closes. It includes:
-  - a Gantt chart drawn by Obsidian from a [Mermaid](https://mermaid.js.org/) block (no plugins, no images);
-  - a three-point PERT whose estimates come from the history's percentiles.
-- **Metrics:** actual vs. estimated time, rejection rate per tier and per model, eval attempts, time waiting for review, and how far the critical path drifted. This also gives the tier heuristics real outcomes to be calibrated against. New metrics ship as patch releases (v3.3.x).
-- **Archiving finished work.** `histos archive` moves Done cards of a closed phase off the board into an archive canvas, so big boards stay readable and fast. Their history and metrics stay intact.
-
 ### v3.4: tokens, notifications and the desktop app
 
 - **Token cost per card.** The cost comes from the session transcripts Claude Code already keeps on disk, matched to the event log, so `status` and the report show what each card cost as well as how long it took. This shows which kind of card eats a subscription's quota. Yolo mode needs it too, as its stop condition.
@@ -58,6 +50,13 @@ Ideas for later versions, none committed yet — roughly from most to least like
 - Still open from earlier versions: git as an optional history backend for the content, calendar/date-based scheduling, pulling external context automatically (e.g. Overleaf's `.tex` via its Git integration), `content/` subfolder conventions, and a translated desktop app.
 
 ## Shipped
+
+### v3.3.0 ([CHANGELOG](../CHANGELOG.md#330---2026-11-25))
+
+- **`histos report [--output REPORT.md] [--include-archived]`:** writes a Markdown project report with executive totals, actual-vs-estimated accuracy, rejection rate and eval attempts per tier/model, critical path drift, a native Obsidian [Mermaid](https://mermaid.js.org/) Gantt timeline, and a three-point PERT (`p20`/`p50`/`p80`).
+- **Deterministic project metrics (`histos.metrics`):** actual vs. estimated deviations, `p80` coverage, per-tier and per-model rejection/eval stats, and critical chain drift computed straight from `events.jsonl` and frontmatter.
+- **Archiving finished work (`histos archive`):** moves eligible Done cards (and internal edges) off `project.canvas` into `archive.canvas` while preserving cross-canvas dependencies (`implied_dependencies`), `content/`, `approved/`, history, and estimates intact.
+- **Commit attribution trailers in `AGENTS.md`:** documents keeping the human as sole author (never `Co-Authored-By`) with `Supervised-by:` and `Coordinated-by: Histos` trailers when committing code.
 
 ### v3.2.2 ([CHANGELOG](../CHANGELOG.md#322---2026-11-25))
 
@@ -125,7 +124,7 @@ Model routing by tier, subagents with an isolated context, and deterministic eva
 
 ## Open questions
 
-- **How much signal the tier heuristics can get from one-line card descriptions.** The calibration shows a reasonable split with visible misses; richer descriptions help, and calibrating from real outcomes (see [v3.3](#v33-project-metrics-and-the-final-report)) is the likely next step.
+- **How much signal the tier heuristics can get from one-line card descriptions.** The calibration shows a reasonable split with visible misses; richer descriptions help, and calibrating from real outcomes (metrics shipped in [v3.3.0](#v330-changelog)) is the likely next step.
 - **Project brief format — mostly resolved:** `PROJECT.md` (what) and `ARCHITECTURE.md` (how) change only through `histos guide`, and since v3.1 `PROJECT.md` has a required structure; whether `ARCHITECTURE.md` needs one too is still open.
 - **Folder structure — partially resolved:** cards live in `content/<id>.md` (see [canvas-schema.md](canvas-schema.md)); additional subfolders like `content/drafts/` remain open.
 

@@ -110,9 +110,9 @@ The canvas only holds the map — the content lives in `content/<id>.md`, with i
 | **v3.0** | ✅ shipped | tiers and model approval, subagents, evals, safe concurrency |
 | **v3.1** | ✅ shipped | a stricter project interview, plans reviewed as a whole, an event log from day one |
 | **v3.2** | ✅ shipped | time estimates from your own history; the critical path drawn on the canvas |
-| **v3.2.x** | 🔧 next | a slimmer `AGENTS.md`, agent estimates for every card, the implementation phase of code cards measured, `histos doctor` |
-| **v3.3** | 📋 planned | project metrics and a final report with a Gantt chart and a PERT; archiving finished work |
-| **v3.4** | 📋 planned | token cost per card, "waiting for you" notifications, `histos undo`, the desktop app catches up |
+| **v3.2.x** | ✅ shipped | a slimmer `AGENTS.md`, agent estimates for every card, the implementation phase of code cards measured, `histos doctor` |
+| **v3.3** | ✅ shipped | project metrics and a final report with a Gantt chart and a PERT; archiving finished work |
+| **v3.4** | 🔧 next | token cost per card, "waiting for you" notifications, `histos undo`, the desktop app catches up |
 | **v3.5** | 💡 idea | other model providers (e.g. Gemini's free tier), opt-in per vault, measured like any other model |
 | **v4.0** | 📋 planned | yolo mode: agents build *and* review the whole backlog, on a separate branch, until a token budget runs out |
 

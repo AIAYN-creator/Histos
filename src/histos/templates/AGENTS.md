@@ -57,6 +57,7 @@ Every `done_when` must be checkable. No tiers in the plan. After a rejection, `p
 7. Optional dry run: `histos eval <id> --file <draft>`.
 8. `histos propose <id> --file <draft>`. Evals run first; on failure, fix and propose again. **3 attempts at most**, then leave the card for the human.
 9. If the approved card still has to be built (code), `histos implement <id>` before you start and `histos implement <id> --done` when it's finished: that time is yours too.
+   - **Commits (code):** commit only with the human's explicit permission. Keep the human as sole author (never `Co-Authored-By`) and add the trailers `Supervised-by: <your model>` and `Coordinated-by: Histos (https://github.com/AIAYN-creator/Histos)`.
 
 **Subagents** only for a card that is self-contained (`histos context <id> --for-subagent` is enough), has no open decision, and pays off. `dec-` cards are always yours. Assign it `--worker sub-<id>`, give that brief as the whole prompt, with the approved model. At most 2 at a time.
 
@@ -65,7 +66,7 @@ Every `done_when` must be checkable. No tiers in the plan. After a rejection, `p
 ## Commands
 
 ```
-histos status | validate | doctor | diff <id> | plan diff
+histos status | validate | doctor | report | diff <id> | plan diff
 histos plan propose --file <plan.yaml>
 histos add-card <id> --title "..." [--description "..."] [--done-when "..."] [--depends-on ID... --authorized]
 histos link <id> --depends-on ID... --authorized
@@ -82,4 +83,4 @@ histos guide propose PROJECT.md|ARCHITECTURE.md --file <draft>
 
 `histos <command> --help` for details.
 
-<!-- histos-template-version: 3.2.2 -->
+<!-- histos-template-version: 3.3.0 -->

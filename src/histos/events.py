@@ -44,7 +44,7 @@ EVENTS = frozenset({
     "proposed", "proposal_refused", "approved", "rejected", "retry", "edit_accepted", "implementation_started", "implementation_done",
     "guide_proposed", "guide_approved", "guide_rejected",
     "plan_proposed", "plan_approved", "plan_rejected",
-    "arranged", "state_recomputed",
+    "arranged", "archived", "state_recomputed",
 })
 
 _STATE_NAMES = {

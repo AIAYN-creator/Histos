@@ -2,6 +2,23 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.3.0] - 2026-11-25
+
+Project metrics, archival of finished cards, Markdown project reports with Mermaid Gantt and 3-point PERT, commit attribution rules in `AGENTS.md`, and automated tag releases.
+
+### Added
+
+- **Deterministic project metrics (`src/histos/metrics.py`):** computes actual-vs-estimated duration error and `p80` hit rate, per-tier and per-model rejection rates and average eval attempts, critical path drift (`initial` vs. remaining/slipped cards), and 3-point PERT estimates (`p20`, `p50`, `p80`) from the vault's history and optional archive canvases.
+- **`histos archive [ID...] [--all-done] [--name archive.canvas] [--dry-run]` (`src/histos/archive.py`):** moves eligible Done cards without open dependents off `project.canvas` into an archive canvas while preserving `implied_dependencies`, `content/*.md`, `approved/*.md`, `.histos/events.jsonl`, and historical estimates.
+- **`histos report [--output REPORT.md] [--include-archived]` (`src/histos/report.py`):** writes a read-only Markdown report with all six sections (executive summary, estimate accuracy, rejections & eval attempts, critical path drift, Mermaid Gantt timeline, and remaining-work PERT) without acquiring `.histos.lock` or writing events.
+- **End-to-end validation (`tests/test_v33_e2e.py`):** exercises `histos report` and `histos archive` over synthetic multi-vault histories (`scripts/make_history.py`) and `examples/sample-paper/`.
+- **Automated release workflow (`.github/workflows/release.yml`):** builds and selftests `histos-gui.exe` on `windows-latest` and publishes the GitHub Release whenever a `v*` tag is pushed.
+
+### Changed
+
+- **`AGENTS.md` template (`src/histos/templates/AGENTS.md`):** documented keeping the human as sole commit author (never `Co-Authored-By`) with `Supervised-by:` and `Coordinated-by: Histos` trailers, plus `histos archive` / `histos report` usage; template version stamp updated to `3.3.0`.
+- **Documentation synced for `v3.3.0`:** updated `docs/cli.md`, `docs/usage.md`, `docs/roadmap.md`, and `README.md`.
+
 ## [3.2.2] - 2026-11-25
 
 Read-only vault health diagnostics, template version tracking, and Antigravity workflow docs.
@@ -184,6 +201,8 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.3.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.3.0
+[3.2.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.2
 [3.2.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.1
 [3.2.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.0
 [3.1.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.2

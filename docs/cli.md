@@ -11,6 +11,7 @@ histos status                                           # cards by status, with 
                                                         # models still waiting for approval; pending guides
 histos estimate --coverage                              # read only: closed cards per estimate group (enough to
                                                         # estimate yet?) and open cards that have an estimate
+histos report [--output REPORT.md] [--include-archived] # writes Markdown report with metrics, Gantt and PERT
 histos plan propose --file plan.yaml                    # the whole card table as one plan (nothing created yet)
 histos plan diff                                        # the plan: cards, levels (what runs in parallel), warnings
 histos add-card cap1 --title "Intro" [--description "..."] [--done-when "..."]
@@ -56,6 +57,9 @@ histos arrange [--no-set-aside-done] [--no-prune-redundant]
                                                         # re-lays out the WHOLE board: dependency columns, no
                                                         # arrow across a card, "Not connected" and "Done" groups,
                                                         # redundant arrows removed; old layout -> project.canvas.bak
+histos archive [ID...] [--all-done] [--name archive.canvas] [--dry-run]
+                                                        # moves Approved cards with no open dependents into an
+                                                        # archive canvas while keeping content and history intact
 histos --version
 ```
 

@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .. import estimates, operations
+from .. import estimates, operations, report
+from ..errors import HistosError
+from ._shared import _vault_root
 
 NAME_WIDTH = 34
 
@@ -51,3 +53,15 @@ def _table(title: str, groups: list[tuple]) -> None:
         missing = estimates.still_needed(count)
         enough = "yes" if not missing else f"{missing} more"
         print(f"  {estimates.group_label(group):<{NAME_WIDTH}}{count:>5}   {enough}")
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    vault_root = _vault_root()
+    try:
+        res = report.write_report(vault_root, output=args.output, include_archived=args.include_archived)
+    except HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    rel = res.output.relative_to(vault_root.resolve()).as_posix()
+    print(f"report written to {rel} ({res.metrics.approved_cards}/{res.metrics.total_cards} approved, {res.gantt_tasks} gantt task(s))")
+    return 0

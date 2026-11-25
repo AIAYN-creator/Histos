@@ -8,6 +8,7 @@ from . import __version__, context
 from .commands._shared import _permission_path  # noqa: F401  (tests and the docs refer to it here)
 from .commands.board import (
     cmd_add_card,
+    cmd_archive,
     cmd_arrange,
     cmd_assign,
     cmd_describe,
@@ -18,7 +19,7 @@ from .commands.board import (
     cmd_status,
     cmd_validate,
 )
-from .commands.estimate import cmd_estimate
+from .commands.estimate import cmd_estimate, cmd_report
 from .commands.review import (
     cmd_accept_edit,
     cmd_approve,
@@ -161,6 +162,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_estimate)
 
     p = sub.add_parser(
+        "report",
+        help="generates a Markdown project report with metrics, Mermaid Gantt, and 3-point PERT",
+    )
+    p.add_argument("--output", default=None, help="output file relative to the vault (default: REPORT.md)")
+    p.add_argument("--include-archived", action="store_true", help="include cards moved to archive canvases")
+    p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser(
         "implement",
         help="(agent) start, or with --done finish, implementing an approved card; the time counts as agent time",
     )
@@ -225,6 +234,16 @@ def build_parser() -> argparse.ArgumentParser:
              "implied_dependencies so 'context' still sees them (default: on)",
     )
     p.set_defaults(func=cmd_arrange)
+
+    p = sub.add_parser(
+        "archive",
+        help="moves closed Approved cards off project.canvas into an archive canvas, keeping history intact",
+    )
+    p.add_argument("ids", nargs="*", metavar="ID")
+    p.add_argument("--all-done", action="store_true", help="archive every Approved card with no open dependents")
+    p.add_argument("--name", default="archive.canvas", help="target canvas file inside the vault (default: archive.canvas)")
+    p.add_argument("--dry-run", action="store_true", help="preview cards that would be archived without writing")
+    p.set_defaults(func=cmd_archive)
 
     return parser
 
