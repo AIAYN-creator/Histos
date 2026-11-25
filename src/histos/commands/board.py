@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from .. import canvas, config, doctor, estimates, evals, events, frontmatter, guides, operations, pauses, plans, validation
+from .. import archive, canvas, config, doctor, estimates, evals, events, frontmatter, guides, operations, pauses, plans, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -378,3 +378,27 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     else:
         print(f"\n{len(result.findings)} checks: {counts['ok']} ok, {counts['warn']} warn, {counts['fail']} fail")
     return 0 if result.ok else 1
+
+
+@_with_vault_lock
+def cmd_archive(args: argparse.Namespace) -> int:
+    vault_root = _vault_root()
+    try:
+        result = archive.archive_cards(
+            vault_root,
+            args.ids,
+            all_done=args.all_done,
+            target_name=args.name,
+            dry_run=args.dry_run,
+        )
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    if not result.archived:
+        print("nothing to archive (no eligible Approved cards)")
+        return 0
+    rel = result.target.relative_to(vault_root.resolve()).as_posix()
+    prefix = "dry run -- would archive" if result.dry_run else "archived"
+    print(f"{prefix} {len(result.archived)} card(s) to {rel} ({result.edges_moved} internal edge(s)): {', '.join(result.archived)}")
+    return 0

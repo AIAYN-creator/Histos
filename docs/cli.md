@@ -56,6 +56,9 @@ histos arrange [--no-set-aside-done] [--no-prune-redundant]
                                                         # re-lays out the WHOLE board: dependency columns, no
                                                         # arrow across a card, "Not connected" and "Done" groups,
                                                         # redundant arrows removed; old layout -> project.canvas.bak
+histos archive [ID...] [--all-done] [--name archive.canvas] [--dry-run]
+                                                        # moves Approved cards with no open dependents into an
+                                                        # archive canvas while keeping content and history intact
 histos --version
 ```
 

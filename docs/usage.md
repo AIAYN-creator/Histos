@@ -213,6 +213,8 @@ Two switches, both on by default: `--no-set-aside-done` keeps finished cards amo
 
 It's the only command that moves cards that already exist, including the ones you placed by hand — that's why it only ever runs when you ask. The previous layout is saved as `project.canvas.bak`: to undo, close the canvas in Obsidian and put the `.bak` back in place of `project.canvas`. It only keeps the layout from just before the *last* `arrange`.
 
+To move finished cards from a completed phase off `project.canvas` into `archive.canvas` without losing history or estimates, run `histos archive --all-done` (or `histos archive <id>...`; pass `--dry-run` to preview first).
+
 ## Why it's safe to leave it working unsupervised
 
 The agent can **never** write to `content/*.md` without going through `propose`/`approve`, can **never** touch the dependency graph or settle a model without your yes in the conversation (rules in `AGENTS.md`, backed by the `--authorized` flag), and its drafts go through the evals before they reach you.
