@@ -56,16 +56,13 @@ jobs:
           @(
             $body
             ""
-            "Full list: [CHANGELOG.md](https://github.com/AIAYN-creator/Histos/blob/$tag/CHANGELOG.md)."
+            ("Full list: [CHANGELOG.md](https://github.com/AIAYN-creator/Histos/blob/" + $tag + "/CHANGELOG.md).")
             ""
             "## Get it"
             ""
-            "**Desktop app:** download `histos-gui.exe` below."
+            '**Desktop app:** download `histos-gui.exe` below.'
             ""
-            "`histos-gui.exe` SHA-256: `$hash`"
+            ('`histos-gui.exe` SHA-256: `' + $hash + '`')
           ) | Set-Content -Path $notesPath -Encoding utf8
 
-          gh release create $tag packaging/dist/histos-gui.exe `
-            --title "Histos $tag" `
-            --notes-file $notesPath `
-            --latest
+          gh release create $tag packaging/dist/histos-gui.exe --title "Histos $tag" --notes-file $notesPath --latest
