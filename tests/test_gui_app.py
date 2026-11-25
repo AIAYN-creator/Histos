@@ -464,3 +464,158 @@ def test_plan_pending_reject_and_approve(tmp_path):
     # Invalid pending YAML surfaces an error shape
     plans.plan_path(tmp_path).write_text(":::bad yaml", encoding="utf-8")
     assert app.Api().get_pending_plan(str(tmp_path))["ok"] is False
+
+
+def test_web_dir_assets_exist():
+    web_dir = app._web_dir()
+    assert web_dir.is_dir()
+    for fname in ("index.html", "app.js", "styles.css"):
+        asset = web_dir / fname
+        assert asset.is_file(), f"missing web asset: {fname}"
+        content = asset.read_text(encoding="utf-8")
+        assert len(content.strip()) > 0, f"empty web asset: {fname}"
+
+    index_html = (web_dir / "index.html").read_text(encoding="utf-8")
+    assert 'href="styles.css"' in index_html
+    assert 'src="app.js"' in index_html
+
+
+def test_approve_model_and_batch_edge_cases(tmp_path):
+    operations.init_vault(tmp_path)
+    _add_card(tmp_path, "c1", meta_extra={"proposed_tier": "fast", "proposed_model": "Haiku 4.5"})
+
+    api = app.Api()
+
+    # approve_model: nonexistent card
+    res = api.approve_model(str(tmp_path), "nonexistent")
+    assert res["ok"] is False
+    assert "error" in res
+    assert "doesn't exist" in res["error"]
+
+    # approve_model: explicit model override
+    res = api.approve_model(str(tmp_path), "c1", model_name="Custom Model")
+    assert res == {"ok": True, "data": {"card_id": "c1", "model": "Custom Model"}}
+
+    # approve_models_batch: empty list
+    res = api.approve_models_batch(str(tmp_path), [])
+    assert res["ok"] is False
+    assert "no cards selected" in res["error"]
+
+    # approve_models_batch: item missing card_id
+    res = api.approve_models_batch(str(tmp_path), [{"model": "Haiku 4.5"}])
+    assert res["ok"] is False
+    assert "each item must include a card_id" in res["error"]
+
+    # approve_models_batch: item invalid type
+    res = api.approve_models_batch(str(tmp_path), [12345])
+    assert res["ok"] is False
+    assert "each item must be a card id" in res["error"]
+
+    # approve_models_batch: nonexistent card in batch
+    res = api.approve_models_batch(str(tmp_path), [{"card_id": "ghost_card"}])
+    assert res["ok"] is False
+    assert "doesn't exist" in res["error"]
+
+    # approve_models_batch: duplicate card in batch
+    res = api.approve_models_batch(str(tmp_path), [{"card_id": "c1"}, {"card_id": "c1"}])
+    assert res["ok"] is False
+    assert "duplicate card" in res["error"]
+
+
+def test_retry_edge_cases(tmp_path):
+    operations.init_vault(tmp_path)
+    _add_card(tmp_path, "c_backlog", color=canvas.BACKLOG)
+    _add_card(
+        tmp_path,
+        "c_in_prog",
+        color=canvas.IN_PROGRESS,
+        meta_extra={"eval_results": {"passed": True, "attempt": 1}},
+    )
+
+    api = app.Api()
+
+    # nonexistent card
+    res = api.retry(str(tmp_path), "c_missing")
+    assert res["ok"] is False
+    assert "doesn't exist" in res["error"]
+
+    # card in Backlog (not In Progress)
+    res = api.retry(str(tmp_path), "c_backlog")
+    assert res["ok"] is False
+    assert "has no failed evals to retry" in res["error"]
+
+    # card In Progress with passed evals
+    res = api.retry(str(tmp_path), "c_in_prog")
+    assert res["ok"] is False
+    assert "has no failed evals to retry" in res["error"]
+
+
+def test_accept_edit_edge_cases(tmp_path):
+    operations.init_vault(tmp_path)
+    _add_card(tmp_path, "c1")
+    c1_path = tmp_path / "content" / "c1.md"
+    meta, _ = frontmatter.read(c1_path)
+    frontmatter.write(c1_path, meta, "# c1\n\nedited by hand\n")
+
+    api = app.Api()
+
+    # accept_edit with string card_id instead of list
+    res = api.accept_edit(str(tmp_path), "c1")
+    assert res == {"ok": True, "data": {"card_ids": ["c1"]}}
+
+    # accept_edit with empty list
+    res = api.accept_edit(str(tmp_path), [])
+    assert res["ok"] is False
+    assert "no cards specified" in res["error"]
+
+    # accept_edit with nonexistent card
+    res = api.accept_edit(str(tmp_path), ["nonexistent"])
+    assert res["ok"] is False
+    assert "card(s) not found" in res["error"]
+
+
+def test_guides_and_plans_error_shapes_and_missing_vault(tmp_path):
+    api = app.Api()
+    not_a_vault = str(tmp_path / "does_not_exist")
+
+    # get_pending_guides and get_pending_plan on invalid directory
+    res = api.get_pending_guides(not_a_vault)
+    assert res["ok"] is False
+    assert "not a folder" in res["error"]
+
+    res = api.get_pending_plan(not_a_vault)
+    assert res["ok"] is False
+    assert "not a folder" in res["error"]
+
+    operations.init_vault(tmp_path)
+
+    # reject_guide on non-guide filename
+    res = api.reject_guide(str(tmp_path), "NONEXISTENT.md")
+    assert res["ok"] is False
+    assert "not a guide file" in res["error"]
+
+    # approve_guide on non-guide filename
+    res = api.approve_guide(str(tmp_path), "NONEXISTENT.md")
+    assert res["ok"] is False
+    assert "not a guide file" in res["error"]
+
+    # reject_guide on valid guide name with no pending change
+    res = api.reject_guide(str(tmp_path), "PROJECT.md")
+    assert res["ok"] is False
+    assert "no pending change" in res["error"]
+
+    # approve_guide on valid guide name with no pending change
+    res = api.approve_guide(str(tmp_path), "PROJECT.md")
+    assert res["ok"] is False
+    assert "no pending change" in res["error"]
+
+    # reject_plan when no plan pending
+    res = api.reject_plan(str(tmp_path))
+    assert res["ok"] is False
+    assert "no pending plan" in res["error"]
+
+    # approve_plan when no plan pending
+    res = api.approve_plan(str(tmp_path))
+    assert res["ok"] is False
+    assert "no pending plan" in res["error"]
+
