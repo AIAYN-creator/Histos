@@ -51,7 +51,7 @@ Side projects/
 └── My-Tool/          # the git clone the agent works in
 ```
 
-Use a branch for each big version and merge it when the release card is done. The card is the specification: approved first, then implemented — never the other way round.
+If your agent runs inside a workspace sandbox (tested with Antigravity), opening a parent folder that holds both `vault/` and `repo/` as the agent's workspace lets it move smoothly between the board and the code without hitting out-of-workspace sandbox blocks — while you still open **only** the `vault/` folder itself in Obsidian. Use a branch for each big version and merge it when the release card is done. The card is the specification: approved first, then implemented — never the other way round.
 
 ## 6. Models and subagents
 

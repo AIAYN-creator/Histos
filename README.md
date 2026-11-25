@@ -32,7 +32,7 @@ Working with an agent on something long goes wrong in quiet ways: it rewrites a 
 - **Junk is filtered before you see it.** Each draft passes your evals first (no leftover `TODO`, the required sections, nothing edited behind Histos's back).
 - **The right model for each card.** Every card gets a tier (`fast`, `exec`, `reasoning`) with the reason, and you approve which model does it — or let a subagent take it with a clean context.
 - **Your own estimates, and what decides the end.** Histos learns how long *your* cards take from your own history — never the agent's guess — and draws the critical path on the canvas arrows.
-- **Local and agent-agnostic.** A plain folder and a CLI any agent can run (Claude Code, Codex, Gemini CLI...). No server, no plugin, no account.
+- **Local and agent-agnostic.** A plain folder and a CLI any agent can run (tested with Claude Code and Antigravity; works with Codex, Gemini CLI...). No server, no plugin, no account.
 
 ## How it works
 

@@ -14,7 +14,7 @@ The rules in [`AGENTS.md`](../src/histos/templates/AGENTS.md) — never write to
 
 ## Three honest limits
 
-1. **The deny list is Claude-Code-specific** — it doesn't protect you if the agent is another tool. Codex CLI and Gemini CLI have their own permission systems, in fundamentally different formats; neither is wired up by Histos yet (see [roadmap.md](roadmap.md#future-directions)).
+1. **The deny list is Claude-Code-specific** — it doesn't protect you if the agent is another tool. Verified in practice with Antigravity (where `AGENTS.md` rules and `content_untouched` detection work cleanly, without tool-level deny hooks yet); Codex CLI and Gemini CLI also have their own permission systems, in fundamentally different formats; neither is wired up by Histos yet (see [roadmap.md](roadmap.md#future-directions)). Note also that agents running inside a workspace sandbox may not be able to write to `~/.histos/` (`vaults.json` / `pauses.jsonl`) unless `HISTOS_HOME` is pointed to a writable directory or commands are run from a normal terminal.
 2. **It's tool-level, not OS-level.** The agent and the CLI run as the same OS user, so an agent that ignores its instructions *can* run `histos approve` itself. The human-in-the-loop review is the real filter, by design.
 3. **`describe --sources` doesn't require authorization**, by design (it's [`AGENTS.md`](../src/histos/templates/AGENTS.md)'s "no permission needed" list) — so a misdirected agent could register a sensitive file as a "source" and read it through `histos context`. Closing it would mean requiring authorization for `describe --sources`, a workflow change bigger than a security patch.
 

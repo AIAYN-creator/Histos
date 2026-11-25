@@ -1,6 +1,6 @@
 # Command reference
 
-Concrete, clearly named commands instead of having the agent hand-edit the canvas JSON, to avoid breaking the format and to limit the agent to a known set of safe operations (like an API). Agent-agnostic: works with any tool that can run shell commands and read/write files (Claude Code, Codex, Gemini CLI...).
+Concrete, clearly named commands instead of having the agent hand-edit the canvas JSON, to avoid breaking the format and to limit the agent to a known set of safe operations (like an API). Agent-agnostic: works with any tool that can run shell commands and read/write files (tested with Claude Code and Antigravity; works with Codex, Gemini CLI...).
 
 Every command operates on the current directory, which must be the root of a Histos vault (`histos init` creates it). No command blocks on an interactive prompt, so a queue of cards can be processed in AFK mode with a simple loop in the agent that invokes the CLI — no special flag or mode needed. `histos <command> --help` has every flag.
 

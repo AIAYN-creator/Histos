@@ -43,7 +43,7 @@ The desktop app covers the first six rows; the rest are yours too, but terminal-
 
 3. **Open that same folder as a vault in Obsidian** — Canvas is a native feature, no plugin needed — and you'll see the board with the legend at the top. **Important:** the folder you open has to be exactly the one containing `project.canvas`, never one above it — otherwise Obsidian can't find the cards' `.md` files and you'll see them as "Create new note" instead of with content.
 
-4. **Open a new agent session** (a different window/conversation) with that folder as the working directory. Claude Code loads `CLAUDE.md` automatically on startup, which in turn imports all of `AGENTS.md` — you don't need to explain anything about Histos to it.
+4. **Open a new agent session** (a different window/conversation) with that folder as the working directory. Claude Code loads `CLAUDE.md` automatically on startup (which imports `AGENTS.md`), and Antigravity discovers `AGENTS.md` natively — you don't need to explain anything about Histos to either. If you use a parent wrapper folder as the workspace for a sandboxed agent (see [workflow.md](workflow.md#5-code-projects-the-repository-lives-next-to-the-vault)), still open only the vault folder in Obsidian and tell the agent where `AGENTS.md` lives if it starts in the parent directory.
 
 5. **Tell it what the project is about**, in your own words — "I want to organize my thesis on X." The agent then interviews you (`AGENTS.md` tells it how): questions in short rounds, then its objections and alternatives, each with a reason. Answer them; it's how the idea gets across.
 
