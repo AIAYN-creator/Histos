@@ -63,3 +63,10 @@ def test_agents_md_has_current_version_stamp():
     match = re.search(r"<!--\s*histos-template-version:\s*([^\s>]+)\s*-->", DOCS["AGENTS.md"])
     assert match is not None, "AGENTS.md template is missing the histos-template-version stamp"
     assert match.group(1) == histos.__version__
+
+
+def test_agents_md_documents_commit_trailers():
+    text = DOCS["AGENTS.md"]
+    assert "Supervised-by:" in text
+    assert "Coordinated-by: Histos (https://github.com/AIAYN-creator/Histos)" in text
+    assert re.search(r"(?i)(?:never|no|without|forbid|avoid)[^.\n]*Co-Authored-By", text)
