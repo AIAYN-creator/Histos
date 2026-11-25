@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
-from .. import canvas, config, estimates, evals, events, frontmatter, guides, operations, pauses, plans, validation
+from .. import canvas, config, doctor, estimates, evals, events, frontmatter, guides, operations, pauses, plans, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -359,3 +360,21 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return 1
     print("OK")
     return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    result = doctor.diagnose(_vault_root())
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+        return 0 if result.ok else 1
+
+    for finding in result.findings:
+        print(f"{finding.status.upper():<4}  {finding.check:<18}  {finding.message}")
+        if finding.fix:
+            print(f"      fix: {finding.fix}")
+    counts = result.counts
+    if counts["warn"] == 0 and counts["fail"] == 0:
+        print(f"\nOK ({len(result.findings)} checks passed)")
+    else:
+        print(f"\n{len(result.findings)} checks: {counts['ok']} ok, {counts['warn']} warn, {counts['fail']} fail")
+    return 0 if result.ok else 1
