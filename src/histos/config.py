@@ -51,15 +51,23 @@ class CriticalPathConfig:
 
 
 @dataclass
+class NotificationsConfig:
+    enabled: bool = True
+
+
+@dataclass
 class Config:
     tiers: dict[str, Tier]
     evals: EvalsConfig
     terms: dict[str, list[str]]
     critical_path: CriticalPathConfig = None  # type: ignore[assignment]
+    notifications: NotificationsConfig = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.critical_path is None:
             self.critical_path = CriticalPathConfig()
+        if self.notifications is None:
+            self.notifications = NotificationsConfig()
 
 
 def config_path(vault_root: Path) -> Path:
@@ -150,8 +158,17 @@ def _build(raw: dict) -> Config:
         color=cp.get("color", CRITICAL_PATH_COLOR).upper(),
         review=cp.get("review", "active"),
     )
-    return Config(tiers=tiers, evals=evals, terms={k: list(v) for k, v in (raw.get("terms") or {}).items()},
-                  critical_path=critical_path)
+    nt = raw.get("notifications") or {}
+    notifications = NotificationsConfig(
+        enabled=bool(nt.get("enabled", True)),
+    )
+    return Config(
+        tiers=tiers,
+        evals=evals,
+        terms={k: list(v) for k, v in (raw.get("terms") or {}).items()},
+        critical_path=critical_path,
+        notifications=notifications,
+    )
 
 
 def _load_schema() -> dict:

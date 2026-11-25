@@ -151,7 +151,11 @@ evals:
   enabled: true
   path: evals/               # relative, inside the vault
   run_on: propose
+notifications:               # optional (default: enabled: true)
+  enabled: false             # set false to mute desktop notifications for this vault
 ```
+
+**`notifications`** (optional): `{ enabled: boolean }` (default: `true`). When set to `false`, desktop notifications are muted for all card transitions in this vault. Notifications can also be controlled globally via `histos notify [--on | --off | --status]` or the `HISTOS_NO_NOTIFY=1` environment variable.
 
 **Tiers are fixed:** `fast`, `exec` and `reasoning` must each appear exactly once — the file tunes their rules, not which tiers exist. Histos never maps a tier to a model: the agent does, for its own platform.
 

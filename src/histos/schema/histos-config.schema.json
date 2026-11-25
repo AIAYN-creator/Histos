@@ -24,6 +24,14 @@
         "review": { "enum": ["active", "calendar"], "description": "Which review clock counts: active (minus the human's pauses) or calendar." }
       }
     },
+    "notifications": {
+      "description": "Desktop notifications when proposals are ready for review or max eval attempts are exhausted.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
     "terms": {
       "description": "Extra terms for the *_terms_present / file_operations_mentioned conditions -- added to the built-in lists, never replacing them.",
       "type": "object",

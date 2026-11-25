@@ -25,6 +25,7 @@ from .commands.review import (
     cmd_approve,
     cmd_diff,
     cmd_eval,
+    cmd_notify,
     cmd_propose,
     cmd_reject,
     cmd_retry,
@@ -182,6 +183,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="(human) you're away: the review clock stops in every vault until your next decision",
     )
     p.set_defaults(func=cmd_pause)
+
+    p = sub.add_parser(
+        "notify",
+        help="(human) desktop notifications: --on, --off, or --status (default: show current status)",
+    )
+    g_notify = p.add_mutually_exclusive_group()
+    g_notify.add_argument("--on", action="store_true", help="turn desktop notifications on (unmute)")
+    g_notify.add_argument("--off", action="store_true", help="turn desktop notifications off (mute)")
+    g_notify.add_argument("--status", action="store_true", help="show current notification status (default)")
+    p.set_defaults(func=cmd_notify)
 
     p = sub.add_parser(
         "guide",

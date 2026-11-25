@@ -53,6 +53,8 @@ histos plan approve                                     # creates every card of 
 histos plan reject [--feedback "..."]                   # discards it; the feedback goes to PROJECT.md's decisions
 histos pause                                            # you're away: the review clock stops in every vault
                                                         # until your next decision (no resume command)
+histos notify [--on | --off | --status]                 # desktop notifications: enable, mute, or check status
+                                                        # (HISTOS_NO_NOTIFY=1 mutes via environment)
 histos arrange [--no-set-aside-done] [--no-prune-redundant]
                                                         # re-lays out the WHOLE board: dependency columns, no
                                                         # arrow across a card, "Not connected" and "Done" groups,

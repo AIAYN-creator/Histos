@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from .. import canvas, config, context, evals, events, frontmatter, guides, operations
+from .. import canvas, config, context, evals, events, frontmatter, guides, notify, operations
 from ..fsutil import write_text_atomic
 from ._shared import _vault_root, _with_vault_lock
 
@@ -55,6 +56,11 @@ def _gate_on_evals(vault_root: Path, data: dict, card: dict, draft: str) -> tupl
     hint = f"fix the draft and propose again ({left} attempt{'s' if left != 1 else ''} left)" if left \
         else "no attempts left -- it stays In progress for the human"
     print(f"error: '{card['id']}' not proposed -- {hint}", file=sys.stderr)
+    if attempt >= context.MAX_ATTEMPTS:
+        try:
+            notify.notify("Histos", f"{card['id']} exhausted eval attempts (needs retry)", vault_root=vault_root)
+        except Exception:
+            pass
     return False, attempt
 
 
@@ -101,6 +107,10 @@ def cmd_propose(args: argparse.Namespace) -> int:
     canvas.save(vault_root, data)
     events.emit("proposed", card=args.id, attempt=attempt, **events.size_of(draft))
     print(f"'{args.id}' -> Proposal pending review ('histos diff {args.id}' to review it)")
+    try:
+        notify.notify("Histos", f"{args.id} ready for review", vault_root=vault_root)
+    except Exception:
+        pass
     return 0
 
 
@@ -215,4 +225,31 @@ def cmd_reject(args: argparse.Namespace) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     print(f"'{result.card_id}' -> Backlog (proposal discarded)")
+    return 0
+
+
+def cmd_notify(args: argparse.Namespace) -> int:
+    """Controls or shows desktop notification muting."""
+    if getattr(args, "off", False):
+        notify.set_muted(True)
+        print("notifications: off (muted)")
+        return 0
+    if getattr(args, "on", False):
+        notify.set_muted(False)
+        if os.environ.get("HISTOS_NO_NOTIFY", "").strip().lower() in ("1", "true", "yes", "on"):
+            print("notifications: on (note: HISTOS_NO_NOTIFY is set in environment)")
+        else:
+            print("notifications: on")
+        return 0
+
+    vault_root = _vault_root()
+    if notify.is_muted(vault_root):
+        if os.environ.get("HISTOS_NO_NOTIFY", "").strip().lower() in ("1", "true", "yes", "on"):
+            print("notifications: off (HISTOS_NO_NOTIFY is set)")
+        elif (cfg := config.load(vault_root)) and getattr(cfg, "notifications", None) and not cfg.notifications.enabled:
+            print("notifications: off (disabled in histos.config.yaml)")
+        else:
+            print("notifications: off (muted)")
+    else:
+        print("notifications: on")
     return 0
