@@ -20,12 +20,16 @@ Histos has two front ends for the parts you do yourself, and they're genuinely i
 | Open the board in Obsidian | (open Obsidian yourself) | **Open in Obsidian**, or **Show folder** if that doesn't work — Obsidian's own folder links are unreliable on Windows |
 | Tidy up the whole board | `histos arrange` | — |
 | Bring an older vault to v3 | `histos init --add-config` | — |
-| Give a card more attempts after failed evals | `histos retry <id>` | — |
-| Accept your own hand edits to a card | `histos accept-edit <id>` | — |
-| Accept or refuse a change to `PROJECT.md`/`ARCHITECTURE.md` | `histos guide approve/reject <file>` | — |
+| Give a card more attempts after failed evals | `histos retry <id>` | **Retry** button on the card |
+| Accept your own hand edits to a card | `histos accept-edit <id>` | **Accept edit** button on the card |
+| Approve proposed models (single or queue) | `histos model <id> --approved "..." --authorized` | **Approve** / **Approve all proposed** in the models panel |
+| Accept or refuse a change to `PROJECT.md`/`ARCHITECTURE.md` | `histos guide approve/reject <file>` | **Guides** panel (diff + Approve / Reject) |
+| Accept or refuse a proposed `plan.yaml` | `histos plan approve/reject` | **Plan** panel (table, warnings + Approve / Reject) |
+| Pause the review clock across all vaults | `histos pause` | **Pause reviewing** toggle |
+| Undo the last reversible command | `histos undo` | — |
 | Desktop notifications | `histos notify [--on \| --off \| --status]` | — |
 
-The desktop app covers the first six rows; the rest are yours too, but terminal-only. Everything else (`add-card`, `link`, `describe`, `assign`, `classify`, `model`, `context`, `eval`, `propose`, `guide propose`, `validate`) is what the agent runs on your behalf, so it only shows up below as terminal commands. The tier and model of each card, and the evals, are visible in the terminal (`status`, `diff`); the desktop app doesn't show them yet.
+The desktop app covers your entire review workflow — including estimates, the critical path, card tiers/models/evals, batch model approval, guides, plans, `pause`, `retry`, and `accept-edit` — while `arrange`, `init --add-config`, `undo`, and `notify` live in the terminal. Everything else (`add-card`, `link`, `describe`, `assign`, `classify`, `model --proposed`, `context`, `eval`, `propose`, `guide propose`, `validate`) is what the agent runs on your behalf.
 
 ## Starting a project
 

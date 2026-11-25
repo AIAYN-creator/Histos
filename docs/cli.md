@@ -7,10 +7,10 @@ Every command operates on the current directory, which must be the root of a His
 ## The agent's commands
 
 ```bash
-histos status                                           # cards by status, with tier, model and worker;
-                                                        # models still waiting for approval; pending guides
-histos estimate --coverage                              # read only: closed cards per estimate group (enough to
-                                                        # estimate yet?) and open cards that have an estimate
+histos status                                           # cards by status, with tier, model, worker, estimates,
+                                                        # and token/cost summary (when local transcripts exist)
+histos estimate --coverage                              # read only: closed cards per estimate group and model
+                                                        # (enough to estimate yet?) and open cards with estimates
 histos report [--output REPORT.md] [--include-archived] # writes Markdown report with metrics, Gantt and PERT
 histos plan propose --file plan.yaml                    # the whole card table as one plan (nothing created yet)
 histos plan diff                                        # the plan: cards, levels (what runs in parallel), warnings
@@ -62,6 +62,8 @@ histos arrange [--no-set-aside-done] [--no-prune-redundant]
 histos archive [ID...] [--all-done] [--name archive.canvas] [--dry-run]
                                                         # moves Approved cards with no open dependents into an
                                                         # archive canvas while keeping content and history intact
+histos undo                                             # reverts the last reversible command atomically; never
+                                                        # reverts human approve/reject or guide/plan decisions
 histos --version
 ```
 

@@ -8,7 +8,7 @@ A **Histos** vault: `project.canvas` (Obsidian Canvas) is the board, each card's
 2. **`PROJECT.md` and `ARCHITECTURE.md` are the human's:** change them only with `histos guide propose <file> --file <draft>`.
 3. **Never touch `histos.config.yaml` or `evals/`.** If an eval looks wrong, say so. (Desktop notifications can be muted by the human with `histos notify [--on | --off | --status]`, `HISTOS_NO_NOTIFY=1`, or `notifications.enabled: false` in `histos.config.yaml`).
 4. **`--authorized` only after the human's explicit yes in this conversation** (dependencies via `add-card --depends-on`/`link`, and `model --approved`). Ask first, saying what and why. A plan's dependencies need no flag: `plan approve` is the yes.
-5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `pause`, `notify`, `init --add-config`.
+5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `pause`, `notify`, `undo`, `init --add-config`.
 6. **`histos arrange` only when the human asks.** Never change arrow colors: magenta is Histos's critical path, the rest are the human's.
 7. **Never take a card In progress for someone else.** `--takeover` only when the human says so.
 
