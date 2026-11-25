@@ -9,6 +9,7 @@
   <header>
     <h1>Histos</h1>
     <div id="header-actions" hidden>
+      <button id="pause-btn" class="secondary-btn">Pause reviewing</button>
       <button id="open-obsidian-btn" class="link-btn">Open in Obsidian</button>
       <button id="open-folder-btn" class="link-btn">Show folder</button>
       <button id="change-folder-btn" class="link-btn">Change folder</button>
@@ -34,11 +35,27 @@
       </div>
 
       <div id="overview-content" hidden>
-        <h2>Your project</h2>
+        <div id="pause-banner" class="banner banner-pause" hidden>
+          <strong>Reviewing is paused.</strong>
+          <span>The review clock is stopped in all vaults until your next decision (approve, reject, retry, accept edit, guide, or plan).</span>
+        </div>
+
+        <div class="overview-heading">
+          <h2>Your project</h2>
+        </div>
+
         <p id="overview-error" class="error"></p>
+
         <div id="getting-started-hint" class="hint-box" hidden>
           <p><strong>Next steps:</strong> open this folder in Obsidian to see your board. Then start your AI assistant (like Claude Code) in this same folder and tell it what you're working on.</p>
         </div>
+
+        <div id="critical-path-strip" class="strip strip-critical" hidden></div>
+
+        <div id="plan-panel" class="panel panel-review" hidden></div>
+        <div id="guides-panel" class="panel panel-review" hidden></div>
+        <div id="models-panel" class="panel panel-models" hidden></div>
+
         <div id="overview-groups"></div>
       </div>
     </section>
@@ -47,6 +64,8 @@
       <button id="back-btn" class="link-btn">&larr; Back to overview</button>
       <h2 id="detail-title"></h2>
       <p class="hint">Approving replaces what's saved in your project with what's suggested below. You'll see the result in your notes right after.</p>
+
+      <div id="detail-evals" class="evals-box" hidden></div>
 
       <div class="compare">
         <div class="compare-col">
@@ -74,6 +93,41 @@
       </div>
 
       <p id="detail-status" class="error"></p>
+    </section>
+
+    <section id="view-guide-detail" hidden>
+      <button id="guide-back-btn" class="link-btn">&larr; Back to overview</button>
+      <h2 id="guide-detail-title"></h2>
+      <p class="hint">Approving updates the guide file and archives the previous version in <code>approved/guides/</code>.</p>
+
+      <div id="guide-detail-evals" class="evals-box" hidden></div>
+
+      <div class="compare">
+        <div class="compare-col">
+          <h3>Current <span class="hint-inline">(saved now)</span></h3>
+          <pre id="guide-detail-current" class="text-block"></pre>
+        </div>
+        <div class="compare-col">
+          <h3>Proposed <span class="hint-inline">(pending change)</span></h3>
+          <pre id="guide-detail-proposed" class="text-block"></pre>
+        </div>
+      </div>
+
+      <div id="guide-detail-actions" class="actions">
+        <button id="guide-approve-btn" class="approve-btn">Approve</button>
+        <button id="guide-reject-btn" class="reject-btn">Reject</button>
+      </div>
+
+      <div id="guide-reject-form" hidden>
+        <label for="guide-reject-feedback">Why are you rejecting this guide change? (optional)</label>
+        <textarea id="guide-reject-feedback" rows="3"></textarea>
+        <div class="actions">
+          <button id="guide-reject-confirm-btn" class="reject-btn">Confirm reject</button>
+          <button id="guide-reject-cancel-btn" class="link-btn">Cancel</button>
+        </div>
+      </div>
+
+      <p id="guide-detail-status" class="error"></p>
     </section>
   </main>
 

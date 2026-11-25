@@ -13,7 +13,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import __version__, canvas, estimates, events, frontmatter, history, validation
+from . import __version__, canvas, estimates, events, frontmatter, history, pauses, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -207,6 +207,8 @@ class CardSummary:
     approved_model: Optional[str] = None
     proposed_model: Optional[str] = None
     estimate: Optional[estimates.CardEstimate] = None  # None for an approved card
+    eval_results: Optional[dict] = None
+    content_tampered: bool = False
 
 
 @dataclass
@@ -220,6 +222,7 @@ class StatusGroup:
 class StatusResult:
     groups: list[StatusGroup] = field(default_factory=list)  # in the fixed display order
     critical_path: Optional[object] = None  # critical.CriticalPath, or None when the vault has none
+    paused: bool = False
 
 
 ESTIMATE_KEY = "estimate"
@@ -348,6 +351,26 @@ def _store_estimate(md_path: Path, meta: dict, body: str, e: estimates.CardEstim
     frontmatter.write(md_path, meta, body)
 
 
+def _json_safe(value):
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _is_content_tampered(vault_root: Path, card_id: str, meta: dict, body: str) -> bool:
+    expected = meta.get(frontmatter.CONTENT_HASH_KEY)
+    if expected is not None:
+        return frontmatter.body_hash(body) != expected
+    approved = _approved_path(vault_root, card_id)
+    if approved.exists():
+        return frontmatter.body_hash(body) != frontmatter.body_hash(approved.read_text(encoding="utf-8"))
+    return False
+
+
 @locked("status")  # recomputing Blocked can save the canvas
 def get_status(vault_root: Path) -> StatusResult:
     data = _load_valid(vault_root)
@@ -365,14 +388,19 @@ def get_status(vault_root: Path) -> StatusResult:
             summaries = []
             for card in by_color.get(color, []):
                 meta = {}
+                tampered = False
                 md_path = canvas.card_file_path(vault_root, card)
                 if md_path.exists():
-                    meta, _ = frontmatter.read(md_path)
+                    meta, body = frontmatter.read(md_path)
+                    tampered = _is_content_tampered(vault_root, card["id"], meta, body)
                 worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
+                raw_evals = meta.get(EVAL_RESULTS_KEY)
+                eval_results = _json_safe(raw_evals) if isinstance(raw_evals, dict) else None
                 summaries.append(CardSummary(
                     id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
                     tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
                     proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
+                    eval_results=eval_results, content_tampered=tampered,
                 ))
             groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
         from . import critical  # critical reaches back into this module
@@ -381,7 +409,7 @@ def get_status(vault_root: Path) -> StatusResult:
             path = critical.refresh(vault_root)  # status repaints too, and shows the chain
         except Exception:
             path = None  # the critical path never keeps the human from seeing the board
-    return StatusResult(groups=groups, critical_path=path)
+    return StatusResult(groups=groups, critical_path=path, paused=pauses.current() is not None)
 
 
 @dataclass
@@ -479,6 +507,71 @@ def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
         frontmatter.write(md_path, meta, body)
         events.emit("edit_accepted", card=card_id)
     return card_ids
+
+
+@dataclass
+class ModelApproveResult:
+    card_id: str
+    model: str
+
+
+def _resolve_model_approval(vault_root: Path, data: dict, card_id: str,
+                            model_name: Optional[str]) -> tuple[Path, dict, str, str]:
+    card = canvas.find_card(data, card_id)
+    if card is None:
+        raise canvas.HistosError(f"card '{card_id}' doesn't exist")
+    md_path = canvas.card_file_path(vault_root, card)
+    meta, body = frontmatter.read(md_path)
+    if card["color"] == canvas.APPROVED and meta.get("approved_model"):
+        raise canvas.HistosError(f"'{card_id}' is already Approved -- its model stays as a record")
+    chosen = model_name.strip() if isinstance(model_name, str) and model_name.strip() else meta.get("proposed_model")
+    if not isinstance(chosen, str) or not chosen.strip():
+        raise canvas.HistosError(f"'{card_id}' has no proposed model to approve -- specify a model name")
+    return md_path, meta, body, chosen.strip()
+
+
+@locked("model")
+def approve_model(vault_root: Path, card_id: str, model_name: Optional[str] = None) -> ModelApproveResult:
+    """(Human) records the approved_model for a card, defaulting to its proposed_model."""
+    data = _load_valid(vault_root)
+    md_path, meta, body, chosen = _resolve_model_approval(vault_root, data, card_id, model_name)
+    meta["approved_model"] = chosen
+    frontmatter.write(md_path, meta, body)
+    events.emit("model_approved", card=card_id, model=chosen)
+    return ModelApproveResult(card_id=card_id, model=chosen)
+
+
+@locked("model")
+def approve_models_batch(vault_root: Path, items: list[dict | str]) -> list[ModelApproveResult]:
+    """(Human) records approved_model for multiple cards atomically under one vault lock."""
+    if not items:
+        raise canvas.HistosError("no cards selected for model approval")
+    data = _load_valid(vault_root)
+    resolved: list[tuple[Path, dict, str, str, str]] = []
+    seen: set[str] = set()
+    for item in items:
+        if isinstance(item, str):
+            card_id, model_name = item, None
+        elif isinstance(item, dict):
+            card_id = item.get("card_id") or item.get("id")
+            model_name = item.get("model") if "model" in item else item.get("model_name")
+        else:
+            raise canvas.HistosError("each item must be a card id or {'card_id': ..., 'model': ...}")
+        if not isinstance(card_id, str) or not card_id.strip():
+            raise canvas.HistosError("each item must include a card_id")
+        card_id = card_id.strip()
+        if card_id in seen:
+            raise canvas.HistosError(f"duplicate card '{card_id}' in batch")
+        seen.add(card_id)
+        md_path, meta, body, chosen = _resolve_model_approval(vault_root, data, card_id, model_name)
+        resolved.append((md_path, meta, body, card_id, chosen))
+    results: list[ModelApproveResult] = []
+    for md_path, meta, body, card_id, chosen in resolved:
+        meta["approved_model"] = chosen
+        frontmatter.write(md_path, meta, body)
+        events.emit("model_approved", card=card_id, model=chosen)
+        results.append(ModelApproveResult(card_id=card_id, model=chosen))
+    return results
 
 
 @locked("retry")
