@@ -201,6 +201,7 @@ def test_failed_eval_triggers_on_third_attempt_only(tmp_path, monkeypatch):
 def test_backend_subprocess_graceful_error_handling(monkeypatch):
     notify.set_muted(False)
     monkeypatch.setattr(notify, "SUPPRESS_IN_TESTS", False)
+    monkeypatch.setenv("DISPLAY", ":0")
 
     # 1. TimeoutExpired -> returns False, does not raise
     def timeout_runner(*args, **kwargs):
