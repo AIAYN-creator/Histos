@@ -65,7 +65,7 @@ Every `done_when` must be checkable. No tiers in the plan. After a rejection, `p
 ## Commands
 
 ```
-histos status | validate | diff <id> | plan diff
+histos status | validate | doctor | diff <id> | plan diff
 histos plan propose --file <plan.yaml>
 histos add-card <id> --title "..." [--description "..."] [--done-when "..."] [--depends-on ID... --authorized]
 histos link <id> --depends-on ID... --authorized
@@ -81,3 +81,5 @@ histos guide propose PROJECT.md|ARCHITECTURE.md --file <draft>
 ```
 
 `histos <command> --help` for details.
+
+<!-- histos-template-version: 3.2.2 -->

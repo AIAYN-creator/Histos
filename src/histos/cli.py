@@ -11,6 +11,7 @@ from .commands.board import (
     cmd_arrange,
     cmd_assign,
     cmd_describe,
+    cmd_doctor,
     cmd_init,
     cmd_link,
     cmd_pause,
@@ -205,6 +206,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("validate", help="validates project.canvas against the formal schema")
     p.set_defaults(func=cmd_validate)
+
+    p = sub.add_parser("doctor", help="read-only health check of the vault, reporting fixes for any issues")
+    p.add_argument("--json", action="store_true", help="output findings as JSON")
+    p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser(
         "arrange",

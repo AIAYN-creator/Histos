@@ -4,20 +4,6 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.2.x: patches, soon
-
-- **A slimmer `AGENTS.md`.** The agent reads it in full at the start of every session, in every vault, so each line costs tokens every day. It grew with every version; the same rules, in about half the text.
-- **Agent estimates for cards without a tier.** Cards created before tiers existed never fall into a tier group, so they get no agent estimate. They'll fall back to the broader groups.
-- **A measured implementation phase for code cards.** v3.2's first real numbers showed that in a code project a card's agent time is the *proposal* (the spec): the implementation happens after approval, where Histos doesn't see it. It ships as a patch because every code card closed without it is data lost.
-- **`histos doctor`:** a read-only health check of a vault.
-  - an `AGENTS.md` older than the installed Histos (the template gets a version stamp);
-  - a missing `histos.config.yaml` or evals;
-  - a legend Histos doesn't recognise;
-  - open cards without a tier;
-  - and anything else that quietly turns features off.
-  
-  Each finding comes with the command that fixes it.
-
 ### v3.3: project metrics and the final report
 
 - **`histos report`** writes a Markdown report into the vault when a project closes. It includes:
@@ -72,6 +58,18 @@ Ideas for later versions, none committed yet — roughly from most to least like
 - Still open from earlier versions: git as an optional history backend for the content, calendar/date-based scheduling, pulling external context automatically (e.g. Overleaf's `.tex` via its Git integration), `content/` subfolder conventions, and a translated desktop app.
 
 ## Shipped
+
+### v3.2.2 ([CHANGELOG](../CHANGELOG.md#322---2026-11-25))
+
+- **`histos doctor [--json]`:** read-only health check covering 11 vault and `$HISTOS_HOME` checks (`vault_valid`, `v3_config`, `agents_md`, `legend`, `unclassified_cards`, `content_untouched`, `in_progress_model`, `done_when_missing`, `project_brief`, `histos_home`, `pause_active`) with exact repair commands.
+- **`AGENTS.md` version stamp:** template carries `<!-- histos-template-version: ... -->` so `doctor` detects stale vault instructions.
+- **Antigravity workflow documented:** parent wrapper + sibling code repo layout and native `AGENTS.md` discovery verified and added to the docs.
+
+### v3.2.1 ([CHANGELOG](../CHANGELOG.md#321---2026-11-20))
+
+- **A slimmer `AGENTS.md`:** roughly half the words (1779 → ~850), keeping the same rules so every session uses fewer tokens.
+- **Agent estimates for cards without a tier:** untiered cards fall back to broader groups across all tiers (`estimates.py`).
+- **`histos implement <id>` / `--done`:** records post-approval implementation time on code cards as part of the card's agent time in history and estimates.
 
 ### v3.2 ([v3.2.0](https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.0))
 

@@ -33,6 +33,7 @@ histos propose cap1 --file draft.md                     # evals first; if they p
 histos guide propose PROJECT.md --file new.md           # proposes a change to PROJECT.md / ARCHITECTURE.md
 histos diff cap1                                        # evals passed + diff against the pending proposal
 histos validate                                         # canvas, frontmatter, config, evals and the event log
+histos doctor [--json]                                  # read-only vault health check and exact fix commands
 ```
 
 ## The human's commands
