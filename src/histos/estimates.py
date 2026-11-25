@@ -109,12 +109,20 @@ class Rows(list):
     def __init__(self, rows=()) -> None:
         super().__init__(rows)
         self._groups: dict[tuple, list[Row]] = {}
+        self._by_model: dict[str, Rows] = {}
 
     def members(self, group: tuple) -> list[Row]:
         """The rows in `group`, oldest approval first."""
         found = self._groups.get(group)
         if found is None:
             found = self._groups[group] = _sorted_members(group, self)
+        return found
+
+    def of_model(self, model: str) -> list[Row]:
+        """Caches and returns rows whose sample.model == model."""
+        found = self._by_model.get(model)
+        if found is None:
+            found = self._by_model[model] = Rows(r for r in self if r.sample.model == model)
         return found
 
 
@@ -154,7 +162,7 @@ def _matches(group: Group, key: tuple) -> bool:
     return all(g == ANY or g == k for g, k in zip(group, key))
 
 
-def basis_text(group: Group, n: int) -> str:
+def basis_text(group: Group, n: int, *, model: str | None = None) -> str:
     tier, type_, deps = group
     parts = [tier] if tier != ANY else []
     if type_ != ANY:
@@ -163,6 +171,8 @@ def basis_text(group: Group, n: int) -> str:
         parts.append(f"{deps}{'+' if deps == 2 else ''} deps")
     if not parts:
         parts.append("all")
+    if model:
+        parts.insert(0, model)
     return " · ".join(parts + [f"{n} cards"])
 
 
@@ -174,7 +184,7 @@ def percentile80(values: list[float]) -> float:
     return ordered[math.ceil(0.8 * len(ordered)) - 1]
 
 
-def estimate(rows: list[Row], groups: list[Group], value) -> Estimate | Missing:
+def estimate(rows: list[Row], groups: list[Group], value, *, model: str | None = None) -> Estimate | Missing:
     """The first group with MIN_SAMPLES rows, from its RECENT most recent ones. `value` picks the
     number out of a sample. If no group qualifies: how many the closest one lacks."""
     best = 0
@@ -184,7 +194,7 @@ def estimate(rows: list[Row], groups: list[Group], value) -> Estimate | Missing:
             recent = members[-RECENT:]
             numbers = [value(r.sample) for r in recent]
             return Estimate(median=statistics.median(numbers), p80=percentile80(numbers),
-                            n=len(recent), basis=basis_text(group, len(members)))
+                            n=len(recent), basis=basis_text(group, len(members), model=model))
         best = max(best, len(members))
     return Missing(needed=MIN_SAMPLES - best)
 
@@ -198,8 +208,15 @@ def review_value(sample: Sample) -> float:
     return sample.review_active_hours
 
 
-def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int) -> CardEstimate:
-    agent = estimate(rows, agent_groups(tier, type_, dependencies), agent_value)
+def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int, *, model: str | None = None) -> CardEstimate:
+    groups = agent_groups(tier, type_, dependencies)
+    if model:
+        model_rows = rows.of_model(model) if isinstance(rows, Rows) else [r for r in rows if r.sample.model == model]
+        agent = estimate(model_rows, groups, agent_value, model=model)
+        if isinstance(agent, Missing):
+            agent = estimate(rows, groups, agent_value)
+    else:
+        agent = estimate(rows, groups, agent_value)
     return CardEstimate(agent=agent, review=estimate(rows, review_groups(type_), review_value))
 
 
@@ -231,6 +248,15 @@ def agent_coverage(rows: list[Row]) -> list[tuple[Group, int]]:
     a tier belongs to no group, as in `for_card`."""
     return _coverage(rows, [agent_groups(r.sample.tier, r.type, r.sample.dependencies)
                             for r in rows if r.sample.tier])
+
+
+def agent_model_coverage(rows: list[Row]) -> list[tuple[str, int]]:
+    """Each distinct approved sample.model with closed card count, sorted cleanly."""
+    counts: dict[str, int] = {}
+    for r in rows:
+        if r.sample.model:
+            counts[r.sample.model] = counts.get(r.sample.model, 0) + 1
+    return sorted(counts.items(), key=lambda item: item[0])
 
 
 def review_coverage(rows: list[Row]) -> list[tuple[Group, int]]:

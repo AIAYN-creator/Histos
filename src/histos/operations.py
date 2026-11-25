@@ -39,6 +39,7 @@ _LEGACY_PROPOSALS_DIR = "propuestas"
 _LEGACY_APPROVED_DIR = "aprobados"
 # Who works an In progress card ('parent', 'sub-cap3'...), set by `assign --worker`.
 WORKER_KEY = "worker"
+APPROVED_MODEL_KEY = "approved_model"
 # Last evals run on a proposal for the card -- written by propose, see the frontmatter schema.
 EVAL_RESULTS_KEY = "eval_results"
 V3_CONFIG_TEMPLATE = "histos.config.yaml"
@@ -268,7 +269,13 @@ def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row])
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
         dependencies = declared.get(card["id"], set()) | set(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
-        card_estimate = estimates.for_card(rows, meta.get("proposed_tier"), types.get(card["id"]), len(dependencies))
+        card_estimate = estimates.for_card(
+            rows,
+            meta.get("proposed_tier"),
+            types.get(card["id"]),
+            len(dependencies),
+            model=meta.get(APPROVED_MODEL_KEY),
+        )
         result.append((card, md_path, meta, body, card_estimate))
     return result
 
@@ -284,6 +291,7 @@ class Coverage:
     open_with_agent: int = 0
     open_with_review: int = 0
     outliers: list[history.Sample] = field(default_factory=list)
+    models: list[tuple[str, int]] = field(default_factory=list)
 
 
 def coverage(home: Optional[Path] = None) -> Coverage:
@@ -295,7 +303,8 @@ def coverage(home: Optional[Path] = None) -> Coverage:
     rows = estimates.typed(found, card_ids)
     report = Coverage(samples=found, skipped=skipped, vault_names=history.vault_names(home),
                       agent=estimates.agent_coverage(rows), review=estimates.review_coverage(rows),
-                      outliers=estimates.outliers(found))
+                      outliers=estimates.outliers(found),
+                      models=estimates.agent_model_coverage(rows))
     seen: set[Path] = set()
     for vault_root in history.registered_vaults(home):
         if vault_root.resolve() in seen:
