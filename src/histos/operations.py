@@ -13,7 +13,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import __version__, canvas, estimates, events, frontmatter, history, pauses, validation
+from . import __version__, canvas, estimates, events, frontmatter, history, pauses, undo, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -407,6 +407,7 @@ def get_status(vault_root: Path) -> StatusResult:
 
         try:
             path = critical.refresh(vault_root)  # status repaints too, and shows the chain
+            undo.refresh_canvas_digest(vault_root)
         except Exception:
             path = None  # the critical path never keeps the human from seeing the board
     return StatusResult(groups=groups, critical_path=path, paused=pauses.current() is not None)
@@ -500,6 +501,7 @@ def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
     missing = [i for i in card_ids if canvas.find_card(data, i) is None]
     if missing:
         raise canvas.HistosError(f"card(s) not found: {', '.join(missing)}")
+    undo.stage(vault_root, [canvas.card_file_path(vault_root, canvas.find_card(data, cid)) for cid in card_ids])
     for card_id in card_ids:
         md_path = canvas.card_file_path(vault_root, canvas.find_card(data, card_id))
         meta, body = frontmatter.read(md_path)
@@ -535,6 +537,7 @@ def approve_model(vault_root: Path, card_id: str, model_name: Optional[str] = No
     """(Human) records the approved_model for a card, defaulting to its proposed_model."""
     data = _load_valid(vault_root)
     md_path, meta, body, chosen = _resolve_model_approval(vault_root, data, card_id, model_name)
+    undo.stage(vault_root, [md_path])
     meta["approved_model"] = chosen
     frontmatter.write(md_path, meta, body)
     events.emit("model_approved", card=card_id, model=chosen)
@@ -565,6 +568,7 @@ def approve_models_batch(vault_root: Path, items: list[dict | str]) -> list[Mode
         seen.add(card_id)
         md_path, meta, body, chosen = _resolve_model_approval(vault_root, data, card_id, model_name)
         resolved.append((md_path, meta, body, card_id, chosen))
+    undo.stage(vault_root, [md_path for md_path, *_ in resolved])
     results: list[ModelApproveResult] = []
     for md_path, meta, body, card_id, chosen in resolved:
         meta["approved_model"] = chosen
@@ -645,6 +649,7 @@ def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) ->
     data = _load_valid(vault_root)
     canvas_path = canvas.vault_canvas_path(vault_root)
     backup_path = canvas_path.with_name(canvas_path.name + ".bak")
+    undo.stage(vault_root, [canvas_path, backup_path])
     copy_file_atomic(canvas_path, backup_path)
 
     summary = canvas.arrange(data, set_aside_done=set_aside_done, prune_redundant=prune_redundant)
@@ -670,6 +675,7 @@ def _remember_pruned_dependencies(vault_root: Path, data: dict, pruned: list[tup
         md_path = canvas.card_file_path(vault_root, canvas.find_card(data, dependent))
         if not md_path.exists():
             continue
+        undo.stage(vault_root, [md_path])
         meta, body = frontmatter.read(md_path)
         implied = list(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
         implied += [d for d in dependencies if d not in implied]

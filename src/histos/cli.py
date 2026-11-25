@@ -17,6 +17,7 @@ from .commands.board import (
     cmd_link,
     cmd_pause,
     cmd_status,
+    cmd_undo,
     cmd_validate,
 )
 from .commands.estimate import cmd_estimate, cmd_report
@@ -255,6 +256,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--name", default="archive.canvas", help="target canvas file inside the vault (default: archive.canvas)")
     p.add_argument("--dry-run", action="store_true", help="preview cards that would be archived without writing")
     p.set_defaults(func=cmd_archive)
+
+    p = sub.add_parser(
+        "undo",
+        help="(human) reverts the last reversible command (never reverts human approvals or rejections)",
+    )
+    p.set_defaults(func=cmd_undo)
 
     return parser
 

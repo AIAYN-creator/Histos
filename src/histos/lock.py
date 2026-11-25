@@ -67,13 +67,16 @@ def vault_lock(vault_root: Path, command: str, actor: str = "agent") -> Iterator
     `actor` is who runs the command: 'agent', or 'human' for the human's commands. If the command
     changed the canvas, the critical path is repainted before the lock is released (critical.py)."""
     with file_lock(lock_path(vault_root), command):
-        before = _canvas_bytes(vault_root)
-        with events.recording(vault_root, actor):
-            yield
-        if _canvas_bytes(vault_root) != before:
-            from . import critical  # imported late: critical reaches the command layer
+        from . import undo  # imported late: undo uses @locked from this module
 
-            critical.refresh_quietly(vault_root)
+        before = _canvas_bytes(vault_root)
+        with undo.session(vault_root, command):
+            with events.recording(vault_root, actor):
+                yield
+            if _canvas_bytes(vault_root) != before:
+                from . import critical  # imported late: critical reaches the command layer
+
+                critical.refresh_quietly(vault_root)
 
 
 def _canvas_bytes(vault_root: Path) -> bytes | None:

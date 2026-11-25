@@ -27,7 +27,7 @@ from pathlib import Path
 
 import yaml
 
-from . import canvas, decisions, events, headings, operations
+from . import canvas, decisions, events, headings, operations, undo
 from .errors import HistosError
 from .fsutil import write_text_atomic
 from .lock import locked
@@ -247,6 +247,7 @@ def propose(vault_root: Path, text: str) -> ProposeResult:
         raise HistosError("the plan can't be created as it is:\n" + "\n".join(f"  - {e}" for e in errors))
     path = plan_path(vault_root)
     replaced = path.exists()
+    undo.stage(vault_root, [path, _feedback_path(vault_root)])
     path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(path, text)
     _set_feedback(vault_root, None)  # a new plan answers the old feedback

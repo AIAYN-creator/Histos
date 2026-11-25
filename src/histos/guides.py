@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import canvas, events, operations
+from . import canvas, events, operations, undo
 from .errors import HistosError
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
@@ -149,6 +149,7 @@ def propose(vault_root: Path, name: str, draft_text: str) -> ProposeResult:
     replaced = path.exists()
     if run is not None and not run.passed:
         return ProposeResult(name=name, replaced_pending=False, evals=run, saved=False)
+    undo.stage(vault_root, [path, _feedback_path(vault_root), _eval_results_path(vault_root)])
     path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(path, draft_text)
     _set_feedback(vault_root, name, None)  # a new proposal answers the old feedback

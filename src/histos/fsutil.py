@@ -37,6 +37,11 @@ def copy_file_atomic(src: Path, dst: Path) -> None:
     _write_atomic(dst, src.read_bytes(), "wb", None)
 
 
+def write_bytes_atomic(path: Path, data: bytes) -> None:
+    """Writes raw bytes atomically via temp file + os.replace."""
+    _write_atomic(path, data, "wb", None)
+
+
 def _write_atomic(path: Path, content: str | bytes, mode: str, encoding: str | None) -> None:
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     tmp = Path(tmp_name)

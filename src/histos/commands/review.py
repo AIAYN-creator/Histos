@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from .. import canvas, config, context, evals, events, frontmatter, guides, notify, operations
+from .. import canvas, config, context, evals, events, frontmatter, guides, notify, operations, undo
 from ..fsutil import write_text_atomic
 from ._shared import _vault_root, _with_vault_lock
 
@@ -91,6 +91,11 @@ def cmd_propose(args: argparse.Namespace) -> int:
         return 1
     draft = draft_path.read_text(encoding="utf-8")
 
+    undo.stage(
+        vault_root,
+        [canvas.vault_canvas_path(vault_root), canvas.card_file_path(vault_root, card),
+         operations._proposal_path(vault_root, args.id)],
+    )
     try:
         passed, attempt = _gate_on_evals(vault_root, data, card, draft)
     except canvas.HistosError as e:  # broken config/evals: not the draft's fault, no attempt spent
