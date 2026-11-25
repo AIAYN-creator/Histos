@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import re
+import dataclasses
 import statistics
 from dataclasses import dataclass
 from functools import cached_property
@@ -275,7 +276,10 @@ def review_value(sample: Sample) -> float:
     return sample.review_active_hours
 
 
-def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int, *, model: str | None = None, aliases: dict[str, str] | None = None) -> CardEstimate:
+def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int,
+             model: str | None = None, *, aliases: dict[str, str] | None = None) -> CardEstimate:
+    """With an approved model, the agent estimate comes from that model's cards first; with fewer
+    than MIN_SAMPLES of them in every group, from all cards, as without a model."""
     groups = agent_groups(tier, type_, dependencies)
     norm_model = normalize_model(model, aliases)
     if norm_model:
@@ -328,6 +332,16 @@ def agent_model_coverage(rows: list[Row], aliases: dict[str, str] | None = None)
         if norm:
             counts[norm] = counts.get(norm, 0) + 1
     return sorted(counts.items(), key=lambda item: item[0])
+
+
+def model_coverage(samples: list[Sample], aliases: dict[str, str] | None = None) -> list[tuple[str, int]]:
+    """Closed cards per approved model, most cards first; cards without a model are left out."""
+    counts: dict[str, int] = {}
+    for s in samples:
+        norm = normalize_model(s.model, aliases) if aliases is not None else s.model
+        if norm:
+            counts[norm] = counts.get(norm, 0) + 1
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
 
 
 def review_coverage(rows: list[Row]) -> list[tuple[Group, int]]:

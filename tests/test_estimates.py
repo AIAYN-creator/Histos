@@ -3,6 +3,7 @@
 Pure functions, so every case here is an invented list of samples."""
 from datetime import datetime, timedelta, timezone
 
+import dataclasses
 import pytest
 
 from histos import estimates
@@ -243,3 +244,4 @@ def test_agent_model_coverage():
         Row(sample(n=3, model=None), "cod"),
     ]
     assert estimates.agent_model_coverage(rows_list) == [("Model-A", 1), ("Model-B", 2)]
+    assert estimates.model_coverage([r.sample for r in rows_list]) == [("Model-B", 2), ("Model-A", 1)]
