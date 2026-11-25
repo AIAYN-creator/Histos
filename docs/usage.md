@@ -215,6 +215,8 @@ It's the only command that moves cards that already exist, including the ones yo
 
 To move finished cards from a completed phase off `project.canvas` into `archive.canvas` without losing history or estimates, run `histos archive --all-done` (or `histos archive <id>...`; pass `--dry-run` to preview first).
 
+To write a Markdown project summary (`REPORT.md` — executive metrics, actual-vs-estimated accuracy, rejection/eval breakdowns, critical path drift, a Mermaid Gantt timeline, and a 3-point PERT for open work), run `histos report` (pass `--output <file>` for another relative path or `--include-archived` to include archived cards).
+
 ## Why it's safe to leave it working unsupervised
 
 The agent can **never** write to `content/*.md` without going through `propose`/`approve`, can **never** touch the dependency graph or settle a model without your yes in the conversation (rules in `AGENTS.md`, backed by the `--authorized` flag), and its drafts go through the evals before they reach you.
