@@ -2,6 +2,20 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.2.2] - 2026-11-25
+
+Read-only vault health diagnostics, template version tracking, and Antigravity workflow docs.
+
+### Added
+
+- **`histos doctor [--json]`** (`src/histos/doctor.py`): read-only health check across 11 vault and environment checks (`vault_valid`, `v3_config`, `agents_md`, `legend`, `unclassified_cards`, `content_untouched`, `in_progress_model`, `done_when_missing`, `project_brief`, `histos_home`, `pause_active`) that never takes a vault lock, emits events, or writes files, and reports an actionable `fix:` command for every issue.
+- **Version stamp in `AGENTS.md`:** `<!-- histos-template-version: 3.2.2 -->` added at the end of the template so `histos doctor` detects vaults still using older agent instructions.
+
+### Changed
+
+- **Antigravity support documented:** verified agent-agnostic workflow with Antigravity (native `AGENTS.md` discovery and the parent wrapper folder layout for sandboxed agents alongside sibling code repositories) in `README.md`, `docs/cli.md`, `docs/usage.md`, `docs/workflow.md`, and `docs/trust-model.md`.
+- **`docs/roadmap.md` synced:** moved the shipped `v3.2.1` and `v3.2.2` features from `Next` into `Shipped`.
+
 ## [3.2.1] - 2026-11-20
 
 Fewer tokens every session, agent estimates for every card, and the real work of code cards measured.

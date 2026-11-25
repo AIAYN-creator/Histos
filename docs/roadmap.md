@@ -4,17 +4,6 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.2.x: patches, soon
-
-- **`histos doctor`:** a read-only health check of a vault.
-  - an `AGENTS.md` older than the installed Histos (the template gets a version stamp);
-  - a missing `histos.config.yaml` or evals;
-  - a legend Histos doesn't recognise;
-  - open cards without a tier;
-  - and anything else that quietly turns features off.
-  
-  Each finding comes with the command that fixes it.
-
 ### v3.3: project metrics and the final report
 
 - **`histos report`** writes a Markdown report into the vault when a project closes. It includes:
@@ -69,6 +58,12 @@ Ideas for later versions, none committed yet — roughly from most to least like
 - Still open from earlier versions: git as an optional history backend for the content, calendar/date-based scheduling, pulling external context automatically (e.g. Overleaf's `.tex` via its Git integration), `content/` subfolder conventions, and a translated desktop app.
 
 ## Shipped
+
+### v3.2.2 ([CHANGELOG](../CHANGELOG.md#322---2026-11-25))
+
+- **`histos doctor [--json]`:** read-only health check covering 11 vault and `$HISTOS_HOME` checks (`vault_valid`, `v3_config`, `agents_md`, `legend`, `unclassified_cards`, `content_untouched`, `in_progress_model`, `done_when_missing`, `project_brief`, `histos_home`, `pause_active`) with exact repair commands.
+- **`AGENTS.md` version stamp:** template carries `<!-- histos-template-version: ... -->` so `doctor` detects stale vault instructions.
+- **Antigravity workflow documented:** parent wrapper + sibling code repo layout and native `AGENTS.md` discovery verified and added to the docs.
 
 ### v3.2.1 ([CHANGELOG](../CHANGELOG.md#321---2026-11-20))
 
