@@ -7,7 +7,7 @@ so a typo here can't keep the human from reviewing.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -72,6 +72,7 @@ class Config:
     notifications: NotificationsConfig = None  # type: ignore[assignment]
     token_pricing: dict[str, TokenPricingConfig] = None  # type: ignore[assignment]
     token_logs: list[str] = None  # type: ignore[assignment]
+    model_aliases: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.critical_path is None:
@@ -82,6 +83,8 @@ class Config:
             self.token_pricing = {}
         if self.token_logs is None:
             self.token_logs = []
+        if self.model_aliases is None:
+            self.model_aliases = {}
 
 
 def config_path(vault_root: Path) -> Path:
@@ -187,6 +190,12 @@ def _build(raw: dict) -> Config:
         for model, rates in tp_raw.items()
     }
     token_logs = [str(p) for p in (raw.get("token_logs") or [])]
+    raw_aliases = raw.get("model_aliases") or {}
+    model_aliases = {
+        str(k): str(v)
+        for k, v in raw_aliases.items()
+        if isinstance(k, str) and isinstance(v, str)
+    }
     return Config(
         tiers=tiers,
         evals=evals,
@@ -195,6 +204,7 @@ def _build(raw: dict) -> Config:
         notifications=notifications,
         token_pricing=token_pricing,
         token_logs=token_logs,
+        model_aliases=model_aliases,
     )
 
 

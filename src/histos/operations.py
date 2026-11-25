@@ -13,7 +13,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import __version__, canvas, estimates, events, frontmatter, history, pauses, tokens, undo, validation
+from . import __version__, canvas, config, estimates, events, frontmatter, history, pauses, tokens, undo, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -236,7 +236,7 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardEstimate]:
+def refresh_estimates(vault_root: Path, data: dict, *, aliases: dict[str, str] | None = None) -> dict[str, estimates.CardEstimate]:
     """Estimates every open card from the history of all the registered vaults (read once) and
     keeps each card's frontmatter up to date: `estimate` (the detail) and `estimated_duration_hours`
     (agent median + review median, null if either is missing). A file is only written when the
@@ -244,6 +244,12 @@ def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardE
 
     The review half is built from the human's ACTIVE review hours (calendar time minus their
     `histos pause` periods), but it is named `review_hours` in the frontmatter, as dec-estimador says."""
+    if aliases is None:
+        try:
+            cfg = config.load(vault_root)
+            aliases = cfg.model_aliases if cfg else None
+        except Exception:
+            aliases = None
     try:
         found, card_ids = history.read_all()
     except (OSError, ValueError, KeyError):
@@ -251,17 +257,23 @@ def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardE
     rows = estimates.typed(found, card_ids)
 
     result = {}
-    for card, md_path, meta, body, card_estimate in estimate_open_cards(vault_root, data, rows):
+    for card, md_path, meta, body, card_estimate in estimate_open_cards(vault_root, data, rows, aliases=aliases):
         result[card["id"]] = card_estimate
         if md_path.exists():
             _store_estimate(md_path, meta, body, card_estimate)
     return result
 
 
-def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row]) -> list[tuple]:
+def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row], *, aliases: dict[str, str] | None = None) -> list[tuple]:
     """Read-only: for each open (not Approved) card, `(card, md_path, meta, body, estimate)` --
     the same figures `status` shows. Nothing is written; refresh_estimates stores them, and the
     coverage report only counts them."""
+    if aliases is None:
+        try:
+            cfg = config.load(vault_root)
+            aliases = cfg.model_aliases if cfg else None
+        except Exception:
+            aliases = None
     types = estimates.card_types([c["id"] for c in canvas.cards(data)])
     declared: dict[str, set[str]] = {}
     for edge in canvas.dependency_edges(data):
@@ -280,6 +292,7 @@ def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row])
             types.get(card["id"]),
             len(dependencies),
             model=meta.get(APPROVED_MODEL_KEY),
+            aliases=aliases,
         )
         result.append((card, md_path, meta, body, card_estimate))
     return result
@@ -299,17 +312,24 @@ class Coverage:
     models: list[tuple[str, int]] = field(default_factory=list)
 
 
-def coverage(home: Optional[Path] = None) -> Coverage:
+def coverage(home: Optional[Path] = None, *, aliases: dict[str, str] | None = None) -> Coverage:
     """Read-only: how many closed cards each estimate group has, and how many open cards of ALL the
     registered vaults would get an estimate right now. Takes no lock and writes nothing. Vaults
     whose canvas can't be read are left out of the open-card count."""
+    if aliases is None:
+        try:
+            cfg = config.load(Path.cwd())
+            if cfg and cfg.model_aliases:
+                aliases = cfg.model_aliases
+        except Exception:
+            aliases = None
     skipped: list[str] = []
     found, card_ids = history.read_all(home, skipped)
     rows = estimates.typed(found, card_ids)
     report = Coverage(samples=found, skipped=skipped, vault_names=history.vault_names(home),
                       agent=estimates.agent_coverage(rows), review=estimates.review_coverage(rows),
                       outliers=estimates.outliers(found),
-                      models=estimates.agent_model_coverage(rows))
+                      models=estimates.agent_model_coverage(rows, aliases=aliases))
     seen: set[Path] = set()
     for vault_root in history.registered_vaults(home):
         if vault_root.resolve() in seen:

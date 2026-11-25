@@ -42,6 +42,11 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     },
+    "model_aliases": {
+      "description": "Optional mapping to normalize equivalent model names at estimation, reporting, and coverage aggregation time.",
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
     "terms": {
       "description": "Extra terms for the *_terms_present / file_operations_mentioned conditions -- added to the built-in lists, never replacing them.",
       "type": "object",

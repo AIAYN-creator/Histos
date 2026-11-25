@@ -11,7 +11,7 @@ import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import canvas, critical, estimates, events, frontmatter, history, tokens
+from . import canvas, config, critical, estimates, events, frontmatter, history, tokens
 
 
 @dataclass(frozen=True)
@@ -239,6 +239,7 @@ def compute(
     log_events: list[dict],
     initial_path: list[str] | None = None,
     tokens_summary: tokens.ProjectTokenSummary | None = None,
+    aliases: dict[str, str] | None = None,
 ) -> ProjectMetrics:
     all_cards = canvas.cards(data)
     approved = [c for c in all_cards if c.get("color") == canvas.APPROVED]
@@ -285,7 +286,13 @@ def compute(
 
     rejections, attempts = _extract_event_counts(log_events, samples, cards_meta)
     by_tier = _group_stats(approved, cards_meta, rejections, attempts, lambda m: str(m.get("proposed_tier") or "unclassified"))
-    by_model = _group_stats(approved, cards_meta, rejections, attempts, lambda m: str(m.get("approved_model") or "unrecorded"))
+    by_model = _group_stats(
+        approved,
+        cards_meta,
+        rejections,
+        attempts,
+        lambda m: estimates.normalize_model(m.get("approved_model"), aliases) or "unrecorded",
+    )
 
     dep_counts = _dependency_counts(data, cards_meta)
     types_by_card = estimates.card_types([c["id"] for c in all_cards])
@@ -360,7 +367,13 @@ def _merge_archived_canvas(vault_root: Path, data: dict) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
-def from_vault(vault_root: Path, include_archived: bool = False) -> ProjectMetrics:
+def from_vault(vault_root: Path, include_archived: bool = False, aliases: dict[str, str] | None = None) -> ProjectMetrics:
+    if aliases is None:
+        try:
+            cfg = config.load(vault_root)
+            aliases = cfg.model_aliases if cfg else None
+        except Exception:
+            aliases = None
     data = canvas.load(vault_root)
     if include_archived:
         data = _merge_archived_canvas(vault_root, data)
@@ -380,5 +393,5 @@ def from_vault(vault_root: Path, include_archived: bool = False) -> ProjectMetri
     )
     return compute(
         vault_root.resolve().name, data, cards_meta, vault_samples, rows, log_events,
-        tokens_summary=tokens_summary,
+        tokens_summary=tokens_summary, aliases=aliases,
     )

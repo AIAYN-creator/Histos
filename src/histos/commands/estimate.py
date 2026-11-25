@@ -19,7 +19,18 @@ def cmd_estimate(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    report = operations.coverage()
+    aliases = None
+    try:
+        from .. import config
+        cfg = config.load(_vault_root())
+        if cfg and cfg.model_aliases:
+            aliases = cfg.model_aliases
+    except Exception:
+        aliases = None
+    if aliases:
+        report = operations.coverage(aliases=aliases)
+    else:
+        report = operations.coverage()
     if not report.samples:
         print("no closed cards yet: estimates start after the first approvals with histos 3.1+")
         for entry in report.skipped:

@@ -29,6 +29,67 @@ ANY = "*"  # a group position that matches everything
 
 Group = tuple  # (tier, type, dependencies), each position a value or ANY
 
+VENDOR_PREFIXES = ("anthropic/", "anthropic ", "openai/", "openai ", "google/", "claude/", "claude ")
+
+_CANONICAL_WORDS = {
+    "opus": "Opus",
+    "sonnet": "Sonnet",
+    "haiku": "Haiku",
+    "gemini": "Gemini",
+    "claude": "Claude",
+}
+
+
+def _canonical_word(w: str) -> str:
+    low = w.lower()
+    if low in _CANONICAL_WORDS:
+        return _CANONICAL_WORDS[low]
+    if low == "gpt" or low.startswith("gpt-"):
+        return "GPT" + w[3:]
+    if any(c.islower() for c in w) and not any(c.isupper() for c in w):
+        for i, c in enumerate(w):
+            if c.isalpha():
+                return w[:i] + c.upper() + w[i + 1:]
+    return w
+
+
+def _canonical_display(text: str) -> str:
+    tokens = text.split(" ")
+    return " ".join(_canonical_word(t) for t in tokens)
+
+
+def normalize_model(name: str | None, aliases: dict[str, str] | None = None) -> str | None:
+    """Normalize equivalent model names (whitespace collapsing, case-insensitivity, vendor prefix
+    stripping e.g. 'Claude Opus 5.5' -> 'Opus 5.5', and custom alias mapping)."""
+    if name is None or not isinstance(name, str):
+        return None
+    collapsed = " ".join(name.strip().split())
+    if not collapsed:
+        return None
+
+    if aliases:
+        lookup = collapsed.lower()
+        for k, v in aliases.items():
+            if isinstance(k, str) and " ".join(k.strip().split()).lower() == lookup:
+                if isinstance(v, str) and v.strip():
+                    return normalize_model(v, aliases=None)
+
+    stripped = collapsed
+    while True:
+        matched = False
+        low = stripped.lower()
+        for prefix in VENDOR_PREFIXES:
+            if low.startswith(prefix):
+                remainder = stripped[len(prefix):].strip()
+                if remainder:
+                    stripped = remainder
+                    matched = True
+                    break
+        if not matched:
+            break
+
+    return _canonical_display(stripped)
+
 
 @dataclass(frozen=True)
 class Row:
@@ -118,11 +179,17 @@ class Rows(list):
             found = self._groups[group] = _sorted_members(group, self)
         return found
 
-    def of_model(self, model: str) -> list[Row]:
-        """Caches and returns rows whose sample.model == model."""
-        found = self._by_model.get(model)
+    def of_model(self, model: str, aliases: dict[str, str] | None = None) -> list[Row]:
+        """Caches and returns rows matching normalize_model(model, aliases)."""
+        target = normalize_model(model, aliases)
+        if target is None:
+            return Rows()
+        cache_key = target if not aliases else (target, tuple(sorted(aliases.items())))
+        found = self._by_model.get(cache_key)
         if found is None:
-            found = self._by_model[model] = Rows(r for r in self if r.sample.model == model)
+            found = self._by_model[cache_key] = Rows(
+                r for r in self if normalize_model(r.sample.model, aliases) == target
+            )
         return found
 
 
@@ -208,11 +275,14 @@ def review_value(sample: Sample) -> float:
     return sample.review_active_hours
 
 
-def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int, *, model: str | None = None) -> CardEstimate:
+def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int, *, model: str | None = None, aliases: dict[str, str] | None = None) -> CardEstimate:
     groups = agent_groups(tier, type_, dependencies)
-    if model:
-        model_rows = rows.of_model(model) if isinstance(rows, Rows) else [r for r in rows if r.sample.model == model]
-        agent = estimate(model_rows, groups, agent_value, model=model)
+    norm_model = normalize_model(model, aliases)
+    if norm_model:
+        model_rows = rows.of_model(norm_model, aliases=aliases) if isinstance(rows, Rows) else [
+            r for r in rows if normalize_model(r.sample.model, aliases) == norm_model
+        ]
+        agent = estimate(model_rows, groups, agent_value, model=norm_model)
         if isinstance(agent, Missing):
             agent = estimate(rows, groups, agent_value)
     else:
@@ -250,12 +320,13 @@ def agent_coverage(rows: list[Row]) -> list[tuple[Group, int]]:
                             for r in rows if r.sample.tier])
 
 
-def agent_model_coverage(rows: list[Row]) -> list[tuple[str, int]]:
-    """Each distinct approved sample.model with closed card count, sorted cleanly."""
+def agent_model_coverage(rows: list[Row], aliases: dict[str, str] | None = None) -> list[tuple[str, int]]:
+    """Each distinct approved sample.model normalized with closed card count, sorted cleanly."""
     counts: dict[str, int] = {}
     for r in rows:
-        if r.sample.model:
-            counts[r.sample.model] = counts.get(r.sample.model, 0) + 1
+        norm = normalize_model(r.sample.model, aliases)
+        if norm:
+            counts[norm] = counts.get(norm, 0) + 1
     return sorted(counts.items(), key=lambda item: item[0])
 
 
