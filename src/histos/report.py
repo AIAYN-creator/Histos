@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import canvas, config, estimates, events, metrics
+from . import canvas, config, estimates, events, metrics, tokens
 from .errors import HistosError
 from .fsutil import write_text_atomic
 
@@ -136,6 +136,17 @@ def render_markdown(
         f"- **Agent time:** {m.total_agent_hours:.2f} h",
         f"- **Active review time:** {m.total_review_active_hours:.2f} h",
         f"- **Calendar review time:** {m.total_review_calendar_hours:.2f} h",
+    ]
+    tok = m.tokens
+    if tok is not None and tok.status != tokens.STATUS_NO_TRANSCRIPTS:
+        lines += [
+            f"- **Tokens:** {tok.total_tokens:,} total ({tok.input_tokens:,} input, {tok.output_tokens:,} output, "
+            f"{tok.cache_write_tokens:,} cache write, {tok.cache_read_tokens:,} cache read)",
+            f"- **Token cost:** {tokens.format_cost(tok.cost_usd)}",
+        ]
+    else:
+        lines.append("- **Tokens & cost:** No local transcript data found.")
+    lines += [
         "",
         "## 2. Estimate Accuracy (Actual vs. Estimated)",
         "",
@@ -245,6 +256,26 @@ def render_markdown(
             lines.append("- **Remaining critical path PERT:** no data (insufficient closed history)")
     else:
         lines.append("All cards are approved — no remaining PERT work.")
+
+    lines += ["", "## 7. Tokens & Cost", ""]
+    if tok is not None and tok.status != tokens.STATUS_NO_TRANSCRIPTS:
+        lines += [
+            "| Card | Model | Input | Output | Cache Write | Cache Read | Total | Cost (USD) | Status |",
+            "|---|---|---|---|---|---|---|---|---|",
+        ]
+        for cid in sorted(tok.cards):
+            c = tok.cards[cid]
+            if c.status == tokens.STATUS_NO_TRANSCRIPTS:
+                continue
+            cost_str = f"${c.cost_usd:.4f}" if c.cost_usd is not None else "partial (no pricing)"
+            model_str = c.model or "unknown"
+            lines.append(
+                f"| {c.card} | {model_str} | {c.input_tokens:,} | {c.output_tokens:,} | "
+                f"{c.cache_write_tokens:,} | {c.cache_read_tokens:,} | {c.total_tokens:,} | "
+                f"{cost_str} | {c.status} |"
+            )
+    else:
+        lines.append("No local transcript data found.")
 
     return "\n".join(lines).rstrip() + "\n"
 

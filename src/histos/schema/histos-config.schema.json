@@ -32,6 +32,16 @@
         "enabled": { "type": "boolean" }
       }
     },
+    "token_pricing": {
+      "description": "Optional per-model USD pricing per 1M tokens, overriding built-in defaults.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/tokenPrice" }
+    },
+    "token_logs": {
+      "description": "Optional list of local JSONL transcript file or directory paths.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "terms": {
       "description": "Extra terms for the *_terms_present / file_operations_mentioned conditions -- added to the built-in lists, never replacing them.",
       "type": "object",
@@ -68,6 +78,17 @@
         "enabled": { "type": "boolean" },
         "path": { "type": "string", "minLength": 1 },
         "run_on": { "enum": ["propose"] }
+      }
+    },
+    "tokenPrice": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "input_per_1m": { "type": "number", "minimum": 0 },
+        "output_per_1m": { "type": "number", "minimum": 0 },
+        "cache_write_per_1m": { "type": "number", "minimum": 0 },
+        "cache_read_per_1m": { "type": "number", "minimum": 0 }
       }
     }
   }

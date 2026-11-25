@@ -11,7 +11,7 @@ import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import canvas, critical, estimates, events, frontmatter, history
+from . import canvas, critical, estimates, events, frontmatter, history, tokens
 
 
 @dataclass(frozen=True)
@@ -76,6 +76,7 @@ class ProjectMetrics:
     pert_open: list[PertEstimate]
     pert_critical_expected: float | None
     pert_critical_sd: float | None
+    tokens: tokens.ProjectTokenSummary | None = None
 
 
 def _as_float(value) -> float | None:
@@ -237,6 +238,7 @@ def compute(
     rows: estimates.Rows,
     log_events: list[dict],
     initial_path: list[str] | None = None,
+    tokens_summary: tokens.ProjectTokenSummary | None = None,
 ) -> ProjectMetrics:
     all_cards = canvas.cards(data)
     approved = [c for c in all_cards if c.get("color") == canvas.APPROVED]
@@ -330,6 +332,7 @@ def compute(
         pert_open=pert_open,
         pert_critical_expected=cp_expected,
         pert_critical_sd=cp_sd,
+        tokens=tokens_summary,
     )
 
 
@@ -370,4 +373,12 @@ def from_vault(vault_root: Path, include_archived: bool = False) -> ProjectMetri
     all_samples, ids_by_vault = history.read_all()
     rows = estimates.typed(all_samples, ids_by_vault)
     log_events = events.read(vault_root)
-    return compute(vault_root.resolve().name, data, cards_meta, vault_samples, rows, log_events)
+    tokens_summary = tokens.summarize_vault(
+        vault_root,
+        card_ids=[c["id"] for c in canvas.cards(data)],
+        log_events=log_events,
+    )
+    return compute(
+        vault_root.resolve().name, data, cards_meta, vault_samples, rows, log_events,
+        tokens_summary=tokens_summary,
+    )

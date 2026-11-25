@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from .. import archive, canvas, config, doctor, estimates, evals, events, frontmatter, guides, operations, pauses, plans, undo, validation
+from .. import archive, canvas, config, doctor, estimates, evals, events, frontmatter, guides, operations, pauses, plans, tokens, undo, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -291,6 +291,18 @@ def cmd_status(args: argparse.Namespace) -> int:
         except canvas.HistosError:
             size = ""
         print(f"Plan pending review{size}  ('histos plan diff' to review)")
+    tok = result.tokens
+    if tok is not None and tok.status != tokens.STATUS_NO_TRANSCRIPTS:
+        print(
+            f"Tokens: {tokens.format_token_count(tok.total_tokens)} "
+            f"({tokens.format_token_count(tok.input_tokens)} in · "
+            f"{tokens.format_token_count(tok.output_tokens)} out · "
+            f"{tokens.format_token_count(tok.cache_write_tokens)} cache write · "
+            f"{tokens.format_token_count(tok.cache_read_tokens)} cache read) · "
+            f"{tokens.format_cost(tok.cost_usd)}"
+        )
+    else:
+        print("Tokens: no data")
     return 0
 
 
@@ -319,6 +331,9 @@ def _routing_label(c: operations.CardSummary) -> str:
         if not c.tier:
             parts.insert(0, "unclassified")
         parts += estimates.status_parts(c.estimate)
+    if c.token_usage is not None and c.token_usage.status != tokens.STATUS_NO_TRANSCRIPTS:
+        parts.append(f"{tokens.format_token_count(c.token_usage.total_tokens)} tok")
+        parts.append(tokens.format_cost(c.token_usage.cost_usd))
     return " · ".join(parts)
 
 

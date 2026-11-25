@@ -56,18 +56,32 @@ class NotificationsConfig:
 
 
 @dataclass
+class TokenPricingConfig:
+    input_per_1m: float = 0.0
+    output_per_1m: float = 0.0
+    cache_write_per_1m: float = 0.0
+    cache_read_per_1m: float = 0.0
+
+
+@dataclass
 class Config:
     tiers: dict[str, Tier]
     evals: EvalsConfig
     terms: dict[str, list[str]]
     critical_path: CriticalPathConfig = None  # type: ignore[assignment]
     notifications: NotificationsConfig = None  # type: ignore[assignment]
+    token_pricing: dict[str, TokenPricingConfig] = None  # type: ignore[assignment]
+    token_logs: list[str] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.critical_path is None:
             self.critical_path = CriticalPathConfig()
         if self.notifications is None:
             self.notifications = NotificationsConfig()
+        if self.token_pricing is None:
+            self.token_pricing = {}
+        if self.token_logs is None:
+            self.token_logs = []
 
 
 def config_path(vault_root: Path) -> Path:
@@ -162,12 +176,25 @@ def _build(raw: dict) -> Config:
     notifications = NotificationsConfig(
         enabled=bool(nt.get("enabled", True)),
     )
+    tp_raw = raw.get("token_pricing") or {}
+    token_pricing = {
+        str(model): TokenPricingConfig(
+            input_per_1m=float(rates.get("input_per_1m", 0.0)),
+            output_per_1m=float(rates.get("output_per_1m", 0.0)),
+            cache_write_per_1m=float(rates.get("cache_write_per_1m", 0.0)),
+            cache_read_per_1m=float(rates.get("cache_read_per_1m", 0.0)),
+        )
+        for model, rates in tp_raw.items()
+    }
+    token_logs = [str(p) for p in (raw.get("token_logs") or [])]
     return Config(
         tiers=tiers,
         evals=evals,
         terms={k: list(v) for k, v in (raw.get("terms") or {}).items()},
         critical_path=critical_path,
         notifications=notifications,
+        token_pricing=token_pricing,
+        token_logs=token_logs,
     )
 
 

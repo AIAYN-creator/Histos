@@ -13,7 +13,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import __version__, canvas, estimates, events, frontmatter, history, pauses, undo, validation
+from . import __version__, canvas, estimates, events, frontmatter, history, pauses, tokens, undo, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -209,6 +209,7 @@ class CardSummary:
     estimate: Optional[estimates.CardEstimate] = None  # None for an approved card
     eval_results: Optional[dict] = None
     content_tampered: bool = False
+    token_usage: Optional[tokens.CardTokenUsage] = None
 
 
 @dataclass
@@ -223,6 +224,7 @@ class StatusResult:
     groups: list[StatusGroup] = field(default_factory=list)  # in the fixed display order
     critical_path: Optional[object] = None  # critical.CriticalPath, or None when the vault has none
     paused: bool = False
+    tokens: Optional[tokens.ProjectTokenSummary] = None
 
 
 ESTIMATE_KEY = "estimate"
@@ -378,6 +380,10 @@ def get_status(vault_root: Path) -> StatusResult:
         canvas.save(vault_root, data)
     with history.snapshot():  # the estimates and the critical path read the same history: once
         open_estimates = refresh_estimates(vault_root, data)
+        try:
+            token_summary = tokens.summarize_vault(vault_root, card_ids=[c["id"] for c in canvas.cards(data)])
+        except Exception:
+            token_summary = None
 
         by_color: dict[str, list[dict]] = {c: [] for c in STATE_NAMES}
         for card in canvas.cards(data):
@@ -401,6 +407,7 @@ def get_status(vault_root: Path) -> StatusResult:
                     tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
                     proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
                     eval_results=eval_results, content_tampered=tampered,
+                    token_usage=token_summary.cards.get(card["id"]) if token_summary is not None else None,
                 ))
             groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
         from . import critical  # critical reaches back into this module
@@ -410,7 +417,7 @@ def get_status(vault_root: Path) -> StatusResult:
             undo.refresh_canvas_digest(vault_root)
         except Exception:
             path = None  # the critical path never keeps the human from seeing the board
-    return StatusResult(groups=groups, critical_path=path, paused=pauses.current() is not None)
+    return StatusResult(groups=groups, critical_path=path, paused=pauses.current() is not None, tokens=token_summary)
 
 
 @dataclass
