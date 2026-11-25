@@ -184,6 +184,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.2.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.2
 [3.2.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.1
 [3.2.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.0
 [3.1.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.1.2
