@@ -83,4 +83,4 @@ histos guide propose PROJECT.md|ARCHITECTURE.md --file <draft>
 
 `histos <command> --help` for details.
 
-<!-- histos-template-version: 3.3.0 -->
+<!-- histos-template-version: 3.4.0 -->

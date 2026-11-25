@@ -4,13 +4,6 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.4: tokens, notifications and the desktop app
-
-- **Token cost per card.** The cost comes from the session transcripts Claude Code already keeps on disk, matched to the event log, so `status` and the report show what each card cost as well as how long it took. This shows which kind of card eats a subscription's quota. Yolo mode needs it too, as its stop condition.
-- **"Waiting for you" notifications.** A desktop notification when a card reaches review, or an eval run fails for good. Review time is mostly waiting, and the human is only one notification away.
-- **`histos undo`:** reverts the last change a command made to the board, using the event log and the atomic writes that already exist. It never undoes a human approval.
-- **The desktop app catches up:** estimates, the critical path and a pause button. Also each card's tier, model and evals on the overview, approving the models of a queue and guide changes from the app, and `retry` and `accept-edit` as buttons.
-
 ### v3.5: other model providers, opt-in per vault
 
 - The agent can propose another provider's executor for a card, for example the Gemini CLI on its free tier for drawings or for reading a whole repository at once. As always, the human approves.
@@ -50,6 +43,14 @@ Ideas for later versions, none committed yet — roughly from most to least like
 - Still open from earlier versions: git as an optional history backend for the content, calendar/date-based scheduling, pulling external context automatically (e.g. Overleaf's `.tex` via its Git integration), `content/` subfolder conventions, and a translated desktop app.
 
 ## Shipped
+
+### v3.4.0 ([CHANGELOG](../CHANGELOG.md#340---2026-11-25))
+
+- **Token usage & USD cost (`src/histos/tokens.py`):** extensible local transcript reader (`ClaudeCodeSource` + opt-in `GenericJsonlSource`) cross-referenced against `events.jsonl` windows, configurable `token_pricing`/`token_logs`, and summaries in `histos status` and `histos report` (clean `no data` without transcripts).
+- **Notifications with full muting (`histos notify`):** non-blocking desktop alerts on `Proposal pending review` and exhausted eval attempts, easily muted globally (`histos notify --off`, `$HISTOS_HOME/notify.json`), per-vault (`notifications.enabled: false`), or via `HISTOS_NO_NOTIFY=1`.
+- **Atomic rollback (`histos undo`):** reverts the last reversible vault mutation inside `.histos.lock` while logging an append-only `"undone"` event and strictly blocking any rollback of human approvals/rejections.
+- **Model-aware estimates & alias normalization:** estimates agent duration per `approved_model` first (falling back `< 5` samples), unifies variants like `'Opus 5.5'` and `'Claude Opus 5.5'` via `normalize_model` + `model_aliases` without mutating raw history, and adds `"Agent time by model"` to `--coverage`.
+- **Desktop app v3.4 (`histos-gui`):** exposes `pause`, critical path, estimates, tier/model/evals/tamper status, individual and batch model approval, guides, plans, `retry`, and `accept-edit`.
 
 ### v3.3.0 ([CHANGELOG](../CHANGELOG.md#330---2026-11-25))
 

@@ -2,6 +2,23 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.4.0] - 2026-11-25
+
+Token consumption and USD cost tracking, muteable desktop notifications, atomic `histos undo` with human-approval protection, model-aware estimation with alias normalization, and full desktop app parity.
+
+### Added
+
+- **Token cost per card (`src/histos/tokens.py`):** extensible local transcript reading (`TranscriptSource`, `ClaudeCodeSource` with `HISTOS_CLAUDE_DIR`, and opt-in `GenericJsonlSource` via `HISTOS_TOKEN_LOGS` / `token_logs`), matched against `events.jsonl` working windows, with configurable `token_pricing` in `histos.config.yaml` and totals integrated into `histos status` and `histos report`.
+- **Desktop notifications (`src/histos/notify.py` & `histos notify`):** non-blocking Windows/macOS/Linux notifications on `Proposal pending review` and on the 3rd failed eval attempt, with persistent global mute (`histos notify --off | --on | --status` stored in `$HISTOS_HOME/notify.json`), per-vault `notifications.enabled: false` in `histos.config.yaml`, and `HISTOS_NO_NOTIFY=1`.
+- **Atomic single-level rollback (`src/histos/undo.py` & `histos undo`):** reverts reversible vault commands atomically inside `.histos.lock`, emits the append-only `"undone"` event (`events.jsonl` and `histos-events.schema.json`), detects external Obsidian drift, and strictly blocks any rollback of `approved`, `rejected`, `guide_*`, or `plan_*` decisions.
+- **Model-aware agent estimates & alias normalization (`estimates.py`, `metrics.py`):** uses each card's `approved_model` history first (falling back across all models below 5 samples), adds `"Agent time by model"` to `histos estimate --coverage`, normalizes vendor prefixes/whitespace (`'Opus 5.5'` ↔ `'Claude Opus 5.5'`), and supports `model_aliases` in `histos.config.yaml` without altering stored history.
+- **Desktop app v3.4 catch-up (`src/histos/gui/` & `operations.py`):** exposes `histos pause`, critical path highlights, agent/review estimates, tier/model/eval badges, direct-edit detection (`accept-edit`), `retry`, batch model approval, and review panels for `PROJECT.md`/`ARCHITECTURE.md` guides and `plan.yaml`.
+
+### Changed
+
+- **`AGENTS.md` template & commit linking:** updated the commit trailer rule to `Coordinated-by: Histos (<card-id>)` (linking code commits to cards and documenting how to remove it), added `notify` and `undo` to rule 5, and bumped template stamp to `3.4.0`.
+- **Documentation & packaging:** updated `docs/cli.md`, `docs/usage.md`, `docs/workflow.md`, `docs/canvas-schema.md`, `docs/roadmap.md`, `README.md`, and `packaging/histos-gui.spec` (covered by `tests/test_tokens.py`, `tests/test_notify.py`, `tests/test_undo.py`, `tests/test_model_aliases.py`, and expanded `tests/test_gui_app.py`).
+
 ## [3.3.0] - 2026-11-25
 
 Project metrics, archival of finished cards, Markdown project reports with Mermaid Gantt and 3-point PERT, commit attribution rules in `AGENTS.md`, and automated tag releases.
@@ -201,6 +218,7 @@ Found in the v3 audit (dependency scan, static analysis, manual review of every 
 
 First version: the formal `.canvas` schema, card frontmatter, the CLI (`init`, `add-card`, `link`, `describe`, `assign`, `context`, `propose`, `diff`, `approve`, `reject`, `status`, `validate`) and the agent instructions (`AGENTS.md`/`CLAUDE.md`).
 
+[3.4.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.4.0
 [3.3.0]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.3.0
 [3.2.2]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.2
 [3.2.1]: https://github.com/AIAYN-creator/Histos/releases/tag/v3.2.1
