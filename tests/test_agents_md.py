@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import histos
 from histos.cli import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,3 +57,9 @@ def test_the_human_only_commands_are_listed_in_rule_5():
     for command in ("`approve`", "`reject`", "`retry`", "`accept-edit`", "`guide approve`", "`guide reject`",
                     "`plan approve`", "`plan reject`"):
         assert command in rule5
+
+
+def test_agents_md_has_current_version_stamp():
+    match = re.search(r"<!--\s*histos-template-version:\s*([^\s>]+)\s*-->", DOCS["AGENTS.md"])
+    assert match is not None, "AGENTS.md template is missing the histos-template-version stamp"
+    assert match.group(1) == histos.__version__
