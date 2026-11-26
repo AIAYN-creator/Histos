@@ -2,6 +2,21 @@
 
 All notable changes to Histos. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Each released version has its [GitHub Release](https://github.com/AIAYN-creator/Histos/releases) with the desktop app attached.
 
+## [3.5.0] - 2026-11-26
+
+Opt-in external executors per vault with free-tier privacy warnings, separate executor/model estimation and reporting metrics, and contributor guidelines.
+
+### Added
+
+- **Opt-in external executors (`config.py`, `schema/`, `cli.py`, `commands/routing.py`):** optional `executors:` section in `histos.config.yaml` (`enabled: false` by default, `allowed` entries with unique no-space `name`, optional `provider`, and `pricing_tier: free | paid`), `proposed_executor` / `approved_executor` frontmatter fields, reversible `executor_proposed` / `executor_approved` / `executor_cleared` events, and `histos model` flags (`--executor`, `--proposed-executor`, `--approved-executor` requiring `--authorized`, and `--clear-executor`).
+- **Free-tier privacy warning & opt-in guard:** `histos model` refuses executor operations cleanly when `executors.enabled` is false/absent and warns explicitly whenever a `pricing_tier: free` executor is proposed or approved.
+- **Executor-aware history, estimates & reports (`history.py`, `estimates.py`, `operations.py`, `metrics.py`, `report.py`):** reconstructs `Sample.executor`, resolves agent time estimates across `(executor, model) -> executor -> model -> global`, renders `Agent time by executor` in `histos estimate --coverage`, shows executors in `histos status`, and adds `### By Executor` (`by_executor`, `no data` when unused) in `histos report` (covered by `tests/test_executors.py`).
+- **Contributor guide ([CONTRIBUTING.md](CONTRIBUTING.md)):** added project principles, local dev/test setup, schema/docs sync conventions, and PR guidelines linked from `README.md` and checked by `scripts/check_links.py`.
+
+### Changed
+
+- **Documentation & template (`docs/canvas-schema.md`, `docs/cli.md`, `docs/usage.md`, `docs/roadmap.md`, `README.md`, `src/histos/templates/AGENTS.md`):** documented `executors` configuration, frontmatter/event schema, privacy guidance for free tiers, updated roadmap status, and bumped the `AGENTS.md` template version stamp to `3.5.0`.
+
 ## [3.4.0] - 2026-11-25
 
 Token consumption and USD cost tracking, muteable desktop notifications, atomic `histos undo` with human-approval protection, model-aware estimation with alias normalization, and full desktop app parity.

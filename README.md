@@ -113,8 +113,8 @@ The canvas only holds the map — the content lives in `content/<id>.md`, with i
 | **v3.2.x** | ✅ shipped | a slimmer `AGENTS.md`, agent estimates for every card, the implementation phase of code cards measured, `histos doctor` |
 | **v3.3** | ✅ shipped | project metrics and a final report with a Gantt chart and a PERT; archiving finished work |
 | **v3.4** | ✅ shipped | token cost per card, "waiting for you" notifications, `histos undo`, the desktop app catches up |
-| **v3.5** | 🔧 next | other model providers (e.g. Gemini's free tier), opt-in per vault, measured like any other model |
-| **v4.0** | 📋 planned | yolo mode: agents build *and* review the whole backlog, on a separate branch, until a token budget runs out |
+| **v3.5** | ✅ shipped | other model providers (`--executor`), opt-in per vault with free-tier privacy warnings, measured like any other model |
+| **v4.0** | 🔧 next | yolo mode: agents build *and* review the whole backlog, on a separate branch, until a token budget runs out |
 
 Details and the ideas beyond: [docs/roadmap.md](docs/roadmap.md).
 
@@ -136,5 +136,7 @@ And one gap the v3.2 design work exposed: review time counted the nights you wer
 Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/): `pytest` runs everything, `pytest -m "not slow"` skips the few that start real parallel processes. CI runs on Windows and Linux, Python 3.10 and 3.12. A complete sample vault: [`examples/sample-paper/`](examples/sample-paper/).
 
 Scripts in [`scripts/`](scripts/), none of which touch your vaults: `make_example_vault.py` (rebuilds the sample vault with the real commands), `make_demo_gif.py` / `make_readme_gif.py` / `make_logo.py` (this page's images), `calibrate_tiers.py` (how a tier config would split your cards), `stress_parallel.py` (several agents hammering a throwaway vault) and `check_links.py` (no broken link in the docs).
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, and running checks.
 
 Histos is open source under the [MIT license](LICENSE).

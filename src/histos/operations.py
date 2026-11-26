@@ -40,6 +40,7 @@ _LEGACY_APPROVED_DIR = "aprobados"
 # Who works an In progress card ('parent', 'sub-cap3'...), set by `assign --worker`.
 WORKER_KEY = "worker"
 APPROVED_MODEL_KEY = "approved_model"
+APPROVED_EXECUTOR_KEY = "approved_executor"
 # Last evals run on a proposal for the card -- written by propose, see the frontmatter schema.
 EVAL_RESULTS_KEY = "eval_results"
 V3_CONFIG_TEMPLATE = "histos.config.yaml"
@@ -206,6 +207,8 @@ class CardSummary:
     tier: Optional[str] = None  # proposed_tier
     approved_model: Optional[str] = None
     proposed_model: Optional[str] = None
+    approved_executor: Optional[str] = None
+    proposed_executor: Optional[str] = None
     estimate: Optional[estimates.CardEstimate] = None  # None for an approved card
     eval_results: Optional[dict] = None
     content_tampered: bool = False
@@ -292,6 +295,7 @@ def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row],
             types.get(card["id"]),
             len(dependencies),
             model=meta.get(APPROVED_MODEL_KEY),
+            executor=meta.get(APPROVED_EXECUTOR_KEY),
             aliases=aliases,
         )
         result.append((card, md_path, meta, body, card_estimate))
@@ -310,6 +314,7 @@ class Coverage:
     open_with_review: int = 0
     outliers: list[history.Sample] = field(default_factory=list)
     models: list[tuple[str, int]] = field(default_factory=list)
+    executors: list[tuple[str, int]] = field(default_factory=list)
 
 
 def coverage(home: Optional[Path] = None, *, aliases: dict[str, str] | None = None) -> Coverage:
@@ -329,7 +334,8 @@ def coverage(home: Optional[Path] = None, *, aliases: dict[str, str] | None = No
     report = Coverage(samples=found, skipped=skipped, vault_names=history.vault_names(home),
                       agent=estimates.agent_coverage(rows), review=estimates.review_coverage(rows),
                       outliers=estimates.outliers(found),
-                      models=estimates.agent_model_coverage(rows, aliases=aliases))
+                      models=estimates.agent_model_coverage(rows, aliases=aliases),
+                      executors=estimates.agent_executor_coverage(rows))
     seen: set[Path] = set()
     for vault_root in history.registered_vaults(home):
         if vault_root.resolve() in seen:
@@ -425,7 +431,10 @@ def get_status(vault_root: Path) -> StatusResult:
                 summaries.append(CardSummary(
                     id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
                     tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
-                    proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
+                    proposed_model=meta.get("proposed_model"),
+                    approved_executor=meta.get("approved_executor"),
+                    proposed_executor=meta.get("proposed_executor"),
+                    estimate=open_estimates.get(card["id"]),
                     eval_results=eval_results, content_tampered=tampered,
                     token_usage=token_summary.cards.get(card["id"]) if token_summary is not None else None,
                 ))

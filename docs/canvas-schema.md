@@ -95,6 +95,8 @@ Whatever Obsidian/JSON Canvas doesn't interpret natively lives as YAML frontmatt
 | `proposed_tier` | `fast` \| `exec` \| `reasoning` | `classify` | see [`histos.config.yaml`](#histosconfigyaml) |
 | `proposed_model` | string | `model --proposed` | the concrete model the agent proposes — free text, Histos doesn't know which models exist |
 | `approved_model` | string | `model --approved --authorized` | the human's choice, which may differ from the proposed one. A `classify` that changes the tier clears both models |
+| `proposed_executor` | string | `model --executor`, `model --proposed-executor` | opt-in external executor identifier proposed for the card (only when `executors.enabled: true`) |
+| `approved_executor` | string | `model --executor`, `model --approved-executor --authorized` | the human-approved executor recorded on the card and used to group estimates/metrics. A tier-changing `classify` clears both executors and emits `executor_cleared` |
 | `eval_results` | mapping | `propose` | the last evals run: `passed`, `attempt` (for the 3-attempt cap), `at`, and `checks` (each with `name`, `passed`, and `error`/`detail`) |
 | `content_hash` | 64 hex characters | `add-card`, `approve`, `accept-edit` | SHA-256 of the body as Histos last wrote it legitimately; the `content_untouched` eval compares against it |
 | `estimate` | mapping | `status`, `classify` | the card's estimate while it is open: `agent_hours` and `review_hours`, each `{median, p80, basis}` (hours, 2 decimals; `null` when there isn't enough history), plus `at`, the date. `p80` is "if it goes badly": 4 in 5 similar cards finished sooner. **`review_hours` is computed from the human's *active* review time** -- the calendar time a card waited, minus the stretches the human was away between `histos pause` and their next decision -- not from the calendar time. Only rewritten when the rounded numbers change |
@@ -160,6 +162,21 @@ notifications:               # optional (default: enabled: true)
 **`token_pricing`** and **`token_logs`** (optional, v3.4): `token_pricing` maps model names to per-1M-token USD rates (`input_per_1m`, `output_per_1m`, `cache_write_per_1m`, `cache_read_per_1m`) for `histos status` and `histos report`, overriding built-in defaults (missing rates keep token counts with unknown USD cost). `token_logs` lists additional local JSONL transcript files or folders beyond Claude Code's local session logs (`HISTOS_TOKEN_LOGS` overrides/adds paths from the environment).
 
 **`model_aliases`** (optional, v3.4): object mapping alternative model names (`"alias": "Canonical Name"`) so equivalent variants like `'Opus 5.5'` and `'Claude Opus 5.5'` aggregate together in `estimate --coverage`, `status`, and `report` without rewriting `events.jsonl` or card frontmatter.
+
+**`executors`** (optional, v3.5, **off by default**): opt-in list of external CLI/provider executors per vault (`histos-config.schema.json`):
+
+```yaml
+executors:
+  enabled: false              # off by default; enable explicitly per vault
+  allowed:
+    - name: gemini-cli        # unique identifier without spaces (used with --executor)
+      provider: google        # optional provider label for reports and warnings
+      pricing_tier: free      # free | paid
+```
+
+- Strict validation (`additionalProperties: false` on `executors` and each item in `allowed`): when `enabled: true`, `allowed` must contain at least one entry with unique, whitespace-free names.
+- Guard by default: if `executors:` is absent or `enabled: false`, `histos model` refuses `--executor`, `--proposed-executor`, and `--approved-executor` with `HistosError` explaining how to enable it. Histos still never calls external models, APIs, or CLI runners itself.
+- **Privacy warning for free tiers (`pricing_tier: free`):** free-tier executors print a warning whenever proposed or approved, reminding you that providers may use submitted prompts or repository context for model training — do not enable `pricing_tier: free` executors in private or confidential vaults.
 
 **Tiers are fixed:** `fast`, `exec` and `reasoning` must each appear exactly once — the file tunes their rules, not which tiers exist. Histos never maps a tier to a model: the agent does, for its own platform.
 
@@ -295,6 +312,7 @@ Every command that changes the vault records what it did in `.histos/events.json
 | `assigned` | `assign`, one per card | `by`, `takeover`, `previous_worker` |
 | `classified` | `classify` (not `--dry-run`) | `tier`, `previous_tier`, `model_cleared` |
 | `model_proposed` / `model_approved` / `model_cleared` | `model` | `model` |
+| `executor_proposed` / `executor_approved` / `executor_cleared` | `model`, `classify` | `executor` (plus `reason: "reclassified"` on tier change) |
 | `proposed` | `propose` that passed the evals | `attempt` (or `null` without evals), `words`, `lines` |
 | `proposal_refused` | `propose` that failed the evals | `attempt`, `failed` (eval names), `words`, `lines` |
 | `approved` / `rejected` | `approve` / `reject` | `words`, `lines` of the approved text / `feedback` |

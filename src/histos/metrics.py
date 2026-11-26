@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import math
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import canvas, config, critical, estimates, events, frontmatter, history, tokens
@@ -77,6 +77,7 @@ class ProjectMetrics:
     pert_critical_expected: float | None
     pert_critical_sd: float | None
     tokens: tokens.ProjectTokenSummary | None = None
+    by_executor: list[GroupStats] = field(default_factory=list)
 
 
 def _as_float(value) -> float | None:
@@ -293,6 +294,18 @@ def compute(
         attempts,
         lambda m: estimates.normalize_model(m.get("approved_model"), aliases) or "unrecorded",
     )
+    has_executors = any((cards_meta.get(c["id"]) or {}).get("approved_executor") for c in approved)
+    by_executor = (
+        _group_stats(
+            approved,
+            cards_meta,
+            rejections,
+            attempts,
+            lambda m: estimates.normalize_executor(m.get("approved_executor")) or "unrecorded",
+        )
+        if has_executors
+        else []
+    )
 
     dep_counts = _dependency_counts(data, cards_meta)
     types_by_card = estimates.card_types([c["id"] for c in all_cards])
@@ -335,6 +348,7 @@ def compute(
         accuracy=accuracy,
         by_tier=by_tier,
         by_model=by_model,
+        by_executor=by_executor,
         drift=drift,
         pert_open=pert_open,
         pert_critical_expected=cp_expected,

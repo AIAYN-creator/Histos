@@ -48,6 +48,8 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     _table("Agent time", report.agent)
     if report.models:
         _table("Agent time by model", report.models)
+    if report.executors:
+        _table("Agent time by executor", report.executors)
     _table("Review time", report.review)
     print(f"\nOpen cards with an estimate right now: agent {report.open_with_agent} of {report.open_cards}, "
           f"review {report.open_with_review} of {report.open_cards}")

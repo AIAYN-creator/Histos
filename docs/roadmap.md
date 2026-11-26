@@ -4,13 +4,6 @@ What's coming, what shipped, and the ideas and questions behind it. Every releas
 
 ## Next
 
-### v3.5: other model providers, opt-in per vault
-
-- The agent can propose another provider's executor for a card, for example the Gemini CLI on its free tier for drawings or for reading a whole repository at once. As always, the human approves.
-- **Off by default, enabled per vault** in `histos.config.yaml`. Free tiers usually pay with your data, so it's meant for public projects, never private vaults.
-- Histos still only proposes, records and measures, never calls a model itself. Estimates are grouped by executor too, so whether a provider pays off is answered by your own history.
-- Out of scope: local models (they need hardware most laptops don't have) and driving web chat interfaces (against providers' terms and fragile).
-
 ### v4.0: yolo mode
 
 Unattended work from backlog to merged-ready branch. It's a major version because it changes the trust model: for the first time someone other than the human approves.
@@ -43,6 +36,12 @@ Ideas for later versions, none committed yet — roughly from most to least like
 - Still open from earlier versions: git as an optional history backend for the content, calendar/date-based scheduling, pulling external context automatically (e.g. Overleaf's `.tex` via its Git integration), `content/` subfolder conventions, and a translated desktop app.
 
 ## Shipped
+
+### v3.5.0 ([CHANGELOG](../CHANGELOG.md#350---2026-11-26))
+
+- **Opt-in external executors per vault (`histos.config.yaml`):** `executors` (`enabled: false` by default, `allowed` entries with `name`, optional `provider`, and `pricing_tier: free | paid`), `proposed_executor` / `approved_executor` frontmatter fields, reversible `executor_*` events, and `histos model --executor` / `--proposed-executor` / `--approved-executor` / `--clear-executor`. Histos still never invokes models or APIs itself.
+- **Free-tier privacy warning & separate metrics:** warns whenever a `pricing_tier: free` executor is proposed or approved, groups estimates along `(executor, model) -> executor -> model -> global`, adds `"Agent time by executor"` to `histos estimate --coverage`, and includes `### By Executor` in `histos report` (`no data` when unused).
+- **Documentation & contributor guide:** documented executor schema and privacy rules in `docs/canvas-schema.md`, `docs/cli.md`, and `docs/usage.md`, and added [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ### v3.4.0 ([CHANGELOG](../CHANGELOG.md#340---2026-11-25))
 

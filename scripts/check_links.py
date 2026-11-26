@@ -16,7 +16,8 @@ FENCE_RE = re.compile(r"^```.*?^```", re.M | re.S)
 
 
 def markdown_files() -> list[Path]:
-    return [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
+    roots = [p for p in (ROOT / "README.md", ROOT / "CONTRIBUTING.md") if p.exists()]
+    return [*roots, *sorted((ROOT / "docs").rglob("*.md"))]
 
 
 def anchor(heading: str) -> str:

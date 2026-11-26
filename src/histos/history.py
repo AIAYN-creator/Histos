@@ -54,6 +54,7 @@ class Sample:
     worker_kind: str | None  # "parent", "sub" or None
     approximate: bool
     implementation_hours: float = 0.0  # included in agent_hours; after approval (code cards)
+    executor: str | None = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,8 @@ class _Card:
     tier: str | None = None
     model: str | None = None
     model_after: str | None = None      # a model recorded after approval (late yes)
+    executor: str | None = None
+    executor_after: str | None = None   # an executor recorded after approval (late yes)
     deps: set[str] = field(default_factory=set)
     approved_at: datetime | None = None
     worker_kinds: set[str] = field(default_factory=set)
@@ -140,6 +143,14 @@ class _Replay:
                     c.model = data.get("model") or c.model
                 elif c.model_after is None:
                     c.model_after = data.get("model")
+            elif name == "executor_approved":
+                if c.approved_at is None:
+                    c.executor = data.get("executor") or c.executor
+                elif c.executor_after is None:
+                    c.executor_after = data.get("executor")
+            elif name == "executor_cleared":
+                if c.approved_at is None:
+                    c.executor = None
             elif name == "assigned":
                 if data.get("takeover") and c.agent_open is not None:
                     self._close_agent(card_id, c, now)  # the old worker's share counts
@@ -272,6 +283,7 @@ def _vault_history(vault_root: Path, home: Path | None, away: "_Away | None" = N
             model=c.model or c.model_after, dependencies=len(c.deps),
             worker_kind="sub" if "sub" in kinds else ("parent" if "parent" in kinds else None),
             approximate=c.approximate,
+            executor=c.executor or c.executor_after,
         ))
     return sorted(result, key=lambda s: s.approved_at), replay.created
 

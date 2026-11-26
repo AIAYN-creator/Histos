@@ -47,6 +47,18 @@
       "type": "object",
       "additionalProperties": { "type": "string", "minLength": 1 }
     },
+    "executors": {
+      "description": "Opt-in per-vault configuration for external executors proposed and approved per card (disabled by default).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allowed": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/executorEntry" }
+        }
+      }
+    },
     "terms": {
       "description": "Extra terms for the *_terms_present / file_operations_mentioned conditions -- added to the built-in lists, never replacing them.",
       "type": "object",
@@ -94,6 +106,16 @@
         "output_per_1m": { "type": "number", "minimum": 0 },
         "cache_write_per_1m": { "type": "number", "minimum": 0 },
         "cache_read_per_1m": { "type": "number", "minimum": 0 }
+      }
+    },
+    "executorEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "pricing_tier"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "pattern": "^\\S+$" },
+        "provider": { "type": "string", "minLength": 1 },
+        "pricing_tier": { "enum": ["free", "paid"] }
       }
     }
   }

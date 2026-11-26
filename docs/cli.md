@@ -9,8 +9,8 @@ Every command operates on the current directory, which must be the root of a His
 ```bash
 histos status                                           # cards by status, with tier, model, worker, estimates,
                                                         # and token/cost summary (when local transcripts exist)
-histos estimate --coverage                              # read only: closed cards per estimate group and model
-                                                        # (enough to estimate yet?) and open cards with estimates
+histos estimate --coverage                              # read only: closed cards per estimate group, model,
+                                                        # and executor (enough yet?) plus open card coverage
 histos report [--output REPORT.md] [--include-archived] # writes Markdown report with metrics, Gantt and PERT
 histos plan propose --file plan.yaml                    # the whole card table as one plan (nothing created yet)
 histos plan diff                                        # the plan: cards, levels (what runs in parallel), warnings
@@ -25,9 +25,11 @@ histos describe cap1 --text "..." [--sources f1 f2]     # description and/or ext
 histos assign cap1 [--worker NAME] [--takeover] [--by agent|human]
                                                         # -> In progress; refuses a card someone else has
 histos classify cap1 [cap2...] | --all [--dry-run]      # tier (fast/exec/reasoning) and its reason
-histos model cap1 --proposed "Sonnet 5.5"               # the agent's proposal
-histos model cap1 [cap2...] --approved "..." --authorized
-                                                        # the human's yes, recorded
+histos model cap1 --proposed "Sonnet 5.5" [--executor gemini-cli]
+                                                        # the agent's model (and opt-in executor) proposal
+histos model cap1 [cap2...] --approved "..." [--executor ...] --authorized
+                                                        # the human's yes, recorded (--proposed-executor /
+                                                        # --approved-executor set executor alone; --clear-executor clears it)
 histos context cap1 [--for-subagent]                    # everything to work the card (or a subagent's brief)
 histos eval cap1|PROJECT.md --file draft.md             # runs the evals on a draft, spends no attempt
 histos propose cap1 --file draft.md                     # evals first; if they pass -> Proposal pending review
