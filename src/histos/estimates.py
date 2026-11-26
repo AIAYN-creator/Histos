@@ -92,6 +92,14 @@ def normalize_model(name: str | None, aliases: dict[str, str] | None = None) -> 
     return _canonical_display(stripped)
 
 
+def normalize_executor(name: str | None) -> str | None:
+    """Normalize an executor identifier (trimmed, empty -> None)."""
+    if name is None or not isinstance(name, str):
+        return None
+    stripped = name.strip()
+    return stripped or None
+
+
 @dataclass(frozen=True)
 class Row:
     """A closed card's sample with its type, the traits groups are made of."""
@@ -172,6 +180,8 @@ class Rows(list):
         super().__init__(rows)
         self._groups: dict[tuple, list[Row]] = {}
         self._by_model: dict[str, Rows] = {}
+        self._by_executor: dict[str, Rows] = {}
+        self._by_executor_model: dict[tuple, Rows] = {}
 
     def members(self, group: tuple) -> list[Row]:
         """The rows in `group`, oldest approval first."""
@@ -190,6 +200,33 @@ class Rows(list):
         if found is None:
             found = self._by_model[cache_key] = Rows(
                 r for r in self if normalize_model(r.sample.model, aliases) == target
+            )
+        return found
+
+    def of_executor(self, executor: str) -> "Rows":
+        """Caches and returns rows matching normalize_executor(executor)."""
+        target = normalize_executor(executor)
+        if target is None:
+            return Rows()
+        found = self._by_executor.get(target)
+        if found is None:
+            found = self._by_executor[target] = Rows(
+                r for r in self if normalize_executor(r.sample.executor) == target
+            )
+        return found
+
+    def of_executor_model(self, executor: str, model: str, aliases: dict[str, str] | None = None) -> "Rows":
+        """Caches and returns rows matching both executor and normalized model."""
+        target_exec = normalize_executor(executor)
+        target_model = normalize_model(model, aliases)
+        if target_exec is None or target_model is None:
+            return Rows()
+        cache_key = (target_exec, target_model, tuple(sorted(aliases.items())) if aliases else ())
+        found = self._by_executor_model.get(cache_key)
+        if found is None:
+            found = self._by_executor_model[cache_key] = Rows(
+                r for r in self.of_executor(target_exec)
+                if normalize_model(r.sample.model, aliases) == target_model
             )
         return found
 
@@ -230,7 +267,7 @@ def _matches(group: Group, key: tuple) -> bool:
     return all(g == ANY or g == k for g, k in zip(group, key))
 
 
-def basis_text(group: Group, n: int, *, model: str | None = None) -> str:
+def basis_text(group: Group, n: int, *, model: str | None = None, executor: str | None = None) -> str:
     tier, type_, deps = group
     parts = [tier] if tier != ANY else []
     if type_ != ANY:
@@ -241,6 +278,8 @@ def basis_text(group: Group, n: int, *, model: str | None = None) -> str:
         parts.append("all")
     if model:
         parts.insert(0, model)
+    if executor:
+        parts.insert(0, executor)
     return " · ".join(parts + [f"{n} cards"])
 
 
@@ -252,7 +291,7 @@ def percentile80(values: list[float]) -> float:
     return ordered[math.ceil(0.8 * len(ordered)) - 1]
 
 
-def estimate(rows: list[Row], groups: list[Group], value, *, model: str | None = None) -> Estimate | Missing:
+def estimate(rows: list[Row], groups: list[Group], value, *, model: str | None = None, executor: str | None = None) -> Estimate | Missing:
     """The first group with MIN_SAMPLES rows, from its RECENT most recent ones. `value` picks the
     number out of a sample. If no group qualifies: how many the closest one lacks."""
     best = 0
@@ -262,7 +301,7 @@ def estimate(rows: list[Row], groups: list[Group], value, *, model: str | None =
             recent = members[-RECENT:]
             numbers = [value(r.sample) for r in recent]
             return Estimate(median=statistics.median(numbers), p80=percentile80(numbers),
-                            n=len(recent), basis=basis_text(group, len(members), model=model))
+                            n=len(recent), basis=basis_text(group, len(members), model=model, executor=executor))
         best = max(best, len(members))
     return Missing(needed=MIN_SAMPLES - best)
 
@@ -277,20 +316,38 @@ def review_value(sample: Sample) -> float:
 
 
 def for_card(rows: list[Row], tier: str | None, type_: str | None, dependencies: int,
-             model: str | None = None, *, aliases: dict[str, str] | None = None) -> CardEstimate:
-    """With an approved model, the agent estimate comes from that model's cards first; with fewer
-    than MIN_SAMPLES of them in every group, from all cards, as without a model."""
+             model: str | None = None, *, executor: str | None = None,
+             aliases: dict[str, str] | None = None) -> CardEstimate:
+    """With an approved executor/model, the agent estimate tries `(executor, model)` first, then
+    `executor`, then `model`, and finally all cards across tiers/groups."""
     groups = agent_groups(tier, type_, dependencies)
+    norm_exec = normalize_executor(executor)
     norm_model = normalize_model(model, aliases)
-    if norm_model:
+    agent: Estimate | Missing = Missing(needed=MIN_SAMPLES)
+
+    if norm_exec:
+        if norm_model:
+            em_rows = rows.of_executor_model(norm_exec, norm_model, aliases=aliases) if isinstance(rows, Rows) else [
+                r for r in rows
+                if normalize_executor(r.sample.executor) == norm_exec
+                and normalize_model(r.sample.model, aliases) == norm_model
+            ]
+            agent = estimate(em_rows, groups, agent_value, model=norm_model, executor=norm_exec)
+        if isinstance(agent, Missing):
+            exec_rows = rows.of_executor(norm_exec) if isinstance(rows, Rows) else [
+                r for r in rows if normalize_executor(r.sample.executor) == norm_exec
+            ]
+            agent = estimate(exec_rows, groups, agent_value, executor=norm_exec)
+
+    if isinstance(agent, Missing) and norm_model:
         model_rows = rows.of_model(norm_model, aliases=aliases) if isinstance(rows, Rows) else [
             r for r in rows if normalize_model(r.sample.model, aliases) == norm_model
         ]
         agent = estimate(model_rows, groups, agent_value, model=norm_model)
-        if isinstance(agent, Missing):
-            agent = estimate(rows, groups, agent_value)
-    else:
+
+    if isinstance(agent, Missing):
         agent = estimate(rows, groups, agent_value)
+
     return CardEstimate(agent=agent, review=estimate(rows, review_groups(type_), review_value))
 
 
@@ -329,6 +386,16 @@ def agent_model_coverage(rows: list[Row], aliases: dict[str, str] | None = None)
     counts: dict[str, int] = {}
     for r in rows:
         norm = normalize_model(r.sample.model, aliases)
+        if norm:
+            counts[norm] = counts.get(norm, 0) + 1
+    return sorted(counts.items(), key=lambda item: item[0])
+
+
+def agent_executor_coverage(rows: list[Row]) -> list[tuple[str, int]]:
+    """Each distinct approved sample.executor with closed card count, sorted cleanly."""
+    counts: dict[str, int] = {}
+    for r in rows:
+        norm = normalize_executor(r.sample.executor)
         if norm:
             counts[norm] = counts.get(norm, 0) + 1
     return sorted(counts.items(), key=lambda item: item[0])

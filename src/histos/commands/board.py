@@ -269,10 +269,20 @@ def cmd_status(args: argparse.Namespace) -> int:
         counts = {t: sum(c.tier == t for c in open_cards) for t in ("fast", "exec", "reasoning")}
         unclassified = sum(c.tier is None for c in open_cards)
         print("Tiers: " + " · ".join(f"{t} {n}" for t, n in counts.items()) + f" · unclassified {unclassified}")
-    awaiting = [c for c in open_cards if c.proposed_model and not c.approved_model]
+    awaiting = [
+        c for c in open_cards
+        if (c.proposed_model and not c.approved_model) or (c.proposed_executor and not c.approved_executor)
+    ]
     if awaiting:
-        listed = ", ".join(f"{c.id} ({c.tier + ', ' if c.tier else ''}proposed {c.proposed_model})" for c in awaiting)
-        print(f"Waiting for your model approval: {listed}")
+        entries = []
+        for c in awaiting:
+            bits = [c.tier] if c.tier else []
+            if c.proposed_model and not c.approved_model:
+                bits.append(f"proposed {c.proposed_model}")
+            if c.proposed_executor and not c.approved_executor:
+                bits.append(f"proposed executor {c.proposed_executor}")
+            entries.append(f"{c.id} ({', '.join(bits)})")
+        print(f"Waiting for your model approval: {', '.join(entries)}")
     path = result.critical_path
     if path is not None and path.cards:
         size = f"{len(path.cards)} card{'s' if len(path.cards) != 1 else ''}"
@@ -327,6 +337,10 @@ def _routing_label(c: operations.CardSummary) -> str:
         parts.append(c.approved_model)
     elif c.proposed_model:
         parts.append(f"proposed {c.proposed_model}?")
+    if c.approved_executor:
+        parts.append(f"executor {c.approved_executor}")
+    elif c.proposed_executor:
+        parts.append(f"proposed executor {c.proposed_executor}?")
     if c.estimate is not None:
         if not c.tier:
             parts.insert(0, "unclassified")

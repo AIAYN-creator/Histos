@@ -202,6 +202,21 @@ def render_markdown(
     else:
         lines += ["No model statistics yet.", ""]
 
+    if m.by_executor:
+        lines += [
+            "### By Executor",
+            "",
+            "| Executor | Approved | Rejections | Rejection rate | Avg eval attempts |",
+            "|---|---|---|---|---|",
+        ]
+        for g in m.by_executor:
+            rate = _fmt_pct(g.rejection_rate * 100) if g.rejection_rate is not None else "no data"
+            att = f"{g.avg_attempts:.2f}" if g.avg_attempts is not None else "no data"
+            lines.append(f"| {g.key} | {g.approved} | {g.rejections} | {rate} | {att} |")
+        lines.append("")
+    else:
+        lines += ["### By Executor", "", "no data", ""]
+
     lines += [
         "## 4. Critical Path Drift",
         "",
