@@ -151,6 +151,8 @@ Histos never picks the model: the agent translates the tier to a model of its pl
 
 The tier is a suggestion with its reason, not a verdict — with one-line descriptions the heuristics have little to go on, so read the reason and overrule it freely. Richer descriptions give better tiers. The rules live in `histos.config.yaml` ([format](canvas-schema.md#histosconfigyaml)); only you edit it.
 
+**Opt-in external executors (v3.5):** by default Histos tracks models without distinguishing which external CLI or runner produced the work. If you want separate estimates and `### By Executor` metrics (e.g. comparing `claude-code` vs `gemini-cli`), opt in under `executors:` in `histos.config.yaml` and pass `--executor <name>` (or `--proposed-executor` / `--approved-executor`) to `histos model`. **Privacy note:** entries marked `pricing_tier: free` trigger a CLI warning every time they are proposed or approved — free plans may train on your vault/repo contents, so keep them off private vaults.
+
 ## Evals
 
 Evals are a filter that runs before a draft reaches you — they catch obvious junk, you still review everything that passes. A new vault comes with two active ones, in `evals/basics.yaml`:
