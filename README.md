@@ -137,4 +137,6 @@ Code in [`src/histos/`](src/histos/), tests in [`tests/`](tests/): `pytest` runs
 
 Scripts in [`scripts/`](scripts/), none of which touch your vaults: `make_example_vault.py` (rebuilds the sample vault with the real commands), `make_demo_gif.py` / `make_readme_gif.py` / `make_logo.py` (this page's images), `calibrate_tiers.py` (how a tier config would split your cards), `stress_parallel.py` (several agents hammering a throwaway vault) and `check_links.py` (no broken link in the docs).
 
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, and running checks.
+
 Histos is open source under the [MIT license](LICENSE).
