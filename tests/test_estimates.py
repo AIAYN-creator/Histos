@@ -12,11 +12,11 @@ from histos.estimates import ANY, Estimate, Missing, Row
 T0 = datetime(2026, 12, 1, tzinfo=timezone.utc)
 
 
-def sample(n=0, card="a", vault="v", tier="exec", deps=0, agent=1.0, review=1.0, active=None):
+def sample(n=0, card="a", vault="v", tier="exec", deps=0, agent=1.0, review=1.0, active=None, model=None):
     from histos.history import Sample
     return Sample(vault=vault, card=card, approved_at=T0 + timedelta(hours=n), agent_hours=agent,
                   review_hours=review, review_active_hours=review if active is None else active,
-                  rounds=1, rejections=0, tier=tier, model=None, dependencies=deps,
+                  rounds=1, rejections=0, tier=tier, model=model, dependencies=deps,
                   worker_kind="parent", approximate=False)
 
 
@@ -154,28 +154,94 @@ def test_status_parts():
     assert estimates.status_parts(e) == ["review ~5 h (≤2 d)"]
 
 
-# --- by model ---
-
-def model_rows(model, count, agent, start=0):
-    return [Row(dataclasses.replace(sample(n=start + n, card=f"{model}{n}", agent=agent), model=model), "cod")
-            for n in range(count)]
-
+# --- model-aware estimates (cod-estimar-por-modelo) ---
 
 def test_an_approved_model_gets_its_own_estimate():
-    data = estimates.Rows(model_rows("A", 5, agent=2.0) + model_rows("B", 5, agent=1.0, start=10))
-    a = estimates.for_card(data, "exec", "cod", 0, "A").agent
-    b = estimates.for_card(data, "exec", "cod", 0, "B").agent
-    assert (a.median, b.median) == (2.0, 1.0)
-    assert a.basis.startswith("A · ")
+    # Two models A and B in same tier+type where A takes double B
+    data = estimates.Rows(
+        [Row(sample(n=i, card=f"a{i}", tier="exec", agent=4.0, review=1.0, model="A"), "cod") for i in range(5)]
+        + [Row(sample(n=5 + i, card=f"b{i}", tier="exec", agent=2.0, review=1.0, model="B"), "cod") for i in range(5)]
+    )
+    card_a = estimates.for_card(data, "exec", "cod", 0, model="A")
+    card_b = estimates.for_card(data, "exec", "cod", 0, model="B")
+
+    assert card_a.agent.median == 4.0
+    assert card_b.agent.median == 2.0
+    assert "A" in card_a.agent.basis
+    assert "B" in card_b.agent.basis
+    assert card_a.agent.basis == "A · exec · cod · 0 deps · 5 cards"
+    assert card_b.agent.basis == "B · exec · cod · 0 deps · 5 cards"
+    # Review estimate uses all rows regardless of model
+    assert card_a.review.median == 1.0 and card_b.review.median == 1.0
+    assert card_a.review.basis == "cod · 10 cards"
+    assert card_b.review.basis == "cod · 10 cards"
 
 
 def test_too_few_cards_of_a_model_fall_back_to_every_model():
-    data = estimates.Rows(model_rows("A", 4, agent=2.0) + model_rows("B", 5, agent=1.0, start=10))
-    with_model = estimates.for_card(data, "exec", "cod", 0, "A").agent
-    without = estimates.for_card(data, "exec", "cod", 0).agent
-    assert with_model == without and with_model.n == 9
+    # 4 cards of A (takes 4.0) + 5 cards of B (takes 2.0) = 9 cards total
+    data = estimates.Rows(
+        [Row(sample(n=i, card=f"a{i}", tier="exec", agent=4.0, model="A"), "cod") for i in range(4)]
+        + [Row(sample(n=4 + i, card=f"b{i}", tier="exec", agent=2.0, model="B"), "cod") for i in range(5)]
+    )
+    got = estimates.for_card(data, "exec", "cod", 0, model="A")
+    # A has only 4 cards, so it falls back to all 9 cards across all models
+    assert isinstance(got.agent, Estimate)
+    assert got.agent.n == 9
+    assert got.agent.basis == "exec · cod · 0 deps · 9 cards"
+    assert "A" not in got.agent.basis
 
 
-def test_model_coverage_counts_closed_cards_per_model():
-    data = model_rows("A", 2, agent=1.0) + model_rows("B", 3, agent=1.0, start=5)
-    assert estimates.model_coverage([r.sample for r in data]) == [("B", 3), ("A", 2)]
+def test_coverage_outputs_agent_time_by_model(monkeypatch, capsys):
+    from argparse import Namespace
+    from histos.commands.estimate import cmd_estimate
+    from histos.operations import Coverage
+
+    fake = Coverage(
+        samples=[sample(model="Model-A")],
+        skipped=[],
+        vault_names={"v": "vault"},
+        agent=[],
+        review=[],
+        models=[("Model-A", 5), ("Model-B", 2)],
+    )
+    monkeypatch.setattr("histos.operations.coverage", lambda home=None: fake)
+    capsys.readouterr()
+    res = cmd_estimate(Namespace(coverage=True))
+    assert res == 0
+    out = capsys.readouterr().out
+    assert "Agent time by model" in out
+    assert "Model-A" in out and "yes" in out
+    assert "Model-B" in out and "3 more" in out
+
+
+def test_rows_of_model_caching():
+    data = estimates.Rows([
+        Row(sample(n=0, model="A"), "cod"),
+        Row(sample(n=1, model="B"), "cod"),
+        Row(sample(n=2, model="A"), "cod"),
+    ])
+    a_rows = data.of_model("A")
+    assert len(a_rows) == 2
+    assert all(r.sample.model == "A" for r in a_rows)
+    assert data.of_model("A") is a_rows
+    assert len(data.of_model("B")) == 1
+    assert data.of_model("Nonexistent") == []
+
+
+def test_basis_text_model_formatting():
+    assert estimates.basis_text(("exec", "cod", 0), 5, model="Opus") == "Opus · exec · cod · 0 deps · 5 cards"
+    assert estimates.basis_text(("exec", "cod", ANY), 5, model="Opus") == "Opus · exec · cod · 5 cards"
+    assert estimates.basis_text(("exec", ANY, ANY), 5, model="Opus") == "Opus · exec · 5 cards"
+    assert estimates.basis_text((ANY, ANY, ANY), 5, model="Opus") == "Opus · all · 5 cards"
+    assert estimates.basis_text(("exec", "cod", ANY), 5) == "exec · cod · 5 cards"
+
+
+def test_agent_model_coverage():
+    rows_list = [
+        Row(sample(n=0, model="Model-B"), "cod"),
+        Row(sample(n=1, model="Model-A"), "cod"),
+        Row(sample(n=2, model="Model-B"), "cod"),
+        Row(sample(n=3, model=None), "cod"),
+    ]
+    assert estimates.agent_model_coverage(rows_list) == [("Model-A", 1), ("Model-B", 2)]
+    assert estimates.model_coverage([r.sample for r in rows_list]) == [("Model-B", 2), ("Model-A", 1)]

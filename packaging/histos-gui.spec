@@ -23,7 +23,7 @@ root = os.path.join(SPECPATH, "..")
 
 a = Analysis(
     [os.path.join(SPECPATH, "gui_entry.py")],
-    pathex=[],
+    pathex=[os.path.join(root, "src")],
     binaries=[],
     datas=[
         (os.path.join(root, "src", "histos", "schema"), "histos/schema"),

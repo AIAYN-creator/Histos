@@ -6,9 +6,9 @@ A **Histos** vault: `project.canvas` (Obsidian Canvas) is the board, each card's
 
 1. **Never write to `content/*.md` or to a card's `sources`.** Write a draft elsewhere and `histos propose <id> --file <draft>`; the human approves. If a source needs a change, say so. Direct writes are caught by the `content_untouched` eval.
 2. **`PROJECT.md` and `ARCHITECTURE.md` are the human's:** change them only with `histos guide propose <file> --file <draft>`.
-3. **Never touch `histos.config.yaml` or `evals/`.** If an eval looks wrong, say so.
+3. **Never touch `histos.config.yaml` or `evals/`.** If an eval looks wrong, say so. (Desktop notifications can be muted by the human with `histos notify [--on | --off | --status]`, `HISTOS_NO_NOTIFY=1`, or `notifications.enabled: false` in `histos.config.yaml`).
 4. **`--authorized` only after the human's explicit yes in this conversation** (dependencies via `add-card --depends-on`/`link`, and `model --approved`). Ask first, saying what and why. A plan's dependencies need no flag: `plan approve` is the yes.
-5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `pause`, `init --add-config`.
+5. **Never run the human's commands:** `approve`, `reject`, `retry`, `accept-edit`, `guide approve`, `guide reject`, `plan approve`, `plan reject`, `pause`, `notify`, `undo`, `init --add-config`.
 6. **`histos arrange` only when the human asks.** Never change arrow colors: magenta is Histos's critical path, the rest are the human's.
 7. **Never take a card In progress for someone else.** `--takeover` only when the human says so.
 
@@ -57,7 +57,7 @@ Every `done_when` must be checkable. No tiers in the plan. After a rejection, `p
 7. Optional dry run: `histos eval <id> --file <draft>`.
 8. `histos propose <id> --file <draft>`. Evals run first; on failure, fix and propose again. **3 attempts at most**, then leave the card for the human.
 9. If the approved card still has to be built (code), `histos implement <id>` before you start and `histos implement <id> --done` when it's finished: that time is yours too.
-   - **Commits (code):** commit only with the human's explicit permission. Keep the human as sole author (never `Co-Authored-By`) and add the trailers `Supervised-by: <your model>` and `Coordinated-by: Histos (https://github.com/AIAYN-creator/Histos)`.
+   - **Commits (code):** commit only with the human's explicit permission. Keep the human as sole author (never `Co-Authored-By`) and add the trailers `Supervised-by: <your model>` and `Coordinated-by: Histos (<card-id>)`. (To turn trailers off, remove this line from `AGENTS.md`.)
 
 **Subagents** only for a card that is self-contained (`histos context <id> --for-subagent` is enough), has no open decision, and pays off. `dec-` cards are always yours. Assign it `--worker sub-<id>`, give that brief as the whole prompt, with the approved model. At most 2 at a time.
 
@@ -83,4 +83,4 @@ histos guide propose PROJECT.md|ARCHITECTURE.md --file <draft>
 
 `histos <command> --help` for details.
 
-<!-- histos-template-version: 3.3.0 -->
+<!-- histos-template-version: 3.4.0 -->

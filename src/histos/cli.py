@@ -17,6 +17,7 @@ from .commands.board import (
     cmd_link,
     cmd_pause,
     cmd_status,
+    cmd_undo,
     cmd_validate,
 )
 from .commands.estimate import cmd_estimate, cmd_report
@@ -25,6 +26,7 @@ from .commands.review import (
     cmd_approve,
     cmd_diff,
     cmd_eval,
+    cmd_notify,
     cmd_propose,
     cmd_reject,
     cmd_retry,
@@ -184,6 +186,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_pause)
 
     p = sub.add_parser(
+        "notify",
+        help="(human) desktop notifications: --on, --off, or --status (default: show current status)",
+    )
+    g_notify = p.add_mutually_exclusive_group()
+    g_notify.add_argument("--on", action="store_true", help="turn desktop notifications on (unmute)")
+    g_notify.add_argument("--off", action="store_true", help="turn desktop notifications off (mute)")
+    g_notify.add_argument("--status", action="store_true", help="show current notification status (default)")
+    p.set_defaults(func=cmd_notify)
+
+    p = sub.add_parser(
         "guide",
         help="changes to PROJECT.md / ARCHITECTURE.md: the agent proposes, the human approves (like a card)",
     )
@@ -244,6 +256,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--name", default="archive.canvas", help="target canvas file inside the vault (default: archive.canvas)")
     p.add_argument("--dry-run", action="store_true", help="preview cards that would be archived without writing")
     p.set_defaults(func=cmd_archive)
+
+    p = sub.add_parser(
+        "undo",
+        help="(human) reverts the last reversible command (never reverts human approvals or rejections)",
+    )
+    p.set_defaults(func=cmd_undo)
 
     return parser
 

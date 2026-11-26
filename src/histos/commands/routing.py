@@ -6,7 +6,7 @@ import difflib
 import sys
 from pathlib import Path
 
-from .. import canvas, config, context, evals, events, frontmatter, guides, heuristics, operations, tiers
+from .. import canvas, config, context, evals, events, frontmatter, guides, heuristics, operations, tiers, undo
 from ._shared import _vault_root, _with_vault_lock
 
 
@@ -42,6 +42,9 @@ def cmd_classify(args: argparse.Namespace) -> int:
 
     counts = {name: 0 for name in tiers.PRECEDENCE}
     defaults = 0
+    if not args.dry_run:
+        open_paths = [canvas.card_file_path(vault_root, c) for c in canvas.cards(data) if c["color"] != canvas.APPROVED]
+        undo.stage(vault_root, [canvas.vault_canvas_path(vault_root), *open_paths])
     for card in targets:
         result = tiers.classify(cfg, heuristics.gather(vault_root, data, card))
         counts[result.tier] += 1
@@ -112,6 +115,10 @@ def cmd_model(args: argparse.Namespace) -> int:
                 return 1
         cards.append(card)
 
+    undo.stage(
+        vault_root,
+        [canvas.vault_canvas_path(vault_root), *(canvas.card_file_path(vault_root, c) for c in cards)],
+    )
     for card in cards:
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path)
@@ -231,6 +238,7 @@ def cmd_implement(args: argparse.Namespace) -> int:
         print(f"error: '{args.id}' isn't Approved -- implement the approved proposal, not a draft",
               file=sys.stderr)
         return 1
+    undo.stage(vault_root, [])
     if args.done:
         events.emit("implementation_done", card=args.id)
         print(f"{args.id}: implementation done, its time recorded")

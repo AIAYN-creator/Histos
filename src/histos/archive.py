@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import canvas, events, frontmatter, operations
+from . import canvas, events, frontmatter, operations, undo
 from .errors import HistosError
 from .fsutil import write_text_atomic
 
@@ -103,6 +103,7 @@ def _remember_staying_dependencies(
         md_path = canvas.card_file_path(vault_root, by_id[card_id])
         if not md_path.exists():
             continue
+        undo.stage(vault_root, [md_path])
         meta, body = frontmatter.read(md_path)
         implied = list(meta.get(operations.IMPLIED_DEPENDENCIES_KEY) or [])
         implied += [d for d in deps if d not in implied]
@@ -178,6 +179,7 @@ def archive_cards(
                 target_pairs.add((dep, card["id"]))
 
     if not dry_run:
+        undo.stage(vault_root, [canvas.vault_canvas_path(vault_root), target])
         _remember_staying_dependencies(vault_root, data, moving_ids, {n for n in existing_target_nodes if isinstance(n, str)})
         data["nodes"] = [n for n in data.get("nodes", []) if n.get("id") not in moving_ids]
         data["edges"] = remaining_edges

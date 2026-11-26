@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from .. import archive, canvas, config, doctor, estimates, evals, events, frontmatter, guides, operations, pauses, plans, validation
+from .. import archive, canvas, config, doctor, estimates, evals, events, frontmatter, guides, operations, pauses, plans, tokens, undo, validation
 from ._shared import _all_registered_sources, _sync_permissions_deny, _vault_root, _with_vault_lock
 
 
@@ -74,6 +74,7 @@ def cmd_add_card(args: argparse.Namespace) -> int:
             print(f"error: dependency '{dep}' doesn't exist", file=sys.stderr)
             return 1
 
+    undo.stage(vault_root, [canvas.vault_canvas_path(vault_root), vault_root / "content" / f"{args.id}.md"])
     try:
         node = operations.create_card(
             vault_root, data, args.id, args.title, description=args.description, depends_on=depends_on,
@@ -129,6 +130,7 @@ def cmd_link(args: argparse.Namespace) -> int:
         print(f"error: that dependency would form a cycle: {' -> '.join(cycle)}", file=sys.stderr)
         return 1
 
+    undo.stage(vault_root, [canvas.vault_canvas_path(vault_root)])
     canvas.recompute_blocked(data)
     canvas.save(vault_root, data)
     events.emit("dependency_added", card=args.id, depends_on=list(args.depends_on))
@@ -167,6 +169,10 @@ def cmd_assign(args: argparse.Namespace) -> int:
                 return 1
 
     # Checked and written under the same vault lock: of two simultaneous assigns, exactly one wins.
+    undo.stage(
+        vault_root,
+        [canvas.vault_canvas_path(vault_root), *(canvas.card_file_path(vault_root, canvas.find_card(data, cid)) for cid in args.ids)],
+    )
     for card_id in args.ids:
         card = canvas.find_card(data, card_id)
         md_path = canvas.card_file_path(vault_root, card)
@@ -223,6 +229,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
             print(f"error: can't find these source files: {', '.join(missing)}", file=sys.stderr)
             return 1
 
+    undo.stage(vault_root, [canvas.vault_canvas_path(vault_root), md_path])
     meta, body = frontmatter.read(md_path)
     if args.text is not None:
         meta["description"] = args.text
@@ -284,6 +291,18 @@ def cmd_status(args: argparse.Namespace) -> int:
         except canvas.HistosError:
             size = ""
         print(f"Plan pending review{size}  ('histos plan diff' to review)")
+    tok = result.tokens
+    if tok is not None and tok.status != tokens.STATUS_NO_TRANSCRIPTS:
+        print(
+            f"Tokens: {tokens.format_token_count(tok.total_tokens)} "
+            f"({tokens.format_token_count(tok.input_tokens)} in · "
+            f"{tokens.format_token_count(tok.output_tokens)} out · "
+            f"{tokens.format_token_count(tok.cache_write_tokens)} cache write · "
+            f"{tokens.format_token_count(tok.cache_read_tokens)} cache read) · "
+            f"{tokens.format_cost(tok.cost_usd)}"
+        )
+    else:
+        print("Tokens: no data")
     return 0
 
 
@@ -312,6 +331,9 @@ def _routing_label(c: operations.CardSummary) -> str:
         if not c.tier:
             parts.insert(0, "unclassified")
         parts += estimates.status_parts(c.estimate)
+    if c.token_usage is not None and c.token_usage.status != tokens.STATUS_NO_TRANSCRIPTS:
+        parts.append(f"{tokens.format_token_count(c.token_usage.total_tokens)} tok")
+        parts.append(tokens.format_cost(c.token_usage.cost_usd))
     return " · ".join(parts)
 
 
@@ -401,4 +423,16 @@ def cmd_archive(args: argparse.Namespace) -> int:
     rel = result.target.relative_to(vault_root.resolve()).as_posix()
     prefix = "dry run -- would archive" if result.dry_run else "archived"
     print(f"{prefix} {len(result.archived)} card(s) to {rel} ({result.edges_moved} internal edge(s)): {', '.join(result.archived)}")
+    return 0
+
+
+def cmd_undo(args: argparse.Namespace) -> int:
+    vault_root = _vault_root()
+    try:
+        result = undo.undo_last(vault_root)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    target = f" on '{result.card}'" if result.card else ""
+    print(f"undone {result.reverted_event}{target} ({result.reverted_ts})")
     return 0

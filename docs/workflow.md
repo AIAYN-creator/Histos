@@ -53,6 +53,8 @@ Side projects/
 
 If your agent runs inside a workspace sandbox (tested with Antigravity), opening a parent folder that holds both `vault/` and `repo/` as the agent's workspace lets it move smoothly between the board and the code without hitting out-of-workspace sandbox blocks — while you still open **only** the `vault/` folder itself in Obsidian. Use a branch for each big version and merge it when the release card is done. The card is the specification: approved first, then implemented — never the other way round.
 
+**Commit attribution & card link:** when committing approved card work, `AGENTS.md` instructs the agent to keep you as sole author (never `Co-Authored-By`) and add `Supervised-by: <your model>` plus `Coordinated-by: Histos (<card-id>)`. Recording `<card-id>` links each code commit back to its card on the board (laying the groundwork for commits-per-card metrics); to turn trailers off or customize them for a vault, simply edit or remove that line in the vault's `AGENTS.md`.
+
 ## 6. Models and subagents
 
 - **Read the tier's reason, then decide the model.** The tier is a suggestion: overrule it whenever you know better ("it says fast, but this abstract has to summarize the whole thesis — use the bigger model").

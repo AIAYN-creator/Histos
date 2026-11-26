@@ -13,7 +13,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Optional
 
-from . import __version__, canvas, estimates, events, frontmatter, history, validation
+from . import __version__, canvas, config, estimates, events, frontmatter, history, pauses, tokens, undo, validation
 from .fsutil import copy_file_atomic, write_text_atomic
 from .lock import locked
 
@@ -39,6 +39,7 @@ _LEGACY_PROPOSALS_DIR = "propuestas"
 _LEGACY_APPROVED_DIR = "aprobados"
 # Who works an In progress card ('parent', 'sub-cap3'...), set by `assign --worker`.
 WORKER_KEY = "worker"
+APPROVED_MODEL_KEY = "approved_model"
 # Last evals run on a proposal for the card -- written by propose, see the frontmatter schema.
 EVAL_RESULTS_KEY = "eval_results"
 V3_CONFIG_TEMPLATE = "histos.config.yaml"
@@ -206,6 +207,9 @@ class CardSummary:
     approved_model: Optional[str] = None
     proposed_model: Optional[str] = None
     estimate: Optional[estimates.CardEstimate] = None  # None for an approved card
+    eval_results: Optional[dict] = None
+    content_tampered: bool = False
+    token_usage: Optional[tokens.CardTokenUsage] = None
 
 
 @dataclass
@@ -219,6 +223,8 @@ class StatusGroup:
 class StatusResult:
     groups: list[StatusGroup] = field(default_factory=list)  # in the fixed display order
     critical_path: Optional[object] = None  # critical.CriticalPath, or None when the vault has none
+    paused: bool = False
+    tokens: Optional[tokens.ProjectTokenSummary] = None
 
 
 ESTIMATE_KEY = "estimate"
@@ -230,7 +236,7 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardEstimate]:
+def refresh_estimates(vault_root: Path, data: dict, *, aliases: dict[str, str] | None = None) -> dict[str, estimates.CardEstimate]:
     """Estimates every open card from the history of all the registered vaults (read once) and
     keeps each card's frontmatter up to date: `estimate` (the detail) and `estimated_duration_hours`
     (agent median + review median, null if either is missing). A file is only written when the
@@ -238,6 +244,12 @@ def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardE
 
     The review half is built from the human's ACTIVE review hours (calendar time minus their
     `histos pause` periods), but it is named `review_hours` in the frontmatter, as dec-estimador says."""
+    if aliases is None:
+        try:
+            cfg = config.load(vault_root)
+            aliases = cfg.model_aliases if cfg else None
+        except Exception:
+            aliases = None
     try:
         found, card_ids = history.read_all()
     except (OSError, ValueError, KeyError):
@@ -245,17 +257,23 @@ def refresh_estimates(vault_root: Path, data: dict) -> dict[str, estimates.CardE
     rows = estimates.typed(found, card_ids)
 
     result = {}
-    for card, md_path, meta, body, card_estimate in estimate_open_cards(vault_root, data, rows):
+    for card, md_path, meta, body, card_estimate in estimate_open_cards(vault_root, data, rows, aliases=aliases):
         result[card["id"]] = card_estimate
         if md_path.exists():
             _store_estimate(md_path, meta, body, card_estimate)
     return result
 
 
-def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row]) -> list[tuple]:
+def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row], *, aliases: dict[str, str] | None = None) -> list[tuple]:
     """Read-only: for each open (not Approved) card, `(card, md_path, meta, body, estimate)` --
     the same figures `status` shows. Nothing is written; refresh_estimates stores them, and the
     coverage report only counts them."""
+    if aliases is None:
+        try:
+            cfg = config.load(vault_root)
+            aliases = cfg.model_aliases if cfg else None
+        except Exception:
+            aliases = None
     types = estimates.card_types([c["id"] for c in canvas.cards(data)])
     declared: dict[str, set[str]] = {}
     for edge in canvas.dependency_edges(data):
@@ -268,8 +286,14 @@ def estimate_open_cards(vault_root: Path, data: dict, rows: list[estimates.Row])
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path) if md_path.exists() else ({}, "")
         dependencies = declared.get(card["id"], set()) | set(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
-        card_estimate = estimates.for_card(rows, meta.get("proposed_tier"), types.get(card["id"]), len(dependencies),
-                                           meta.get("approved_model"))
+        card_estimate = estimates.for_card(
+            rows,
+            meta.get("proposed_tier"),
+            types.get(card["id"]),
+            len(dependencies),
+            model=meta.get(APPROVED_MODEL_KEY),
+            aliases=aliases,
+        )
         result.append((card, md_path, meta, body, card_estimate))
     return result
 
@@ -285,18 +309,27 @@ class Coverage:
     open_with_agent: int = 0
     open_with_review: int = 0
     outliers: list[history.Sample] = field(default_factory=list)
+    models: list[tuple[str, int]] = field(default_factory=list)
 
 
-def coverage(home: Optional[Path] = None) -> Coverage:
+def coverage(home: Optional[Path] = None, *, aliases: dict[str, str] | None = None) -> Coverage:
     """Read-only: how many closed cards each estimate group has, and how many open cards of ALL the
     registered vaults would get an estimate right now. Takes no lock and writes nothing. Vaults
     whose canvas can't be read are left out of the open-card count."""
+    if aliases is None:
+        try:
+            cfg = config.load(Path.cwd())
+            if cfg and cfg.model_aliases:
+                aliases = cfg.model_aliases
+        except Exception:
+            aliases = None
     skipped: list[str] = []
     found, card_ids = history.read_all(home, skipped)
     rows = estimates.typed(found, card_ids)
     report = Coverage(samples=found, skipped=skipped, vault_names=history.vault_names(home),
                       agent=estimates.agent_coverage(rows), review=estimates.review_coverage(rows),
-                      outliers=estimates.outliers(found))
+                      outliers=estimates.outliers(found),
+                      models=estimates.agent_model_coverage(rows, aliases=aliases))
     seen: set[Path] = set()
     for vault_root in history.registered_vaults(home):
         if vault_root.resolve() in seen:
@@ -340,6 +373,26 @@ def _store_estimate(md_path: Path, meta: dict, body: str, e: estimates.CardEstim
     frontmatter.write(md_path, meta, body)
 
 
+def _json_safe(value):
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _is_content_tampered(vault_root: Path, card_id: str, meta: dict, body: str) -> bool:
+    expected = meta.get(frontmatter.CONTENT_HASH_KEY)
+    if expected is not None:
+        return frontmatter.body_hash(body) != expected
+    approved = _approved_path(vault_root, card_id)
+    if approved.exists():
+        return frontmatter.body_hash(body) != frontmatter.body_hash(approved.read_text(encoding="utf-8"))
+    return False
+
+
 @locked("status")  # recomputing Blocked can save the canvas
 def get_status(vault_root: Path) -> StatusResult:
     data = _load_valid(vault_root)
@@ -347,6 +400,10 @@ def get_status(vault_root: Path) -> StatusResult:
         canvas.save(vault_root, data)
     with history.snapshot():  # the estimates and the critical path read the same history: once
         open_estimates = refresh_estimates(vault_root, data)
+        try:
+            token_summary = tokens.summarize_vault(vault_root, card_ids=[c["id"] for c in canvas.cards(data)])
+        except Exception:
+            token_summary = None
 
         by_color: dict[str, list[dict]] = {c: [] for c in STATE_NAMES}
         for card in canvas.cards(data):
@@ -357,23 +414,30 @@ def get_status(vault_root: Path) -> StatusResult:
             summaries = []
             for card in by_color.get(color, []):
                 meta = {}
+                tampered = False
                 md_path = canvas.card_file_path(vault_root, card)
                 if md_path.exists():
-                    meta, _ = frontmatter.read(md_path)
+                    meta, body = frontmatter.read(md_path)
+                    tampered = _is_content_tampered(vault_root, card["id"], meta, body)
                 worker = meta.get(WORKER_KEY) if color == canvas.IN_PROGRESS else None
+                raw_evals = meta.get(EVAL_RESULTS_KEY)
+                eval_results = _json_safe(raw_evals) if isinstance(raw_evals, dict) else None
                 summaries.append(CardSummary(
                     id=card["id"], file=card["file"], description=meta.get("description"), worker=worker,
                     tier=meta.get("proposed_tier"), approved_model=meta.get("approved_model"),
                     proposed_model=meta.get("proposed_model"), estimate=open_estimates.get(card["id"]),
+                    eval_results=eval_results, content_tampered=tampered,
+                    token_usage=token_summary.cards.get(card["id"]) if token_summary is not None else None,
                 ))
             groups.append(StatusGroup(color=color, label=STATE_NAMES[color], cards=summaries))
         from . import critical  # critical reaches back into this module
 
         try:
             path = critical.refresh(vault_root)  # status repaints too, and shows the chain
+            undo.refresh_canvas_digest(vault_root)
         except Exception:
             path = None  # the critical path never keeps the human from seeing the board
-    return StatusResult(groups=groups, critical_path=path)
+    return StatusResult(groups=groups, critical_path=path, paused=pauses.current() is not None, tokens=token_summary)
 
 
 @dataclass
@@ -464,6 +528,7 @@ def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
     missing = [i for i in card_ids if canvas.find_card(data, i) is None]
     if missing:
         raise canvas.HistosError(f"card(s) not found: {', '.join(missing)}")
+    undo.stage(vault_root, [canvas.card_file_path(vault_root, canvas.find_card(data, cid)) for cid in card_ids])
     for card_id in card_ids:
         md_path = canvas.card_file_path(vault_root, canvas.find_card(data, card_id))
         meta, body = frontmatter.read(md_path)
@@ -471,6 +536,73 @@ def accept_edit(vault_root: Path, card_ids: list[str]) -> list[str]:
         frontmatter.write(md_path, meta, body)
         events.emit("edit_accepted", card=card_id)
     return card_ids
+
+
+@dataclass
+class ModelApproveResult:
+    card_id: str
+    model: str
+
+
+def _resolve_model_approval(vault_root: Path, data: dict, card_id: str,
+                            model_name: Optional[str]) -> tuple[Path, dict, str, str]:
+    card = canvas.find_card(data, card_id)
+    if card is None:
+        raise canvas.HistosError(f"card '{card_id}' doesn't exist")
+    md_path = canvas.card_file_path(vault_root, card)
+    meta, body = frontmatter.read(md_path)
+    if card["color"] == canvas.APPROVED and meta.get("approved_model"):
+        raise canvas.HistosError(f"'{card_id}' is already Approved -- its model stays as a record")
+    chosen = model_name.strip() if isinstance(model_name, str) and model_name.strip() else meta.get("proposed_model")
+    if not isinstance(chosen, str) or not chosen.strip():
+        raise canvas.HistosError(f"'{card_id}' has no proposed model to approve -- specify a model name")
+    return md_path, meta, body, chosen.strip()
+
+
+@locked("model")
+def approve_model(vault_root: Path, card_id: str, model_name: Optional[str] = None) -> ModelApproveResult:
+    """(Human) records the approved_model for a card, defaulting to its proposed_model."""
+    data = _load_valid(vault_root)
+    md_path, meta, body, chosen = _resolve_model_approval(vault_root, data, card_id, model_name)
+    undo.stage(vault_root, [md_path])
+    meta["approved_model"] = chosen
+    frontmatter.write(md_path, meta, body)
+    events.emit("model_approved", card=card_id, model=chosen)
+    return ModelApproveResult(card_id=card_id, model=chosen)
+
+
+@locked("model")
+def approve_models_batch(vault_root: Path, items: list[dict | str]) -> list[ModelApproveResult]:
+    """(Human) records approved_model for multiple cards atomically under one vault lock."""
+    if not items:
+        raise canvas.HistosError("no cards selected for model approval")
+    data = _load_valid(vault_root)
+    resolved: list[tuple[Path, dict, str, str, str]] = []
+    seen: set[str] = set()
+    for item in items:
+        if isinstance(item, str):
+            card_id, model_name = item, None
+        elif isinstance(item, dict):
+            card_id = item.get("card_id") or item.get("id")
+            model_name = item.get("model") if "model" in item else item.get("model_name")
+        else:
+            raise canvas.HistosError("each item must be a card id or {'card_id': ..., 'model': ...}")
+        if not isinstance(card_id, str) or not card_id.strip():
+            raise canvas.HistosError("each item must include a card_id")
+        card_id = card_id.strip()
+        if card_id in seen:
+            raise canvas.HistosError(f"duplicate card '{card_id}' in batch")
+        seen.add(card_id)
+        md_path, meta, body, chosen = _resolve_model_approval(vault_root, data, card_id, model_name)
+        resolved.append((md_path, meta, body, card_id, chosen))
+    undo.stage(vault_root, [md_path for md_path, *_ in resolved])
+    results: list[ModelApproveResult] = []
+    for md_path, meta, body, card_id, chosen in resolved:
+        meta["approved_model"] = chosen
+        frontmatter.write(md_path, meta, body)
+        events.emit("model_approved", card=card_id, model=chosen)
+        results.append(ModelApproveResult(card_id=card_id, model=chosen))
+    return results
 
 
 @locked("retry")
@@ -544,6 +676,7 @@ def arrange(vault_root: Path, *, set_aside_done: bool, prune_redundant: bool) ->
     data = _load_valid(vault_root)
     canvas_path = canvas.vault_canvas_path(vault_root)
     backup_path = canvas_path.with_name(canvas_path.name + ".bak")
+    undo.stage(vault_root, [canvas_path, backup_path])
     copy_file_atomic(canvas_path, backup_path)
 
     summary = canvas.arrange(data, set_aside_done=set_aside_done, prune_redundant=prune_redundant)
@@ -569,6 +702,7 @@ def _remember_pruned_dependencies(vault_root: Path, data: dict, pruned: list[tup
         md_path = canvas.card_file_path(vault_root, canvas.find_card(data, dependent))
         if not md_path.exists():
             continue
+        undo.stage(vault_root, [md_path])
         meta, body = frontmatter.read(md_path)
         implied = list(meta.get(IMPLIED_DEPENDENCIES_KEY) or [])
         implied += [d for d in dependencies if d not in implied]

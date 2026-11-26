@@ -21,7 +21,7 @@ from typing import Optional
 
 import webview
 
-from .. import canvas, config, evals, operations
+from .. import canvas, config, evals, guides, operations, pauses, plans
 
 _CONFIG_PATH = Path.home() / ".histos" / "gui_config.json"
 
@@ -139,6 +139,125 @@ class Api:
         except canvas.HistosError as e:
             return {"ok": False, "error": str(e)}
         return {"ok": True, "data": dataclasses.asdict(result)}
+
+    def pause(self, vault_path: Optional[str] = None) -> dict:
+        try:
+            _, new = pauses.pause()
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"paused": True, "new": new}}
+
+    def approve_model(self, vault_path: str, card_id: str, model_name: Optional[str] = None) -> dict:
+        try:
+            result = operations.approve_model(Path(vault_path), card_id, model_name)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": dataclasses.asdict(result)}
+
+    def approve_models_batch(self, vault_path: str, items: list) -> dict:
+        try:
+            results = operations.approve_models_batch(Path(vault_path), items)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"approved": [dataclasses.asdict(r) for r in results]}}
+
+    def retry(self, vault_path: str, card_id: str) -> dict:
+        try:
+            operations.retry(Path(vault_path), card_id)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"card_id": card_id}}
+
+    def accept_edit(self, vault_path: str, card_ids: list[str] | str) -> dict:
+        ids = [card_ids] if isinstance(card_ids, str) else list(card_ids)
+        if not ids:
+            return {"ok": False, "error": "no cards specified"}
+        try:
+            accepted = operations.accept_edit(Path(vault_path), ids)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"card_ids": accepted}}
+
+    def get_pending_guides(self, vault_path: str) -> dict:
+        try:
+            root = Path(vault_path)
+            if not root.is_dir():
+                raise canvas.HistosError(f"not a folder: {vault_path}")
+            items = []
+            for name in guides.pending(root):
+                diff = guides.get_diff(root, name)
+                items.append({
+                    "name": diff.name,
+                    "current": diff.current,
+                    "proposed": diff.proposed,
+                    "eval_results": operations._json_safe(guides.stored_evals(root, name)),
+                })
+            feedback = guides.feedback(root)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"guides": items, "feedback": feedback}}
+
+    def approve_guide(self, vault_path: str, name: str) -> dict:
+        try:
+            result = guides.approve(Path(vault_path), name)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {
+            "ok": True,
+            "data": {
+                "name": result.name,
+                "archived_previous": str(result.archived_previous) if result.archived_previous else None,
+            },
+        }
+
+    def reject_guide(self, vault_path: str, name: str, feedback: Optional[str] = None) -> dict:
+        try:
+            rejected = guides.reject(Path(vault_path), name, feedback or None)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"name": rejected}}
+
+    def get_pending_plan(self, vault_path: str) -> dict:
+        try:
+            root = Path(vault_path)
+            if not root.is_dir():
+                raise canvas.HistosError(f"not a folder: {vault_path}")
+            plan = plans.pending(root)
+            feedback = plans.last_feedback(root)
+            if plan is None:
+                return {"ok": True, "data": {"plan": None, "feedback": feedback}}
+            data = operations._load_valid(root)
+            payload = {
+                "summary": plan.summary,
+                "cards": [dataclasses.asdict(c) for c in plan.cards],
+                "levels": plans.levels(plan, data),
+                "warnings": plans.warnings(plan, data),
+                "errors": plans.structural_errors(plan, data),
+                "raw_yaml": plans.plan_path(root).read_text(encoding="utf-8"),
+            }
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"plan": payload, "feedback": feedback}}
+
+    def approve_plan(self, vault_path: str) -> dict:
+        try:
+            result = plans.approve(Path(vault_path))
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {
+            "ok": True,
+            "data": {
+                "created": [c["id"] for c in result.created],
+                "archived": str(result.archived),
+            },
+        }
+
+    def reject_plan(self, vault_path: str, feedback: Optional[str] = None) -> dict:
+        try:
+            cards = plans.reject(Path(vault_path), feedback or None)
+        except canvas.HistosError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "data": {"cards": cards}}
 
 
 def _selftest() -> int:

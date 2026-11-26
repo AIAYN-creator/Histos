@@ -151,7 +151,15 @@ evals:
   enabled: true
   path: evals/               # relative, inside the vault
   run_on: propose
+notifications:               # optional (default: enabled: true)
+  enabled: false             # set false to mute desktop notifications for this vault
 ```
+
+**`notifications`** (optional): `{ enabled: boolean }` (default: `true`). When set to `false`, desktop notifications are muted for all card transitions in this vault. Notifications can also be controlled globally via `histos notify [--on | --off | --status]` or the `HISTOS_NO_NOTIFY=1` environment variable.
+
+**`token_pricing`** and **`token_logs`** (optional, v3.4): `token_pricing` maps model names to per-1M-token USD rates (`input_per_1m`, `output_per_1m`, `cache_write_per_1m`, `cache_read_per_1m`) for `histos status` and `histos report`, overriding built-in defaults (missing rates keep token counts with unknown USD cost). `token_logs` lists additional local JSONL transcript files or folders beyond Claude Code's local session logs (`HISTOS_TOKEN_LOGS` overrides/adds paths from the environment).
+
+**`model_aliases`** (optional, v3.4): object mapping alternative model names (`"alias": "Canonical Name"`) so equivalent variants like `'Opus 5.5'` and `'Claude Opus 5.5'` aggregate together in `estimate --coverage`, `status`, and `report` without rewriting `events.jsonl` or card frontmatter.
 
 **Tiers are fixed:** `fast`, `exec` and `reasoning` must each appear exactly once — the file tunes their rules, not which tiers exist. Histos never maps a tier to a model: the agent does, for its own platform.
 
@@ -294,6 +302,8 @@ Every command that changes the vault records what it did in `.histos/events.json
 | `guide_proposed` / `guide_approved` / `guide_rejected` | `guide ...` | `file`, plus `words`/`lines`, or `feedback` and `recorded_in` (where the decision went, or `null`) |
 | `plan_proposed` / `plan_approved` / `plan_rejected` | `plan ...` | `cards`, plus `feedback` and `recorded_in` on a rejection |
 | `arranged` | `arrange` | `pruned` |
+| `archived` | `archive` | `cards`, `target` |
+| `undone` | `undo` | `reverted_event`, `reverted_ts` |
 | `state_recomputed` | any command whose only effect was a status change — e.g. `status` unblocking cards. With `seen_outside_histos: true`: colors changed by hand in Obsidian since the last recorded command, recorded with the time Histos saw them | — / `seen_outside_histos` |
 
 Read-only commands (`status` when nothing changed, `context`, `diff`, `validate`, `eval`) record nothing, and the text of proposals isn't copied into the log — it's already in `approved/`.

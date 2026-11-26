@@ -68,5 +68,5 @@ def test_agents_md_has_current_version_stamp():
 def test_agents_md_documents_commit_trailers():
     text = DOCS["AGENTS.md"]
     assert "Supervised-by:" in text
-    assert "Coordinated-by: Histos (https://github.com/AIAYN-creator/Histos)" in text
+    assert "Coordinated-by: Histos (<card-id>)" in text
     assert re.search(r"(?i)(?:never|no|without|forbid|avoid)[^.\n]*Co-Authored-By", text)

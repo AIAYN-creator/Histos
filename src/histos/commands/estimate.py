@@ -19,7 +19,18 @@ def cmd_estimate(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    report = operations.coverage()
+    aliases = None
+    try:
+        from .. import config
+        cfg = config.load(_vault_root())
+        if cfg and cfg.model_aliases:
+            aliases = cfg.model_aliases
+    except Exception:
+        aliases = None
+    if aliases:
+        report = operations.coverage(aliases=aliases)
+    else:
+        report = operations.coverage()
     if not report.samples:
         print("no closed cards yet: estimates start after the first approvals with histos 3.1+")
         for entry in report.skipped:
@@ -35,12 +46,9 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         print(f"  skipped: {entry}")
 
     _table("Agent time", report.agent)
+    if report.models:
+        _table("Agent time by model", report.models)
     _table("Review time", report.review)
-    models = estimates.model_coverage(report.samples)
-    if models:
-        print(f"\n{'Agent time by model':{NAME_WIDTH}}  cards   (its own estimate once a group has {estimates.MIN_SAMPLES})")
-        for model, count in models:
-            print(f"  {model:{NAME_WIDTH - 2}}  {count:>5}")
     print(f"\nOpen cards with an estimate right now: agent {report.open_with_agent} of {report.open_cards}, "
           f"review {report.open_with_review} of {report.open_cards}")
 
@@ -54,10 +62,11 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
 def _table(title: str, groups: list[tuple]) -> None:
     print(f"\n{title:<{NAME_WIDTH + 2}}{'cards':>5}   enough?")
-    for group, count in groups:
+    for item, count in groups:
         missing = estimates.still_needed(count)
         enough = "yes" if not missing else f"{missing} more"
-        print(f"  {estimates.group_label(group):<{NAME_WIDTH}}{count:>5}   {enough}")
+        label = estimates.group_label(item) if isinstance(item, tuple) else str(item)
+        print(f"  {label:<{NAME_WIDTH}}{count:>5}   {enough}")
 
 
 def cmd_report(args: argparse.Namespace) -> int:
