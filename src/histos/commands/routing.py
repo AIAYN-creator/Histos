@@ -56,8 +56,14 @@ def cmd_classify(args: argparse.Namespace) -> int:
         meta, body = frontmatter.read(md_path)
         previous = meta.get("proposed_tier")
         cleared = []
+        cleared_executor = None
         if previous and previous != result.tier:
             cleared = [f"{k} '{meta.pop(k)}'" for k in ("proposed_model", "approved_model") if k in meta]
+            prev_exec = meta.get("approved_executor") or meta.get("proposed_executor")
+            exec_cleared = [f"{k} '{meta.pop(k)}'" for k in ("proposed_executor", "approved_executor") if k in meta]
+            if exec_cleared:
+                cleared_executor = prev_exec
+                cleared.extend(exec_cleared)
             if cleared:
                 print(
                     f"warning: {card['id']}: tier changed {previous} -> {result.tier}, cleared "
@@ -68,6 +74,8 @@ def cmd_classify(args: argparse.Namespace) -> int:
         frontmatter.write(md_path, meta, body)
         events.emit("classified", card=card["id"], tier=result.tier, previous_tier=previous,
                     model_cleared=bool(cleared))
+        if cleared_executor:
+            events.emit("executor_cleared", card=card["id"], executor=cleared_executor, reason="reclassified")
     if not args.dry_run:
         operations.refresh_estimates(vault_root, data)  # the tier changes which cards it is compared with
 
@@ -78,23 +86,72 @@ def cmd_classify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_model_cmd_inputs(args: argparse.Namespace) -> tuple[str | None, str | None, str | None, str | None, bool, bool]:
+    """Validates mutually-exclusive flag combinations for `cmd_model` and returns
+    `(proposed_model, approved_model, proposed_exec, approved_exec, clear_all, clear_exec)`."""
+    prop_m = getattr(args, "proposed", None)
+    appr_m = getattr(args, "approved", None)
+    exec_pair = getattr(args, "executor", None)
+    prop_e = getattr(args, "proposed_executor", None)
+    appr_e = getattr(args, "approved_executor", None)
+    clear_all = bool(getattr(args, "clear", False))
+    clear_exec = bool(getattr(args, "clear_executor", False))
+
+    if clear_all and any([prop_m, appr_m, exec_pair, prop_e, appr_e, clear_exec]):
+        raise canvas.HistosError("--clear cannot be combined with other flags")
+    if clear_exec and any([prop_m, appr_m, exec_pair, prop_e, appr_e]):
+        raise canvas.HistosError("--clear-executor cannot be combined with propose/approve flags")
+    if prop_m and appr_m:
+        raise canvas.HistosError("pass at most one of --proposed or --approved")
+    if prop_e and appr_e:
+        raise canvas.HistosError("pass at most one of --proposed-executor or --approved-executor")
+    if exec_pair:
+        if prop_e or appr_e:
+            raise canvas.HistosError("pass either --executor with --proposed/--approved, or --proposed-executor/--approved-executor")
+        if prop_m:
+            prop_e = exec_pair
+        elif appr_m:
+            appr_e = exec_pair
+        else:
+            raise canvas.HistosError("--executor must be paired with --proposed or --approved (or use --proposed-executor / --approved-executor)")
+    if not any([prop_m, appr_m, prop_e, appr_e, clear_all, clear_exec]):
+        raise canvas.HistosError("pass exactly one of --proposed, --approved, --proposed-executor, --approved-executor, --clear, or --clear-executor")
+    return prop_m, appr_m, prop_e, appr_e, clear_all, clear_exec
+
+
 @_with_vault_lock
 def cmd_model(args: argparse.Namespace) -> int:
-    """Records the concrete model for cards: proposed by the agent, approved by the human."""
+    """Records the concrete model and/or opt-in executor for cards."""
     vault_root = _vault_root()
-    chosen = [flag for flag in ("proposed", "approved") if getattr(args, flag)] + (["clear"] if args.clear else [])
-    if len(chosen) != 1:
-        print("error: pass exactly one of --proposed, --approved or --clear", file=sys.stderr)
+    try:
+        prop_m, appr_m, prop_e, appr_e, clear_all, clear_exec = _resolve_model_cmd_inputs(args)
+    except canvas.HistosError as e:
+        print(f"error: {e}", file=sys.stderr)
         return 1
-    if args.approved and not args.authorized:
+
+    if (appr_m or appr_e) and not args.authorized:
         print(
-            "error: --approved records the human's choice and needs explicit authorization -- "
-            "only add --authorized if they said yes to this model in the conversation",
+            "error: --approved / --approved-executor records the human's choice and needs explicit authorization -- "
+            "only add --authorized if they said yes in the conversation",
             file=sys.stderr,
         )
         return 1
+
     try:
         data = operations._load_valid(vault_root)
+        chosen_exec = prop_e or appr_e
+        exec_cfg = None
+        if chosen_exec is not None:
+            cfg = config.load(vault_root)
+            if cfg is None or not cfg.executors.enabled:
+                raise canvas.HistosError(
+                    "executors are disabled in this vault -- enable 'executors.enabled: true' "
+                    f"and list allowed entries in {config.CONFIG_FILENAME}"
+                )
+            exec_cfg = cfg.executors.find(chosen_exec)
+            if exec_cfg is None:
+                allowed = ", ".join(entry.name for entry in cfg.executors.allowed) or "(none)"
+                raise canvas.HistosError(f"executor '{chosen_exec}' is not in executors.allowed ({allowed})")
     except canvas.HistosError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -106,14 +163,24 @@ def cmd_model(args: argparse.Namespace) -> int:
             print(f"error: card '{card_id}' doesn't exist", file=sys.stderr)
             return 1
         if card["color"] == canvas.APPROVED:
-            # The human often says yes to the model and approves the card in one go, so the card
-            # can turn green before the agent records that yes: --approved may still fill an
-            # empty approved_model. Anything else on an approved card is refused -- it's a record.
+            # The human often says yes and approves the card in one go, so the card can turn green
+            # before the agent records that yes: --approved / --approved-executor may fill empty
+            # fields, but never overwrite already recorded values.
             meta, _ = frontmatter.read(canvas.card_file_path(vault_root, card))
-            if not args.approved or meta.get("approved_model"):
-                print(f"error: '{card_id}' is already Approved -- its model stays as a record", file=sys.stderr)
+            if clear_all or clear_exec or prop_m or prop_e:
+                print(f"error: '{card_id}' is already Approved -- its model/executor stays as a record", file=sys.stderr)
+                return 1
+            if (appr_m and meta.get("approved_model")) or (appr_e and meta.get("approved_executor")):
+                print(f"error: '{card_id}' is already Approved -- its model/executor stays as a record", file=sys.stderr)
                 return 1
         cards.append(card)
+
+    if exec_cfg is not None and exec_cfg.pricing_tier == "free":
+        print(
+            f"warning: executor '{exec_cfg.name}' uses a free pricing tier -- "
+            "providers may use data for training; do not use it in private vaults.",
+            file=sys.stderr,
+        )
 
     undo.stage(
         vault_root,
@@ -122,25 +189,45 @@ def cmd_model(args: argparse.Namespace) -> int:
     for card in cards:
         md_path = canvas.card_file_path(vault_root, card)
         meta, body = frontmatter.read(md_path)
-        if args.clear:
+        if clear_all:
             meta.pop("proposed_model", None)
             meta.pop("approved_model", None)
-        else:
-            if not meta.get("proposed_tier"):
-                print(f"warning: {card['id']} has no proposed_tier -- run 'histos classify {card['id']}' first?",
-                      file=sys.stderr)
-            meta["proposed_model" if args.proposed else "approved_model"] = args.proposed or args.approved
-        frontmatter.write(md_path, meta, body)
-        if args.clear:
+            prev_exec = meta.get("approved_executor") or meta.get("proposed_executor")
+            meta.pop("proposed_executor", None)
+            meta.pop("approved_executor", None)
+            frontmatter.write(md_path, meta, body)
             events.emit("model_cleared", card=card["id"])
+            if prev_exec is not None:
+                events.emit("executor_cleared", card=card["id"], executor=prev_exec)
             print(f"{card['id']}: models cleared")
             continue
-        events.emit("model_proposed" if args.proposed else "model_approved", card=card["id"],
-                    model=args.proposed or args.approved)
-        notes = [f"{k}: {meta[v]}" for k, v in (("proposed", "proposed_model"), ("tier", "proposed_tier"))
-                 if args.approved and meta.get(v)]
-        field_name = "proposed_model" if args.proposed else "approved_model"
-        print(f"{card['id']}: {field_name} = {meta[field_name]}" + (f" ({', '.join(notes)})" if notes else ""))
+        if clear_exec:
+            prev_exec = meta.get("approved_executor") or meta.get("proposed_executor")
+            meta.pop("proposed_executor", None)
+            meta.pop("approved_executor", None)
+            frontmatter.write(md_path, meta, body)
+            events.emit("executor_cleared", card=card["id"], executor=prev_exec)
+            print(f"{card['id']}: executors cleared")
+            continue
+
+        if not meta.get("proposed_tier"):
+            print(f"warning: {card['id']} has no proposed_tier -- run 'histos classify {card['id']}' first?",
+                  file=sys.stderr)
+        outputs: list[str] = []
+        if prop_m or appr_m:
+            field_name = "proposed_model" if prop_m else "approved_model"
+            meta[field_name] = prop_m or appr_m
+            events.emit("model_proposed" if prop_m else "model_approved", card=card["id"], model=meta[field_name])
+            notes = [f"{k}: {meta[v]}" for k, v in (("proposed", "proposed_model"), ("tier", "proposed_tier"))
+                     if appr_m and meta.get(v)]
+            outputs.append(f"{field_name} = {meta[field_name]}" + (f" ({', '.join(notes)})" if notes else ""))
+        if exec_cfg is not None:
+            ex_field = "proposed_executor" if prop_e else "approved_executor"
+            meta[ex_field] = exec_cfg.name
+            events.emit("executor_proposed" if prop_e else "executor_approved", card=card["id"], executor=exec_cfg.name)
+            outputs.append(f"{ex_field} = {exec_cfg.name}")
+        frontmatter.write(md_path, meta, body)
+        print(f"{card['id']}: {', '.join(outputs)}")
     return 0
 
 

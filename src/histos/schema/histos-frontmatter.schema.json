@@ -47,6 +47,8 @@
     "proposed_tier": { "enum": ["fast", "exec", "reasoning"] },
     "proposed_model": { "type": "string", "minLength": 1 },
     "approved_model": { "type": "string", "minLength": 1 },
+    "proposed_executor": { "type": "string", "minLength": 1 },
+    "approved_executor": { "type": "string", "minLength": 1 },
     "eval_results": {
       "type": "object",
       "additionalProperties": false,

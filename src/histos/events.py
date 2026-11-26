@@ -41,6 +41,7 @@ EVENTS = frozenset({
     "vault_created", "config_added",
     "card_created", "dependency_added", "described", "assigned",
     "classified", "model_proposed", "model_approved", "model_cleared",
+    "executor_proposed", "executor_approved", "executor_cleared",
     "proposed", "proposal_refused", "approved", "rejected", "retry", "edit_accepted", "implementation_started", "implementation_done",
     "guide_proposed", "guide_approved", "guide_rejected",
     "plan_proposed", "plan_approved", "plan_rejected",

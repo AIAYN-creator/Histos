@@ -64,6 +64,26 @@ class TokenPricingConfig:
 
 
 @dataclass
+class ExecutorConfig:
+    name: str
+    pricing_tier: str  # "free" | "paid"
+    provider: str | None = None
+
+
+@dataclass
+class ExecutorsConfig:
+    enabled: bool = False
+    allowed: list[ExecutorConfig] = field(default_factory=list)
+
+    def find(self, name: str) -> ExecutorConfig | None:
+        target = name.strip()
+        for entry in self.allowed:
+            if entry.name == target:
+                return entry
+        return None
+
+
+@dataclass
 class Config:
     tiers: dict[str, Tier]
     evals: EvalsConfig
@@ -73,6 +93,7 @@ class Config:
     token_pricing: dict[str, TokenPricingConfig] = None  # type: ignore[assignment]
     token_logs: list[str] = None  # type: ignore[assignment]
     model_aliases: dict[str, str] = field(default_factory=dict)
+    executors: ExecutorsConfig = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.critical_path is None:
@@ -85,6 +106,8 @@ class Config:
             self.token_logs = []
         if self.model_aliases is None:
             self.model_aliases = {}
+        if self.executors is None:
+            self.executors = ExecutorsConfig()
 
 
 def config_path(vault_root: Path) -> Path:
@@ -143,6 +166,21 @@ def _read_and_check(vault_root: Path, path: Path) -> tuple[dict, list[str]]:
     evals_path = (raw.get("evals") or {}).get("path")
     if evals_path is not None and not _inside_vault(vault_root, evals_path):
         errors.append(f"evals/path: '{evals_path}' must be a relative path inside the vault")
+
+    ex = raw.get("executors")
+    if isinstance(ex, dict):
+        allowed = ex.get("allowed") or []
+        seen_names: set[str] = set()
+        for idx, entry in enumerate(allowed):
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name", "")
+            if isinstance(name, str):
+                if name in seen_names:
+                    errors.append(f"executors/allowed/{idx}/name: duplicate executor name '{name}'")
+                seen_names.add(name)
+        if ex.get("enabled") is True and not allowed:
+            errors.append("executors: enabled is true but 'allowed' has no executors configured")
     return raw, errors
 
 
@@ -196,6 +234,18 @@ def _build(raw: dict) -> Config:
         for k, v in raw_aliases.items()
         if isinstance(k, str) and isinstance(v, str)
     }
+    ex_raw = raw.get("executors") or {}
+    executors = ExecutorsConfig(
+        enabled=bool(ex_raw.get("enabled", False)),
+        allowed=[
+            ExecutorConfig(
+                name=str(entry["name"]),
+                pricing_tier=str(entry["pricing_tier"]),
+                provider=str(entry["provider"]) if entry.get("provider") is not None else None,
+            )
+            for entry in (ex_raw.get("allowed") or [])
+        ],
+    )
     return Config(
         tiers=tiers,
         evals=evals,
@@ -205,6 +255,7 @@ def _build(raw: dict) -> Config:
         token_pricing=token_pricing,
         token_logs=token_logs,
         model_aliases=model_aliases,
+        executors=executors,
     )
 
 

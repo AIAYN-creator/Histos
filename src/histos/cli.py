@@ -103,12 +103,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="print tiers and a summary, write nothing")
     p.set_defaults(func=cmd_classify)
 
-    p = sub.add_parser("model", help="records the concrete model for cards: --proposed (agent) or --approved (human's yes)")
+    p = sub.add_parser("model", help="records the concrete model (and opt-in executor) for cards: --proposed or --approved")
     p.add_argument("ids", nargs="+", metavar="ID")
     p.add_argument("--proposed", metavar="MODEL", help="the model the agent proposes, e.g. 'Sonnet 5.5'")
     p.add_argument("--approved", metavar="MODEL", help="the model the human approved (may differ from the proposed one)")
-    p.add_argument("--authorized", action="store_true", help="the human said yes to --approved in this conversation")
-    p.add_argument("--clear", action="store_true", help="remove both models")
+    p.add_argument("--executor", metavar="EXECUTOR", help="opt-in executor paired with --proposed or --approved (requires executors.enabled in histos.config.yaml)")
+    p.add_argument("--proposed-executor", metavar="EXECUTOR", help="propose only an opt-in executor without changing the model")
+    p.add_argument("--approved-executor", metavar="EXECUTOR", help="approve only an opt-in executor (requires --authorized)")
+    p.add_argument("--authorized", action="store_true", help="the human said yes to --approved / --approved-executor in this conversation")
+    p.add_argument("--clear", action="store_true", help="remove both models and any executors")
+    p.add_argument("--clear-executor", action="store_true", help="remove only proposed_executor and approved_executor")
     p.set_defaults(func=cmd_model)
 
     p = sub.add_parser(
