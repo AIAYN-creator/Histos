@@ -73,7 +73,7 @@ histos link <id> --depends-on ID... --authorized
 histos describe <id> [--text "..."] [--sources PATH...]
 histos assign <id>... [--worker NAME]
 histos classify <id>... | --all
-histos model <id>... --proposed "..." | --approved "..." --authorized
+histos model <id>... --proposed "..." [--executor NAME] | --approved "..." --authorized
 histos context <id> [--for-subagent]
 histos eval <id>|PROJECT.md --file <draft>
 histos propose <id> --file <draft>
@@ -83,4 +83,4 @@ histos guide propose PROJECT.md|ARCHITECTURE.md --file <draft>
 
 `histos <command> --help` for details.
 
-<!-- histos-template-version: 3.4.0 -->
+<!-- histos-template-version: 3.5.0 -->
